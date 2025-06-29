@@ -32,56 +32,45 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		4F202D102E0FDCA50047CAE8 /* Exceptions for "SwiftGLTFSample_macOS" folder in "SwiftGLTFSample_macOS" target */ = {
+		4F2030602E1189100047CAE8 /* Exceptions for "SwiftGLTFSample" folder in "SwiftGLTFSample_macOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Info.plist,
+				"/Localized: macOS/Main.storyboard",
+				macOS/AppDelegate.swift,
+				macOS/Assets.xcassets,
+				macOS/DraggableView.swift,
+				macOS/ViewController.swift,
+				Resources/env_map.exr,
+				"Resources/sphere-with-color.bin",
+				"Resources/sphere-with-color.gltf",
+				Resources/sphere.bin,
+				Resources/sphere.gltf,
 			);
 			target = 4F2EC0C12DEBEFF0004C76AC /* SwiftGLTFSample_macOS */;
 		};
-		4F202FFA2E116AE50047CAE8 /* Exceptions for "Resources" folder in "SwiftGLTFSample_macOS" target */ = {
+		4F2030772E11897F0047CAE8 /* Exceptions for "SwiftGLTFSample" folder in "SwiftGLTFSample_iOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				env_map.exr,
-				"sphere-with-color.bin",
-				"sphere-with-color.gltf",
-				sphere.bin,
-				sphere.gltf,
-			);
-			target = 4F2EC0C12DEBEFF0004C76AC /* SwiftGLTFSample_macOS */;
-		};
-		4F2EC0672DEBDD27004C76AC /* Exceptions for "SwiftGLTFSample_iOS" folder in "SwiftGLTFSample_iOS" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
+				"/Localized: macOS/Main.storyboard",
+				iOS/Info.plist,
+				macOS/AppDelegate.swift,
+				macOS/Assets.xcassets,
+				macOS/DraggableView.swift,
+				macOS/Info.plist,
+				macOS/ViewController.swift,
 			);
 			target = 4F2EC0542DEBDD26004C76AC /* SwiftGLTFSample_iOS */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		4F202FEA2E116ACB0047CAE8 /* Resources */ = {
+		4F2EC0572DEBDD26004C76AC /* SwiftGLTFSample */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				4F202FFA2E116AE50047CAE8 /* Exceptions for "Resources" folder in "SwiftGLTFSample_macOS" target */,
+				4F2030772E11897F0047CAE8 /* Exceptions for "SwiftGLTFSample" folder in "SwiftGLTFSample_iOS" target */,
+				4F2030602E1189100047CAE8 /* Exceptions for "SwiftGLTFSample" folder in "SwiftGLTFSample_macOS" target */,
 			);
-			path = Resources;
-			sourceTree = "<group>";
-		};
-		4F2EC0572DEBDD26004C76AC /* SwiftGLTFSample_iOS */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				4F2EC0672DEBDD27004C76AC /* Exceptions for "SwiftGLTFSample_iOS" folder in "SwiftGLTFSample_iOS" target */,
-			);
-			path = SwiftGLTFSample_iOS;
-			sourceTree = "<group>";
-		};
-		4F2EC0C32DEBEFF0004C76AC /* SwiftGLTFSample_macOS */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				4F202D102E0FDCA50047CAE8 /* Exceptions for "SwiftGLTFSample_macOS" folder in "SwiftGLTFSample_macOS" target */,
-			);
-			path = SwiftGLTFSample_macOS;
+			path = SwiftGLTFSample;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -111,9 +100,7 @@
 		4F2EC04C2DEBDD26004C76AC = {
 			isa = PBXGroup;
 			children = (
-				4F202FEA2E116ACB0047CAE8 /* Resources */,
-				4F2EC0572DEBDD26004C76AC /* SwiftGLTFSample_iOS */,
-				4F2EC0C32DEBEFF0004C76AC /* SwiftGLTFSample_macOS */,
+				4F2EC0572DEBDD26004C76AC /* SwiftGLTFSample */,
 				4F2EC0A12DEBEE32004C76AC /* Frameworks */,
 				4F2EC0562DEBDD26004C76AC /* Products */,
 			);
@@ -152,8 +139,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				4F202FEA2E116ACB0047CAE8 /* Resources */,
-				4F2EC0572DEBDD26004C76AC /* SwiftGLTFSample_iOS */,
+				4F2EC0572DEBDD26004C76AC /* SwiftGLTFSample */,
 			);
 			name = SwiftGLTFSample_iOS;
 			packageProductDependencies = (
@@ -175,9 +161,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				4F2EC0C32DEBEFF0004C76AC /* SwiftGLTFSample_macOS */,
 			);
 			name = SwiftGLTFSample_macOS;
 			packageProductDependencies = (
@@ -273,7 +256,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2CMV7D36JC;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = SwiftGLTFSample_iOS/Info.plist;
+				INFOPLIST_FILE = SwiftGLTFSample/iOS/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -301,7 +284,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2CMV7D36JC;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = SwiftGLTFSample_iOS/Info.plist;
+				INFOPLIST_FILE = SwiftGLTFSample/iOS/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -444,14 +427,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = SwiftGLTFSample_macOS/SwiftGLTFSample_macOS.entitlements;
+				CODE_SIGN_ENTITLEMENTS = SwiftGLTFSample/macOS/SwiftGLTFSample_macOS.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2CMV7D36JC;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = SwiftGLTFSample_macOS/Info.plist;
+				INFOPLIST_FILE = SwiftGLTFSample/macOS/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainStoryboardFile = Main;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -474,14 +457,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = SwiftGLTFSample_macOS/SwiftGLTFSample_macOS.entitlements;
+				CODE_SIGN_ENTITLEMENTS = SwiftGLTFSample/macOS/SwiftGLTFSample_macOS.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2CMV7D36JC;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = SwiftGLTFSample_macOS/Info.plist;
+				INFOPLIST_FILE = SwiftGLTFSample/macOS/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainStoryboardFile = Main;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
