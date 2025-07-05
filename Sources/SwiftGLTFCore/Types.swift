@@ -31,6 +31,8 @@ public struct Material: Codable {
     public let alphaMode: String?
     public let alphaCutoff: Float?
     public let doubleSided: Bool?
+    /// Optional glTF extensions for Material
+    public let extensions: MaterialExtensions?
 }
 
 public struct PBRMetallicRoughness: Codable {
@@ -271,4 +273,22 @@ public enum GLTFPrimitiveMode: Int, Codable {
     case triangles = 4           // TRIANGLES
     case triangleStrip = 5       // TRIANGLE_STRIP
     case triangleFan = 6         // TRIANGLE_FAN
+}
+// MARK: - KHR_materials_emissive_strength extension
+/// glTF extension KHR_materials_emissive_strength provides a multiplier for emissive color and textures.
+public struct KHRMaterialsEmissiveStrength: Codable {
+    /// The emissive strength multiplier. Defaults to 1.0 if not specified.
+    public let emissiveStrength: Float
+    enum CodingKeys: String, CodingKey {
+        case emissiveStrength = "emissiveStrength"
+    }
+}
+
+/// Container for material-specific extensions
+public struct MaterialExtensions: Codable {
+    /// KHR_materials_emissive_strength extension data
+    public let khrMaterialsEmissiveStrength: KHRMaterialsEmissiveStrength?
+    enum CodingKeys: String, CodingKey {
+        case khrMaterialsEmissiveStrength = "KHR_materials_emissive_strength"
+    }
 }

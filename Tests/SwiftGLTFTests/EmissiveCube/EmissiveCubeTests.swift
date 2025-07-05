@@ -12,7 +12,8 @@ struct EmissiveCubeTests {
         let material = submesh.material!
         let emissiveFactor = material.property(with: .emission)!
 
-        #expect(emissiveFactor.float3Value == SIMD3<Float>(0, 0, 1))
+        // Emissive strength extension multiplies the base factor (1.0) by 20.0 specified in the glTF
+        #expect(emissiveFactor.float3Value == SIMD3<Float>(0, 0, 20))
     }
 
     // MARK: - Helper Methods

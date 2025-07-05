@@ -736,11 +736,16 @@ private func makeMDLMaterial(for primitive: Primitive, _ gltf: GLTF, _ bufferLoa
             material.setProperty(metallicRoughnessProp)
         }
 
-        // Emissive
-        let emissiveProp = MDLMaterialProperty(name: "emissive", semantic: .emission, float3: simd_float3(0, 0, 0))
-        if let emissiveFactor = gltfMaterial.emissiveFactor {
-            emissiveProp.float3Value = simd_float3(emissiveFactor[0], emissiveFactor[1], emissiveFactor[2])
+        // Emissive (with support for KHR_materials_emissive_strength)
+        // Compute base emissive color
+        var emissiveColor = simd_float3(0, 0, 0)
+        if let emissiveFactor = gltfMaterial.emissiveFactor, emissiveFactor.count >= 3 {
+            emissiveColor = simd_float3(emissiveFactor[0], emissiveFactor[1], emissiveFactor[2])
         }
+        // Apply emissive strength extension if present
+        let emissiveStrength: Float = gltfMaterial.extensions?.khrMaterialsEmissiveStrength?.emissiveStrength ?? 1.0
+        emissiveColor *= emissiveStrength
+        let emissiveProp = MDLMaterialProperty(name: "emissive", semantic: .emission, float3: emissiveColor)
         if let emissiveTexture = gltfMaterial.emissiveTexture,
            let sampler = loadTextureSampler(for: emissiveTexture, from: gltf, textures: textures) {
             emissiveProp.textureSamplerValue = sampler

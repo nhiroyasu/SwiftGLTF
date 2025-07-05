@@ -171,7 +171,7 @@ class PBRMeshLoader {
                 }()
                 var emissiveTexture: MTLTexture?
                 var emissiveSamplerState: MTLSamplerState?
-                if let tex = try emissiveSampler.texture?.imageFromTexture(device: device) {
+                if let tex = try emissiveSampler.texture?.imageFromTexture(device: device, convertLinearColorSpace: true) {
                     emissiveTexture = try shaderConnection.makeEmissiveTexture(
                         emissiveFactor: mdlSubmesh.material?.property(with: .emission)?.float3Value ?? SIMD3<Float>(0, 0, 0),
                         emissiveTexture: tex
