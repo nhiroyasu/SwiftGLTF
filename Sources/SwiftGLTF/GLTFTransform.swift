@@ -1,8 +1,10 @@
+import Foundation
+import ModelIO
 
 public class GLTFTransform: NSObject, MDLTransformComponent {
-    public let matrix: matrix_float4x4
+    public var matrix: matrix_float4x4
 
-    public let resetsTransform: Bool
+    public var resetsTransform: Bool
 
     public let minimumTime: TimeInterval
 

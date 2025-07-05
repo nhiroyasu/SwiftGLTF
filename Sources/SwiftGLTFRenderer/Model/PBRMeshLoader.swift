@@ -331,7 +331,7 @@ extension MDLTexture {
         }
 
         let region = MTLRegionMake2D(0, 0, Int(self.dimensions.x), Int(self.dimensions.y))
-        guard let texelData = self.texelDataWithTopLeftOrigin() else {
+        guard let texelData = self.texelDataWithBottomLeftOrigin() else {
             throw NSError(
                 domain: "MDLTexture",
                 code: 3,

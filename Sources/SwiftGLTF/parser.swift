@@ -103,12 +103,13 @@ public func makeMDLMesh(
     from mesh: Mesh,
     using gltf: GLTF,
     bufferLoader: GLTFBufferLoader,
+    preloadTextures: [Int: MDLTexture?],
     options: GLTFDecodeOptions = .default
 ) throws -> [MDLMesh] {
     let allocator = MTKMeshBufferAllocator(device: MTLCreateSystemDefaultDevice()!) // TODO: Metal device should be passed from outside
 
     var mdlMeshes: [MDLMesh] = []
-    for primitive in mesh.primitives {
+    for (index, primitive) in mesh.primitives.enumerated() {
         let vertexCount = retrieveVertexCount(for: primitive, accessors: gltf.accessors ?? [])
 
         // Make an index buffer
@@ -125,7 +126,7 @@ public func makeMDLMesh(
         if options.generateNormalVertexIfNeeded,
            normalVertex == nil,
            primitive.mode == .triangles {
-            os_log("Generating normals for primitive", log: .default, type: .info)
+            os_log("Generating normals for primitives[%d]", log: .default, type: .info, index)
             normalVertex = try generateNormalVertex(positionVertex: positionVertex, indexInfo: indexInfo)
         }
 
@@ -134,7 +135,7 @@ public func makeMDLMesh(
            let normalVertex,
            let texcoordVertex,
            primitive.mode == .triangles {
-            os_log("Generating tangents for primitive", log: .default, type: .info)
+            os_log("Generating tangents for primitive[%d]", log: .default, type: .info, index)
             tangentVertex = try generateTangents(positionVertex, normalVertex, texcoordVertex, indexInfo, vertexCount: vertexCount, options: options)
             isGeneratedTangents = true
         }
@@ -161,7 +162,7 @@ public func makeMDLMesh(
         let vertexBuffer = allocator.newBuffer(with: vertexData, type: .vertex)
 
         // Create a MDLMaterial
-        let mdlMaterial = try makeMDLMaterial(for: primitive, gltf, bufferLoader)
+        let mdlMaterial = try makeMDLMaterial(for: primitive, gltf, bufferLoader, preloadTextures)
 
         // Generate a submesh
         let submesh: MDLSubmesh
@@ -186,16 +187,27 @@ public func makeMDLMesh(
 }
 
 public func makeMDLAsset(from gltf: GLTF, baseURL: URL, options: GLTFDecodeOptions = .default) throws -> MDLAsset {
+    #if DEBUG
+    let now = Date()
+    #endif
+
     let device = MTLCreateSystemDefaultDevice()!
     let allocator = MTKMeshBufferAllocator(device: device)
     let asset = MDLAsset(bufferAllocator: allocator)
     let bufferLoader = try GLTFBufferLoader(gltf: gltf, baseURL: baseURL)
+    let preloadTextures = preloadRawTextures(gltf, baseURL: baseURL)
 
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
     var mdlMeshMap: [Int: [MDLMesh]] = [:]
     for (index, mesh) in (gltf.meshes ?? []).enumerated() {
-        mdlMeshMap[index] = try makeMDLMesh(from: mesh, using: gltf, bufferLoader: bufferLoader, options: options)
+        mdlMeshMap[index] = try makeMDLMesh(
+            from: mesh,
+            using: gltf,
+            bufferLoader: bufferLoader,
+            preloadTextures: preloadTextures,
+            options: options
+        )
     }
 
     // デフォルトシーンを取得
@@ -216,10 +228,15 @@ public func makeMDLAsset(from gltf: GLTF, baseURL: URL, options: GLTFDecodeOptio
         let scale = 1 / max
         for i in 0..<asset.count {
             let matrix = asset.object(at: i).transform?.matrix ?? matrix_identity_float4x4
-            asset.object(at: i).transform = MDLTransform(matrix: scaleMatrix(scale, scale, scale) * matrix)
+            asset.object(at: i).transform = GLTFTransform(matrix: scaleMatrix(scale, scale, scale) * matrix)
         }
         os_log("Scaling asset by factor: %{public}f", log: .default, type: .info, scale)
     }
+
+    #if DEBUG
+    let elapsed = Date().timeIntervalSince(now)
+    os_log("MDLAsset created in %{public}.2f seconds", log: .default, type: .info, elapsed)
+    #endif
 
     return asset
 }
@@ -249,7 +266,7 @@ func buildNodeTree(
     if let matrix = node.matrix {
         let transformMatrix = float4x4(matrix)
         let finalMatrix = options.convertToLeftHanded ? flipToLeftHanded(transformMatrix) : transformMatrix
-        object.transform = MDLTransform(matrix: finalMatrix)
+        object.transform = GLTFTransform(matrix: finalMatrix)
     } else {
         var translation = float4x4(1.0)
         if let t = node.translation {
@@ -266,7 +283,7 @@ func buildNodeTree(
         }
         let localMatrix = translation * rotation * scale
         let finalMatrix = options.convertToLeftHanded ? flipToLeftHanded(localMatrix) : localMatrix
-        object.transform = MDLTransform(matrix: finalMatrix)
+        object.transform = GLTFTransform(matrix: finalMatrix)
     }
 
     // 子ノードを再帰的に追加
@@ -376,8 +393,7 @@ private func preloadRawTextures(_ gltf: GLTF, baseURL: URL) -> [Int: MDLTexture?
     var textures: [Int: MDLTexture?] = [:]
     for (index, image) in (gltf.images ?? []).enumerated() {
         if let uri = image.uri, let url = URL(string: uri, relativeTo: baseURL) {
-            let tex = MDLTexture(named: url.path)
-            tex?.name = image.name ?? "Texture_\(index)"
+            let tex = MDLURLTexture(url: url, name: image.name ?? "Texture_\(index)")
             textures[index] = tex
         } else {
             textures[index] = nil
@@ -677,7 +693,12 @@ private func makeVertexData(
     return vertexData
 }
 
-private func makeMDLMaterial(for primitive: Primitive, _ gltf: GLTF, _ bufferLoader: GLTFBufferLoader) throws -> MDLMaterial? {
+private func makeMDLMaterial(
+    for primitive: Primitive,
+    _ gltf: GLTF,
+    _ bufferLoader: GLTFBufferLoader,
+    _ textures: [Int: MDLTexture?]
+) throws -> MDLMaterial? {
     guard let materialIndex = primitive.material else {
         return nil
     }
@@ -688,8 +709,6 @@ private func makeMDLMaterial(for primitive: Primitive, _ gltf: GLTF, _ bufferLoa
     }
 
     let gltfMaterial = materials[materialIndex]
-    // Preload textures
-    let textures: [Int: MDLTexture?] = preloadRawTextures(gltf, baseURL: bufferLoader.baseURL)
 
     let material = MDLMaterial(name: gltfMaterial.name ?? "Material \(materialIndex)",
                                scatteringFunction: MDLScatteringFunction())
