@@ -65,6 +65,7 @@ float3 compute_indirect_lighting(float3 normal,
                                  float3 albedo,
                                  float metallic,
                                  float roughness,
+                                 float ambientOcclusion,
                                  texturecube<float, access::sample> specularCubeMap,
                                  texturecube<float, access::sample> irradianceCubeMap,
                                  texture2d<float, access::sample> brdfLUT) {
@@ -96,6 +97,9 @@ float3 compute_indirect_lighting(float3 normal,
 
     // result
     float3 result = diffuse * diffuseColor + specular * (specularColor * brdf.x + brdf.y);
+
+    // Apply ambient occlusion
+    result *= ambientOcclusion;
 
     return result;
 }
@@ -179,9 +183,6 @@ fragment float4 pbr_pnu_fragment_shader(VertexOut_PNU in [[stage_in]],
     float3 worldPosition = in.worldPosition;
     float3 viewPosition = uniforms.viewPosition;
 
-    // Ambient lighting
-    float3 ambient = compute_ambient(albedo);
-
     // Direct lighting
     float3 directLighting = compute_direct_lighting(normal,
                                                     worldPosition,
@@ -199,6 +200,7 @@ fragment float4 pbr_pnu_fragment_shader(VertexOut_PNU in [[stage_in]],
                                                         albedo,
                                                         metallic,
                                                         roughness,
+                                                        ambientOcclusion,
                                                         specularCubeMap,
                                                         irradianceMap,
                                                         brdfLUT);
@@ -207,10 +209,7 @@ fragment float4 pbr_pnu_fragment_shader(VertexOut_PNU in [[stage_in]],
     float3 emissive = emissiveTexture.sample(emissiveSampler, in.uv).rgb;
 
     // Final color
-    float3 color = (ambient * ambientOcclusion)
-                    + directLighting
-                    + (indirectLighting * ambientOcclusion)
-                    + emissive;
+    float3 color = directLighting + indirectLighting + emissive;
 
     return float4(color, 1.0);
 };
@@ -270,9 +269,6 @@ fragment float4 pbr_pn_fragment_shader(VertexOut_PN in [[stage_in]],
     float3 worldPosition = in.worldPosition;
     float3 viewPosition = uniforms.viewPosition;
 
-    // Ambient lighting
-    float3 ambient = compute_ambient(albedo);
-
     // Direct lighting
     float3 directLighting = compute_direct_lighting(normal,
                                                     worldPosition,
@@ -290,6 +286,7 @@ fragment float4 pbr_pn_fragment_shader(VertexOut_PN in [[stage_in]],
                                                         albedo,
                                                         metallic,
                                                         roughness,
+                                                        ambientOcclusion,
                                                         specularCubeMap,
                                                         irradianceMap,
                                                         brdfLUT);
@@ -298,10 +295,7 @@ fragment float4 pbr_pn_fragment_shader(VertexOut_PN in [[stage_in]],
     float3 emissive = emissiveTexture.sample(emissiveSampler, uv).rgb;
 
     // Final color
-    float3 color = (ambient * ambientOcclusion)
-                    + directLighting
-                    + (indirectLighting * ambientOcclusion)
-                    + emissive;
+    float3 color = directLighting + indirectLighting + emissive;
 
     return float4(color, 1.0);
 };
@@ -358,9 +352,6 @@ fragment float4 pbr_pu_fragment_shader(VertexOut_PU in [[stage_in]],
     float3 worldPosition = in.worldPosition;
     float3 viewPosition = uniforms.viewPosition;
 
-    // Ambient lighting
-    float3 ambient = compute_ambient(albedo);
-
     // Direct lighting
     float3 directLighting = compute_direct_lighting(normal,
                                                     worldPosition,
@@ -378,6 +369,7 @@ fragment float4 pbr_pu_fragment_shader(VertexOut_PU in [[stage_in]],
                                                         albedo,
                                                         metallic,
                                                         roughness,
+                                                        ambientOcclusion,
                                                         specularCubeMap,
                                                         irradianceMap,
                                                         brdfLUT);
@@ -386,10 +378,7 @@ fragment float4 pbr_pu_fragment_shader(VertexOut_PU in [[stage_in]],
     float3 emissive = emissiveTexture.sample(emissiveSampler, float2(0, 0)).rgb;
 
     // Final color
-    float3 color = (ambient * ambientOcclusion)
-                    + directLighting
-                    + (indirectLighting * ambientOcclusion)
-                    + emissive;
+    float3 color = directLighting + indirectLighting + emissive;
 
     return float4(color, 1.0);
 };
@@ -444,9 +433,6 @@ fragment float4 pbr_p_fragment_shader(VertexOut_P in [[stage_in]],
     float3 worldPosition = in.worldPosition;
     float3 viewPosition = uniforms.viewPosition;
 
-    // Ambient lighting
-    float3 ambient = compute_ambient(albedo);
-
     // Direct lighting
     float3 directLighting = compute_direct_lighting(normal,
                                                     worldPosition,
@@ -464,6 +450,7 @@ fragment float4 pbr_p_fragment_shader(VertexOut_P in [[stage_in]],
                                                         albedo,
                                                         metallic,
                                                         roughness,
+                                                        ambientOcclusion,
                                                         specularCubeMap,
                                                         irradianceMap,
                                                         brdfLUT);
@@ -472,10 +459,7 @@ fragment float4 pbr_p_fragment_shader(VertexOut_P in [[stage_in]],
     float3 emissive = emissiveTexture.sample(emissiveSampler, float2(0, 0)).rgb;
 
     // Final color
-    float3 color = (ambient * ambientOcclusion)
-                    + directLighting
-                    + (indirectLighting * ambientOcclusion)
-                    + emissive;
+    float3 color = directLighting + indirectLighting + emissive;
 
     return float4(color, 1.0);
 };
@@ -549,9 +533,6 @@ fragment float4 pbr_pnuc_fragment_shader(VertexOut_PNUC in [[stage_in]],
     float3 worldPosition = in.worldPosition;
     float3 viewPosition = uniforms.viewPosition;
 
-    // Ambient lighting
-    float3 ambient = compute_ambient(albedo);
-
     // Direct lighting
     float3 directLighting = compute_direct_lighting(normal,
                                                     worldPosition,
@@ -569,6 +550,7 @@ fragment float4 pbr_pnuc_fragment_shader(VertexOut_PNUC in [[stage_in]],
                                                         albedo,
                                                         metallic,
                                                         roughness,
+                                                        ambientOcclusion,
                                                         specularCubeMap,
                                                         irradianceMap,
                                                         brdfLUT);
@@ -577,10 +559,7 @@ fragment float4 pbr_pnuc_fragment_shader(VertexOut_PNUC in [[stage_in]],
     float3 emissive = emissiveTexture.sample(emissiveSampler, in.uv).rgb;
 
     // Final color
-    float3 color = (ambient * ambientOcclusion)
-                    + directLighting
-                    + (indirectLighting * ambientOcclusion)
-                    + emissive;
+    float3 color = directLighting + indirectLighting + emissive;
 
     return float4(color, 1.0);
 }
@@ -652,9 +631,6 @@ fragment float4 pbr_pntu_fragment_shader(VertexOut_PNTU in [[stage_in]],
     float3 worldPosition = in.worldPosition;
     float3 viewPosition = uniforms.viewPosition;
 
-    // Ambient lighting
-    float3 ambient = compute_ambient(albedo);
-
     // Direct lighting
     float3 directLighting = compute_direct_lighting(normal,
                                                     worldPosition,
@@ -672,6 +648,7 @@ fragment float4 pbr_pntu_fragment_shader(VertexOut_PNTU in [[stage_in]],
                                                         albedo,
                                                         metallic,
                                                         roughness,
+                                                        ambientOcclusion,
                                                         specularCubeMap,
                                                         irradianceMap,
                                                         brdfLUT);
@@ -680,10 +657,7 @@ fragment float4 pbr_pntu_fragment_shader(VertexOut_PNTU in [[stage_in]],
     float3 emissive = emissiveTexture.sample(emissiveSampler, in.uv).rgb;
 
     // Final color
-    float3 color = (ambient * ambientOcclusion)
-                    + directLighting
-                    + (indirectLighting * ambientOcclusion)
-                    + emissive;
+    float3 color = directLighting + indirectLighting + emissive;
 
     return float4(color, 1.0);
 }
