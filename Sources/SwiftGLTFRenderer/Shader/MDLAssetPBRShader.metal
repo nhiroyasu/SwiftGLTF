@@ -156,10 +156,14 @@ fragment float4 pbr_pnu_fragment_shader(VertexOut_PNU in [[stage_in]],
                                         texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
                                         sampler metallicRoughnessSampler [[ sampler(2) ]],
                                         texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                        sampler emissiveSampler [[ sampler(3) ]]) {
+                                        sampler emissiveSampler [[ sampler(3) ]],
+                                        texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
+                                        sampler occlusionSampler [[ sampler(4) ]]) {
+
     float3 albedo = baseColorTexture.sample(baseColorSampler, in.uv).rgb;
     float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).b;
     float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).g;
+    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, in.uv).r;
 
     // Default normal from vertex normal
     float3 normal = normalize(in.normal);
@@ -203,7 +207,10 @@ fragment float4 pbr_pnu_fragment_shader(VertexOut_PNU in [[stage_in]],
     float3 emissive = emissiveTexture.sample(emissiveSampler, in.uv).rgb;
 
     // Final color
-    float3 color = ambient + directLighting + indirectLighting + emissive;
+    float3 color = (ambient * ambientOcclusion)
+                    + directLighting
+                    + (indirectLighting * ambientOcclusion)
+                    + emissive;
 
     return float4(color, 1.0);
 };
@@ -246,13 +253,18 @@ fragment float4 pbr_pn_fragment_shader(VertexOut_PN in [[stage_in]],
                                        texture2d<float, access::sample> normalTexture [[ texture(4) ]],
                                        sampler normalSampler [[ sampler(1) ]],
                                        texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                       sampler metallicRoughnessSampler [[ sampler(2) ]]) {
+                                       sampler metallicRoughnessSampler [[ sampler(2) ]],
+                                       texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
+                                       sampler emissiveSampler [[ sampler(3) ]],
+                                       texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
+                                       sampler occlusionSampler [[ sampler(4) ]]) {
 
     // Default albedo from material
     float2 uv = float2(0, 0);
     float3 albedo = baseColorTexture.sample(baseColorSampler, uv).rgb;
     float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).b;
     float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).g;
+    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, uv).r;
 
     float3 normal = normalize(in.normal);
     float3 worldPosition = in.worldPosition;
@@ -282,8 +294,14 @@ fragment float4 pbr_pn_fragment_shader(VertexOut_PN in [[stage_in]],
                                                         irradianceMap,
                                                         brdfLUT);
 
+    // Emissive lighting
+    float3 emissive = emissiveTexture.sample(emissiveSampler, uv).rgb;
+
     // Final color
-    float3 color = ambient + directLighting + indirectLighting;
+    float3 color = (ambient * ambientOcclusion)
+                    + directLighting
+                    + (indirectLighting * ambientOcclusion)
+                    + emissive;
 
     return float4(color, 1.0);
 };
@@ -327,11 +345,14 @@ fragment float4 pbr_pu_fragment_shader(VertexOut_PU in [[stage_in]],
                                        texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
                                        sampler metallicRoughnessSampler [[ sampler(2) ]],
                                        texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                       sampler emissiveSampler [[ sampler(3) ]]) {
+                                       sampler emissiveSampler [[ sampler(3) ]],
+                                       texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
+                                       sampler occlusionSampler [[ sampler(4) ]]) {
 
     float3 albedo = baseColorTexture.sample(baseColorSampler, in.uv).rgb;
     float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).b;
     float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).g;
+    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, in.uv).r;
 
     float3 normal = normalize(uniforms.viewPosition); // Default normal for view position
     float3 worldPosition = in.worldPosition;
@@ -361,8 +382,14 @@ fragment float4 pbr_pu_fragment_shader(VertexOut_PU in [[stage_in]],
                                                         irradianceMap,
                                                         brdfLUT);
 
+    // Emissive lighting
+    float3 emissive = emissiveTexture.sample(emissiveSampler, float2(0, 0)).rgb;
+
     // Final color
-    float3 color = ambient + directLighting + indirectLighting;
+    float3 color = (ambient * ambientOcclusion)
+                    + directLighting
+                    + (indirectLighting * ambientOcclusion)
+                    + emissive;
 
     return float4(color, 1.0);
 };
@@ -403,12 +430,15 @@ fragment float4 pbr_p_fragment_shader(VertexOut_P in [[stage_in]],
                                       texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
                                       sampler metallicRoughnessSampler [[ sampler(2) ]],
                                       texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                      sampler emissiveSampler [[ sampler(3) ]]) {
+                                      sampler emissiveSampler [[ sampler(3) ]],
+                                      texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
+                                      sampler occlusionSampler [[ sampler(4) ]]) {
 
     float2 uv = float2(0, 0); // Default UV coordinates
     float3 albedo = baseColorTexture.sample(baseColorSampler, uv).rgb;
     float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).b;
     float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).g;
+    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, uv).r;
 
     float3 normal = normalize(uniforms.viewPosition); // Default normal for view position
     float3 worldPosition = in.worldPosition;
@@ -442,7 +472,10 @@ fragment float4 pbr_p_fragment_shader(VertexOut_P in [[stage_in]],
     float3 emissive = emissiveTexture.sample(emissiveSampler, float2(0, 0)).rgb;
 
     // Final color
-    float3 color = ambient + directLighting + indirectLighting + emissive;
+    float3 color = (ambient * ambientOcclusion)
+                    + directLighting
+                    + (indirectLighting * ambientOcclusion)
+                    + emissive;
 
     return float4(color, 1.0);
 };
@@ -493,11 +526,14 @@ fragment float4 pbr_pnuc_fragment_shader(VertexOut_PNUC in [[stage_in]],
                                          texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
                                          sampler metallicRoughnessSampler [[ sampler(2) ]],
                                          texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                         sampler emissiveSampler [[ sampler(3) ]]) {
+                                         sampler emissiveSampler [[ sampler(3) ]],
+                                         texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
+                                         sampler occlusionSampler [[ sampler(4) ]]) {
 
     float3 albedo = baseColorTexture.sample(baseColorSampler, in.uv).rgb * in.modulationColor.rgb;
     float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).b;
     float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).g;
+    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, in.uv).r;
 
     // Default normal from vertex normal
     float3 normal = normalize(in.normal);
@@ -541,7 +577,10 @@ fragment float4 pbr_pnuc_fragment_shader(VertexOut_PNUC in [[stage_in]],
     float3 emissive = emissiveTexture.sample(emissiveSampler, in.uv).rgb;
 
     // Final color
-    float3 color = ambient + directLighting + indirectLighting + emissive;
+    float3 color = (ambient * ambientOcclusion)
+                    + directLighting
+                    + (indirectLighting * ambientOcclusion)
+                    + emissive;
 
     return float4(color, 1.0);
 }
@@ -592,11 +631,14 @@ fragment float4 pbr_pntu_fragment_shader(VertexOut_PNTU in [[stage_in]],
                                          texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
                                          sampler metallicRoughnessSampler [[ sampler(2) ]],
                                          texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                         sampler emissiveSampler [[ sampler(3) ]]) {
+                                         sampler emissiveSampler [[ sampler(3) ]],
+                                         texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
+                                         sampler occlusionSampler [[ sampler(4) ]]) {
 
     float3 albedo = baseColorTexture.sample(baseColorSampler, in.uv).rgb;
     float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).b;
     float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).g;
+    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, in.uv).r;
 
     // Default normal from vertex normal
     float3 normal = float3(0, 0, 1);
@@ -638,7 +680,10 @@ fragment float4 pbr_pntu_fragment_shader(VertexOut_PNTU in [[stage_in]],
     float3 emissive = emissiveTexture.sample(emissiveSampler, in.uv).rgb;
 
     // Final color
-    float3 color = ambient + directLighting + indirectLighting + emissive;
+    float3 color = (ambient * ambientOcclusion)
+                    + directLighting
+                    + (indirectLighting * ambientOcclusion)
+                    + emissive;
 
     return float4(color, 1.0);
 }

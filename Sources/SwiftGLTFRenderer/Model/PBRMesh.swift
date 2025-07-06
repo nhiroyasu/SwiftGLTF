@@ -21,5 +21,7 @@ struct PBRMesh {
         let metallicRoughnessSampler: MTLSamplerState?
         let emissiveTexture: MTLTexture?
         let emissiveSampler: MTLSamplerState?
+        let occlusionTexture: MTLTexture?
+        let occlusionSampler: MTLSamplerState?
     }
 }

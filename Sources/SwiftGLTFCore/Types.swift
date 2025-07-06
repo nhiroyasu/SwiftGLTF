@@ -25,7 +25,7 @@ public struct Material: Codable {
     public let name: String?
     public let pbrMetallicRoughness: PBRMetallicRoughness?
     public let normalTexture: TextureInfo?
-    public let occlusionTexture: TextureInfo?
+    public let occlusionTexture: OcclusionTextureInfo?
     public let emissiveTexture: TextureInfo?
     public let emissiveFactor: [Float]?
     public let alphaMode: String?
@@ -46,6 +46,12 @@ public struct PBRMetallicRoughness: Codable {
 public struct TextureInfo: Codable {
     public let index: Int
     public let texCoord: Int?
+}
+
+public struct OcclusionTextureInfo: Codable {
+    public let index: Int
+    public let texCoord: Int?
+    public let strength: Float?
 }
 
 public struct Node: Codable {

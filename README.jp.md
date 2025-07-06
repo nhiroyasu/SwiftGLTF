@@ -96,7 +96,7 @@ view.addSubview(mtlView)
 | Property             | Supported |
 |----------------------|-----------|
 | normalTexture        | ✅         |
-| occlusionTexture     | ❌         |
+| occlusionTexture     | ✅         |
 | emissiveTexture      | ✅         |
 | emissiveFactor       | ✅         |
 

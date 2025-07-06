@@ -306,6 +306,8 @@ public class MDLAssetPBRMTKView: MTKView {
                 renderEncoder.setFragmentSamplerState(submesh.metallicRoughnessSampler, index: 2)
                 renderEncoder.setFragmentTexture(submesh.emissiveTexture, index: 6)
                 renderEncoder.setFragmentSamplerState(submesh.emissiveSampler, index: 3)
+                renderEncoder.setFragmentTexture(submesh.occlusionTexture, index: 7)
+                renderEncoder.setFragmentSamplerState(submesh.occlusionSampler, index: 4)
 
                 renderEncoder.drawIndexedPrimitives(
                     type: submesh.primitiveType,

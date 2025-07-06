@@ -179,6 +179,24 @@ class PBRMeshLoader {
                     emissiveSamplerState = makeSamplerState(from: emissiveSampler, device: device)
                 }
 
+                let occlusionSampler: MDLTextureSampler = {
+                    if let s = mdlSubmesh.material?.property(with: .ambientOcclusion)?.textureSamplerValue {
+                        return s
+                    } else {
+                        let occlusion: [Float16] = [1, 0, 0, 0]
+                        return makeDummySampler(textureValue: occlusion, channelCount: 4, channelEncoding: .float16)
+                    }
+                }()
+                var occlusionTexture: MTLTexture?
+                var occlusionSamplerState: MTLSamplerState?
+                if let tex = try occlusionSampler.texture?.imageFromTexture(device: device) {
+                    occlusionTexture = try shaderConnection.makeOcclusionTexture(
+                        occlusionFactor: mdlSubmesh.material?.property(with: .ambientOcclusionScale)?.floatValue ?? 1.0,
+                        occlusionTexture: tex
+                    )
+                    occlusionSamplerState = makeSamplerState(from: occlusionSampler, device: device)
+                }
+
                 let submeshData = PBRMesh.Submesh(
                     primitiveType: mtkSubmesh.primitiveType,
                     indexCount: mtkSubmesh.indexCount,
@@ -191,7 +209,9 @@ class PBRMeshLoader {
                     metallicRoughnessTexture: metallicRoughnessTexture,
                     metallicRoughnessSampler: metallicRoughnessSamplerState,
                     emissiveTexture: emissiveTexture,
-                    emissiveSampler: emissiveSamplerState
+                    emissiveSampler: emissiveSamplerState,
+                    occlusionTexture: occlusionTexture,
+                    occlusionSampler: occlusionSamplerState
                 )
                 submeshes.append(submeshData)
             }

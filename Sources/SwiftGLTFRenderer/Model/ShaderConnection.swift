@@ -116,4 +116,52 @@ class ShaderConnection {
         return outputTexture
     }
 
+    func makeOcclusionTexture(
+        occlusionFactor: Float,
+        occlusionTexture: MTLTexture
+    ) throws -> MTLTexture {
+        let library = try device.makeDefaultLibrary(bundle: Bundle.module)
+        guard let computeShader = library.makeFunction(name: "occlusion_multiplier_shader") else {
+            throw NSError(domain: "ShaderConnection", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create occlusion shader function"])
+        }
+
+        let pso = try device.makeComputePipelineState(function: computeShader)
+
+        let outputTextureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba16Float,
+            width: occlusionTexture.width,
+            height: occlusionTexture.height,
+            mipmapped: false
+        )
+        outputTextureDescriptor.usage = [.shaderRead, .shaderWrite]
+        guard let outputTexture = device.makeTexture(descriptor: outputTextureDescriptor) else {
+            throw NSError(domain: "ShaderConnection", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create output texture"])
+        }
+
+        let commandBuffer = commandQueue.makeCommandBuffer()!
+        let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
+        computeEncoder.setComputePipelineState(pso)
+
+        var occlusionFactor: Float = occlusionFactor
+        let occlusionFactorBuffer = device.makeBuffer(
+            bytes: &occlusionFactor,
+            length: MemoryLayout<Float>.size,
+            options: []
+        )!
+        computeEncoder.setBuffer(occlusionFactorBuffer, offset: 0, index: 0)
+        computeEncoder.setTexture(occlusionTexture, index: 0)
+        computeEncoder.setTexture(outputTexture, index: 1)
+
+        let threadsPerThreadgroup = MTLSize(width: 16, height: 16, depth: 1)
+        let threadgroups = MTLSize(
+            width: (outputTexture.width + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
+            height: (outputTexture.height + threadsPerThreadgroup.height - 1) / threadsPerThreadgroup.height,
+            depth: 1
+        )
+        computeEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
+        computeEncoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        return outputTexture
+    }
 }

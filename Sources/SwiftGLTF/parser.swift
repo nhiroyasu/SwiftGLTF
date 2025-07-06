@@ -298,15 +298,46 @@ func buildNodeTree(
     return object
 }
 
-// テクスチャ読み込みヘルパー
-// en: Helper function to load texture sampler
 func loadTextureSampler(
-    for info: TextureInfo?,
+    for textureInfo: TextureInfo?,
     from gltf: GLTF, // TODO: All gltf objects are not needed. Just the textures are enough.
     textures: [Int: MDLTexture?]
 ) -> MDLTextureSampler? {
-    guard let textureIndex = info?.index,
-          let texture = gltf.textures?[textureIndex],
+    guard let textureIndex = textureInfo?.index else {
+        return nil
+    }
+
+    return loadTextureSampler(
+        textureIndex: textureIndex,
+        from: gltf,
+        textures: textures
+    )
+}
+
+func loadTextureSampler(
+    for textureInfo: OcclusionTextureInfo?,
+    from gltf: GLTF, // TODO: All gltf objects are not needed. Just the textures are enough.
+    textures: [Int: MDLTexture?]
+) -> MDLTextureSampler? {
+    guard let textureIndex = textureInfo?.index else {
+        return nil
+    }
+
+    return loadTextureSampler(
+        textureIndex: textureIndex,
+        from: gltf,
+        textures: textures
+    )
+}
+
+// テクスチャ読み込みヘルパー
+// en: Helper function to load texture sampler
+func loadTextureSampler(
+    textureIndex: Int,
+    from gltf: GLTF, // TODO: All gltf objects are not needed. Just the textures are enough.
+    textures: [Int: MDLTexture?]
+) -> MDLTextureSampler? {
+    guard let texture = gltf.textures?[textureIndex],
           let sourceIndex = texture.source else {
         return nil
     }
@@ -351,21 +382,33 @@ func loadTextureSampler(
 
             sampler.hardwareFilter = filter
         }
-
     }
 
     return sampler
 }
 
 func extractUrl(for info: TextureInfo?, from gltf: GLTF, baseURL: URL) -> URL? {
-    guard let textureIndex = info?.index,
-          let texture = gltf.textures?[textureIndex],
+    guard let textureIndex = info?.index else {
+        return nil
+    }
+
+    return extractUrl(textureIndex: textureIndex, from: gltf, baseURL: baseURL)
+}
+
+func extractUrl(for info: OcclusionTextureInfo?, from gltf: GLTF, baseURL: URL) -> URL? {
+    guard let textureIndex = info?.index else {
+        return nil
+    }
+    return extractUrl(textureIndex: textureIndex, from: gltf, baseURL: baseURL)
+}
+
+func extractUrl(textureIndex: Int, from gltf: GLTF, baseURL: URL) -> URL? {
+    guard let texture = gltf.textures?[textureIndex],
           let sourceIndex = texture.source,
           let image = gltf.images?[sourceIndex],
           let uri = image.uri else {
         return nil
     }
-
     return baseURL.appendingPathComponent(uri)
 }
 
@@ -771,6 +814,21 @@ private func makeMDLMaterial(
             emissiveProp.urlValue = extractUrl(for: emissiveTexture, from: gltf, baseURL: bufferLoader.baseURL)
         }
         material.setProperty(emissiveProp)
+
+        // Occlusion
+        let occlusionProp = MDLMaterialProperty(name: "occlusion", semantic: .ambientOcclusion)
+        if let occlusionTexture = gltfMaterial.occlusionTexture,
+           let sampler = loadTextureSampler(for: occlusionTexture, from: gltf, textures: textures) {
+            occlusionProp.textureSamplerValue = sampler
+            occlusionProp.urlValue = extractUrl(for: occlusionTexture, from: gltf, baseURL: bufferLoader.baseURL)
+        }
+        material.setProperty(occlusionProp)
+
+        let occlusionStrengthProp = MDLMaterialProperty(name: "occlusionStrength", semantic: .ambientOcclusionScale, float: 1.0)
+        if let occlusionStrength = gltfMaterial.occlusionTexture?.strength {
+            occlusionStrengthProp.floatValue = occlusionStrength
+        }
+        material.setProperty(occlusionStrengthProp)
     }
 
     return material
