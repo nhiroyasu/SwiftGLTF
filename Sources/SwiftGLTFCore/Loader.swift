@@ -18,17 +18,17 @@ public struct GLTFBufferLoader {
         } ?? []
     }
 
-    public func extractData(accessorIndex: Int) throws -> Data {
-        guard let accessor = gltf.accessors?[accessorIndex] else {
+    public func extractData(accessorIndex: AccessorIndex) throws -> Data {
+        guard let accessor = gltf.accessors?[accessorIndex.value] else {
             throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid accessor index"])
         }
 
         guard let bufferViewIndex = accessor.bufferView,
-              let bufferView = gltf.bufferViews?[bufferViewIndex] else {
+              let bufferView = gltf.bufferViews?[bufferViewIndex.value] else {
             throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid bufferView reference"])
         }
 
-        let buffer = loadedBuffers[bufferView.buffer]
+        let buffer = loadedBuffers[bufferView.buffer.value]
         let baseOffset = (accessor.byteOffset ?? 0) + (bufferView.byteOffset ?? 0)
         let accessorStride = accessor.type.components * accessor.componentType.size
         let bufferStride = bufferView.byteStride ?? accessorStride

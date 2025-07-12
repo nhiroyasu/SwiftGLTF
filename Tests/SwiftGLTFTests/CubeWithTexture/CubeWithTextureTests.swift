@@ -15,7 +15,7 @@ struct CubeWithTextureTests {
 
         let posAccessorIndex = gltf.meshes![0].primitives[0].attributes["TEXCOORD_0"]!
         let accessor = gltf.accessors![posAccessorIndex]
-        let bufferView = gltf.bufferViews![accessor.bufferView!]
+        let bufferView = gltf.bufferViews![accessor.bufferView!.value]
         let start = bufferView.byteOffset ?? 0
         let length = bufferView.byteLength
         let expectedTexCoordData = originalData.subdata(in: start..<(start + length))
@@ -71,7 +71,7 @@ struct CubeWithTextureTests {
         let sampler = baseColor.textureSamplerValue!
 
         let textureIndex = gltf.materials![0].pbrMetallicRoughness!.baseColorTexture!.index
-        let samplerIndex = gltf.textures![textureIndex].sampler!
+        let samplerIndex = gltf.textures![textureIndex.value].sampler!
         let gltfSampler = gltf.samplers![samplerIndex]
 
         // compare filter modes

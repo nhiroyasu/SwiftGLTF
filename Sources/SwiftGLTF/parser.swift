@@ -333,11 +333,11 @@ func loadTextureSampler(
 // テクスチャ読み込みヘルパー
 // en: Helper function to load texture sampler
 func loadTextureSampler(
-    textureIndex: Int,
+    textureIndex: TextureIndex,
     from gltf: GLTF, // TODO: All gltf objects are not needed. Just the textures are enough.
     textures: [Int: MDLTexture?]
 ) -> MDLTextureSampler? {
-    guard let texture = gltf.textures?[textureIndex],
+    guard let texture = gltf.textures?[textureIndex.value],
           let sourceIndex = texture.source else {
         return nil
     }
@@ -402,8 +402,8 @@ func extractUrl(for info: OcclusionTextureInfo?, from gltf: GLTF, baseURL: URL) 
     return extractUrl(textureIndex: textureIndex, from: gltf, baseURL: baseURL)
 }
 
-func extractUrl(textureIndex: Int, from gltf: GLTF, baseURL: URL) -> URL? {
-    guard let texture = gltf.textures?[textureIndex],
+func extractUrl(textureIndex: TextureIndex, from gltf: GLTF, baseURL: URL) -> URL? {
+    guard let texture = gltf.textures?[textureIndex.value],
           let sourceIndex = texture.source,
           let image = gltf.images?[sourceIndex],
           let uri = image.uri else {
@@ -476,7 +476,7 @@ private func makePositionVertex(
         throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid POSITION accessor"])
     }
     let positionVertex = VertexInfo(
-        data: try bufferLoader.extractData(accessorIndex: positionAccessorIndex),
+        data: try bufferLoader.extractData(accessorIndex: AccessorIndex(positionAccessorIndex)),
         componentFormat: positionVertexFormat.format,
         componentSize: positionVertexFormat.byteSize
     )
@@ -494,7 +494,7 @@ private func makeNormalVertex(
         return nil
     }
     return VertexInfo(
-        data: try bufferLoader.extractData(accessorIndex: normalIndex),
+        data: try bufferLoader.extractData(accessorIndex: AccessorIndex(normalIndex)),
         componentFormat: normalVertexFormat.format,
         componentSize: normalVertexFormat.byteSize
     )
@@ -511,7 +511,7 @@ private func makeTangentVertex(
         return nil
     }
     return VertexInfo(
-        data: try bufferLoader.extractData(accessorIndex: index),
+        data: try bufferLoader.extractData(accessorIndex: AccessorIndex(index)),
         componentFormat: format.format,
         componentSize: format.byteSize
     )
@@ -528,7 +528,7 @@ private func makeTexcoordVertex(
         return nil
     }
     return VertexInfo(
-        data: try bufferLoader.extractData(accessorIndex: index),
+        data: try bufferLoader.extractData(accessorIndex: AccessorIndex(index)),
         componentFormat: format.format,
         componentSize: format.byteSize
     )
@@ -545,7 +545,7 @@ private func makeModulationColorVertex(
         return nil
     }
     return VertexInfo(
-        data: try bufferLoader.extractData(accessorIndex: index),
+        data: try bufferLoader.extractData(accessorIndex: AccessorIndex(index)),
         componentFormat: format.format,
         componentSize: format.byteSize
     )
@@ -558,11 +558,11 @@ private func makeIndexInfo(
     bufferLoader: GLTFBufferLoader
 ) throws -> IndexInfo {
     if let indexAccessorIndex = primitive.indices {
-        guard accessors.count > indexAccessorIndex else {
+        guard accessors.count > indexAccessorIndex.value else {
             throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid indices reference"])
         }
 
-        let accessor = accessors[indexAccessorIndex]
+        let accessor = accessors[indexAccessorIndex.value]
         let indexData = try bufferLoader.extractData(accessorIndex: indexAccessorIndex)
         let indexCount = accessor.count
 

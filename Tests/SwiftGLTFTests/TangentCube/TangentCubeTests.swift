@@ -15,7 +15,7 @@ struct TangentCubeTests {
 
         let posAccessorIndex = gltf.meshes![0].primitives[0].attributes["TANGENT"]!
         let accessor = gltf.accessors![posAccessorIndex]
-        let bufferView = gltf.bufferViews![accessor.bufferView!]
+        let bufferView = gltf.bufferViews![accessor.bufferView!.value]
         let start = bufferView.byteOffset ?? 0
         let length = bufferView.byteLength
         let expectedPositionData = originalData.subdata(in: start..<(start + length))
