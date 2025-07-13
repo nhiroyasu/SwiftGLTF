@@ -205,6 +205,28 @@ struct CubeTests {
         #expect(roughness?.floatValue == 0.5)
     }
 
+    @Test
+    func testLoadGLB() throws {
+        guard let glbURL = Bundle.module.url(forResource: "cube", withExtension: "glb") else {
+            throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "cube.glb not found"])
+        }
+        let data = try Data(contentsOf: glbURL)
+        let (gltf, bin) = try loadGLB(from: data)
+        let asset = try makeMDLAsset(
+            from: gltf,
+            baseURL: glbURL.deletingLastPathComponent(),
+            binaryChunk: bin,
+            options: GLTFDecodeOptions(
+                convertToLeftHanded: false,
+                autoScale: false,
+                generateNormalVertexIfNeeded: false,
+                generateTangentVertexIfNeeded: false
+            )
+        )
+        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        #expect(mesh.vertexCount == 24)
+    }
+
     // MARK: - Helper Methods
 
     private func loadGLTFAndAsset() throws -> (GLTF, MDLAsset) {

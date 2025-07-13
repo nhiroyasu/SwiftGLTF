@@ -5,13 +5,15 @@ public struct GLTFBufferLoader {
     public let baseURL: URL
     public let loadedBuffers: [Data]
 
-    public init(gltf: GLTF, baseURL: URL) throws {
+    public init(gltf: GLTF, baseURL: URL, binaryChunk: Data? = nil) throws {
         self.gltf = gltf
         self.baseURL = baseURL
-        self.loadedBuffers = try gltf.buffers?.map { buffer in
+        self.loadedBuffers = try gltf.buffers?.enumerated().map { index, buffer in
             if let uri = buffer.uri {
                 let bufferURL = baseURL.appendingPathComponent(uri)
                 return try Data(contentsOf: bufferURL)
+            } else if index == 0, let binaryChunk {
+                return binaryChunk
             } else {
                 throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Buffer URI is missing"])
             }

@@ -38,12 +38,13 @@ import SwiftGLTFRenderer
 
 // ...
 
-let gltfUrl = // URL to your glTF file
+let gltfUrl = // URL to your .glb file
 let data = try Data(contentsOf: gltfUrl)
-let gltf = try loadGLTF(from: data)
+let (gltf, bin) = try loadGLB(from: data)
 let asset = try makeMDLAsset(
     from: gltf,
-    baseURL: url.deletingLastPathComponent(),
+    baseURL: gltfUrl.deletingLastPathComponent(),
+    binaryChunk: bin,
     options: options
 )
 
@@ -62,7 +63,7 @@ view.addSubview(mtlView)
 ### File formats
 | Format              | Supported |
 |---------------------|-----------|
-| glTF Binary (.glb)  | ❌         |
+| glTF Binary (.glb)  | ✅         |
 | glTF JSON (.gltf)   | ✅         |
 
 ### Buffer formats

@@ -99,6 +99,11 @@ public func loadGLTF(from data: Data) throws -> GLTF {
     return gltf
 }
 
+public func loadGLB(from data: Data) throws -> (GLTF, Data?) {
+    let result = try GLBDecoder.decode(data)
+    return (result.gltf, result.binaryChunk)
+}
+
 public func makeMDLMesh(
     from mesh: Mesh,
     using gltf: GLTF,
@@ -186,7 +191,7 @@ public func makeMDLMesh(
     return mdlMeshes
 }
 
-public func makeMDLAsset(from gltf: GLTF, baseURL: URL, options: GLTFDecodeOptions = .default) throws -> MDLAsset {
+public func makeMDLAsset(from gltf: GLTF, baseURL: URL, binaryChunk: Data? = nil, options: GLTFDecodeOptions = .default) throws -> MDLAsset {
     #if DEBUG
     let now = Date()
     #endif
@@ -194,7 +199,7 @@ public func makeMDLAsset(from gltf: GLTF, baseURL: URL, options: GLTFDecodeOptio
     let device = MTLCreateSystemDefaultDevice()!
     let allocator = MTKMeshBufferAllocator(device: device)
     let asset = MDLAsset(bufferAllocator: allocator)
-    let bufferLoader = try GLTFBufferLoader(gltf: gltf, baseURL: baseURL)
+    let bufferLoader = try GLTFBufferLoader(gltf: gltf, baseURL: baseURL, binaryChunk: binaryChunk)
     let preloadTextures = preloadRawTextures(gltf, baseURL: baseURL)
 
     // 全ての mesh を先に変換して保持（再利用のため）
