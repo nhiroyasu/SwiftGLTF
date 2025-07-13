@@ -43,13 +43,57 @@ public struct PBRMetallicRoughness: Codable {
     public let metallicRoughnessTexture: TextureInfo?
 }
 
+public struct TextureIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+    public let value: Int
+
+    public init(_ value: Int) {
+        self.value = value
+    }
+
+    public init(integerLiteral value: Int) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try container.decode(Int.self)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
+public struct AccessorIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+    public let value: Int
+
+    public init(_ value: Int) {
+        self.value = value
+    }
+
+    public init(integerLiteral value: Int) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try container.decode(Int.self)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
 public struct TextureInfo: Codable {
-    public let index: Int
+    public let index: TextureIndex
     public let texCoord: Int?
 }
 
 public struct OcclusionTextureInfo: Codable {
-    public let index: Int
+    public let index: TextureIndex
     public let texCoord: Int?
     public let strength: Float?
 }
@@ -74,16 +118,60 @@ public struct Buffer: Codable {
     public let byteLength: Int
 }
 
+public struct BufferIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+    public let value: Int
+
+    public init(_ value: Int) {
+        self.value = value
+    }
+
+    public init(integerLiteral value: Int) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try container.decode(Int.self)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
 public struct BufferView: Codable {
-    public let buffer: Int
+    public let buffer: BufferIndex
     public let byteOffset: Int?
     public let byteLength: Int
     public let byteStride: Int?
     public let target: Int?
 }
 
+public struct BufferViewIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+    public let value: Int
+
+    public init(_ value: Int) {
+        self.value = value
+    }
+
+    public init(integerLiteral value: Int) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try container.decode(Int.self)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
 public struct Accessor: Codable {
-    public let bufferView: Int?
+    public let bufferView: BufferViewIndex?
     public let byteOffset: Int?
     public let componentType: GLTFComponentType
     public let count: Int
@@ -98,7 +186,7 @@ public struct Mesh: Codable {
 
 public struct Primitive: Codable {
     public let attributes: [String: Int]
-    public let indices: Int?
+    public let indices: AccessorIndex?
     public let material: Int?
     public let mode: GLTFPrimitiveMode?
 }
@@ -106,7 +194,7 @@ public struct Primitive: Codable {
 public struct Image: Codable {
     public let uri: String?
     public let mimeType: String?
-    public let bufferView: Int?
+    public let bufferView: BufferViewIndex?
     public let name: String?
 }
 
