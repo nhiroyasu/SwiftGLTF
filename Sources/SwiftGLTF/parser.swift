@@ -125,7 +125,7 @@ public func makeMDLMesh(
 
         if options.generateNormalVertexIfNeeded,
            normalVertex == nil,
-           primitive.mode == .triangles {
+           (primitive.mode == .triangles || primitive.mode == .none) {
             os_log("Generating normals for primitives[%d]", log: .default, type: .info, index)
             normalVertex = try generateNormalVertex(positionVertex: positionVertex, indexInfo: indexInfo)
         }
@@ -134,7 +134,7 @@ public func makeMDLMesh(
         if options.generateTangentVertexIfNeeded, tangentVertex == nil,
            let normalVertex,
            let texcoordVertex,
-           primitive.mode == .triangles {
+           (primitive.mode == .triangles || primitive.mode == .none) {
             os_log("Generating tangents for primitive[%d]", log: .default, type: .info, index)
             tangentVertex = try generateTangents(positionVertex, normalVertex, texcoordVertex, indexInfo, vertexCount: vertexCount, options: options)
             isGeneratedTangents = true

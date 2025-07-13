@@ -68,18 +68,13 @@ public class MDLAssetPBRMTKView: MTKView {
         // Load meshes from the MDLAsset
 
         loaderConfig = MDLAssetLoaderPipelineStateConfig(
-            pnucVertexShader: library.makeFunction(name: "pbr_pnuc_vertex_shader")!,
-            pnucFragmentShader: library.makeFunction(name: "pbr_pnuc_fragment_shader")!,
-            pntuVertexShader: library.makeFunction(name: "pbr_pntu_vertex_shader")!,
-            pntuFragmentShader: library.makeFunction(name: "pbr_pntu_fragment_shader")!,
-            pnuVertexShader: library.makeFunction(name: "pbr_pnu_vertex_shader")!,
-            pnuFragmentShader: library.makeFunction(name: "pbr_pnu_fragment_shader")!,
-            pnVertexShader: library.makeFunction(name: "pbr_pn_vertex_shader")!,
-            pnFragmentShader: library.makeFunction(name: "pbr_pn_fragment_shader")!,
-            puVertexShader: library.makeFunction(name: "pbr_pu_vertex_shader")!,
-            puFragmentShader: library.makeFunction(name: "pbr_pu_fragment_shader")!,
-            pVertexShader: library.makeFunction(name: "pbr_p_vertex_shader")!,
-            pFragmentShader: library.makeFunction(name: "pbr_p_fragment_shader")!,
+            pntucVertexShader: library.makeFunction(name: "pntuc_vertex_shader")!,
+            pntuVertexShader: library.makeFunction(name: "pntu_vertex_shader")!,
+            pntcVertexShader: library.makeFunction(name: "pntc_vertex_shader")!,
+            pntVertexShader: library.makeFunction(name: "pnt_vertex_shader")!,
+            pncVertexShader: library.makeFunction(name: "pnc_vertex_shader")!,
+            pnVertexShader: library.makeFunction(name: "pn_vertex_shader")!,
+            pbrFragmentShader: library.makeFunction(name: "pbr_shader")!,
             sampleCount: SAMPLING_COUNT
         )
 
