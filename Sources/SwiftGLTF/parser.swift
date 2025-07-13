@@ -2,6 +2,68 @@ import Foundation
 import MetalKit
 import SwiftGLTFCore
 import OSLog
+// MARK: - glb detection and loader stub
+/// Returns true if the data begins with the glb magic "glTF" header
+private func isGLB(_ data: Data) -> Bool {
+    guard data.count >= 4 else { return false }
+    // ASCII "glTF" == [0x67, 0x6C, 0x54, 0x46]
+    let magic = data.prefix(4)
+    return magic == Data([0x67, 0x6C, 0x54, 0x46])
+}
+/// Load a binary glTF (.glb) and decode to GLTF struct
+private func loadGLB(_ data: Data) throws -> GLTF {
+    // Minimum header: 12 bytes (magic, version, length)
+    guard data.count >= 12 else {
+        throw NSError(domain: "SwiftGLTF", code: -1,
+                      userInfo: [NSLocalizedDescriptionKey: "GLB data too short for header"])
+    }
+    // Validate magic "glTF"
+    let magic = data.prefix(4)
+    let expectedMagic = Data([0x67, 0x6C, 0x54, 0x46])
+    guard magic == expectedMagic else {
+        throw NSError(domain: "SwiftGLTF", code: -1,
+                      userInfo: [NSLocalizedDescriptionKey: "Invalid GLB magic header"])
+    }
+    // Read version (uint32 little endian)
+    let version: UInt32 = data[4..<8].withUnsafeBytes { $0.load(as: UInt32.self) }.littleEndian
+    guard version == 2 else {
+        throw NSError(domain: "SwiftGLTF", code: -1,
+                      userInfo: [NSLocalizedDescriptionKey: "Unsupported GLB version: \(version)"])
+    }
+    // Read total length
+    let totalLength: UInt32 = data[8..<12].withUnsafeBytes { $0.load(as: UInt32.self) }.littleEndian
+    guard totalLength == data.count else {
+        throw NSError(domain: "SwiftGLTF", code: -1,
+                      userInfo: [NSLocalizedDescriptionKey: "GLB length mismatch"])
+    }
+    // Parse chunks to find JSON chunk
+    var offset = 12
+    var jsonData: Data? = nil
+    while offset + 8 <= data.count {
+        let chunkLength: UInt32 = data[offset..<(offset+4)].withUnsafeBytes { $0.load(as: UInt32.self) }.littleEndian
+        let chunkType: UInt32 = data[(offset+4)..<(offset+8)].withUnsafeBytes { $0.load(as: UInt32.self) }.littleEndian
+        let chunkStart = offset + 8
+        let chunkEnd = chunkStart + Int(chunkLength)
+        guard chunkEnd <= data.count else {
+            throw NSError(domain: "SwiftGLTF", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "GLB chunk exceeds data bounds"])
+        }
+        let chunk = data[chunkStart..<chunkEnd]
+        // JSON chunk type == 0x4E4F534A
+        if chunkType == 0x4E4F534A {
+            jsonData = chunk
+            break
+        }
+        offset = chunkEnd
+    }
+    guard let jsonChunk = jsonData else {
+        throw NSError(domain: "SwiftGLTF", code: -1,
+                      userInfo: [NSLocalizedDescriptionKey: "JSON chunk not found in GLB"])
+    }
+    // Decode JSON chunk
+    let decoder = JSONDecoder()
+    return try decoder.decode(GLTF.self, from: jsonChunk)
+}
 
 public enum GLTFVertexAttributeIndex {
     static let POSITION = 0
@@ -94,9 +156,15 @@ struct IndexInfo {
 
 
 public func loadGLTF(from data: Data) throws -> GLTF {
-    let decoder = JSONDecoder()
-    let gltf = try decoder.decode(GLTF.self, from: data)
-    return gltf
+    // detect JSON vs. binary glb
+    if isGLB(data) {
+        // glb support to be implemented
+        return try loadGLB(data)
+    } else {
+        let decoder = JSONDecoder()
+        let gltf = try decoder.decode(GLTF.self, from: data)
+        return gltf
+    }
 }
 
 public func makeMDLMesh(
