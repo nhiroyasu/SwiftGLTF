@@ -53,8 +53,8 @@ struct CubeWithTextureTests {
         let baseURL = Bundle.module.url(forResource: "bricks_cube", withExtension: "gltf")!.deletingLastPathComponent()
         let baseColorImage = gltf.images!.first { $0.uri?.contains("Color") == true }!
         let normalImage = gltf.images!.first { $0.uri?.contains("NormalGL") == true }!
-        let expectedBaseColorTexture = MDLTexture(named: baseURL.appendingPathComponent(baseColorImage.uri!).path)!
-        let expectedNormalTexture = MDLTexture(named: baseURL.appendingPathComponent(normalImage.uri!).path)!
+        let expectedBaseColorTexture = MDLURLTexture(url: baseURL.appendingPathComponent(baseColorImage.uri!), name: "BaseColorTexture")
+        let expectedNormalTexture = MDLURLTexture(url: baseURL.appendingPathComponent(normalImage.uri!), name: "NormalTexture")
 
         #expect(baseColorTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data! == expectedBaseColorTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data!)
         #expect(normalTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data! == expectedNormalTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data!)

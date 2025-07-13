@@ -2,18 +2,13 @@ import MetalKit
 import Accelerate
 
 struct MDLAssetLoaderPipelineStateConfig {
-    let pnucVertexShader: MTLFunction
-    let pnucFragmentShader: MTLFunction
+    let pntucVertexShader: MTLFunction
     let pntuVertexShader: MTLFunction
-    let pntuFragmentShader: MTLFunction
-    let pnuVertexShader: MTLFunction
-    let pnuFragmentShader: MTLFunction
+    let pntcVertexShader: MTLFunction
+    let pntVertexShader: MTLFunction
+    let pncVertexShader: MTLFunction
     let pnVertexShader: MTLFunction
-    let pnFragmentShader: MTLFunction
-    let puVertexShader: MTLFunction
-    let puFragmentShader: MTLFunction
-    let pVertexShader: MTLFunction
-    let pFragmentShader: MTLFunction
+    let pbrFragmentShader: MTLFunction
     let sampleCount: Int
 }
 
@@ -216,11 +211,11 @@ class PBRMeshLoader {
                 submeshes.append(submeshData)
             }
 
-            let (vertexShader, fragmentShader) = try decideShader(from: mtkMesh.vertexDescriptor)
+            let vertexShader = try decideVertexShader(from: mtkMesh.vertexDescriptor)
 
             let psoDescriptor = MTLRenderPipelineDescriptor()
             psoDescriptor.vertexFunction = vertexShader
-            psoDescriptor.fragmentFunction = fragmentShader
+            psoDescriptor.fragmentFunction = psoConfig.pbrFragmentShader
             psoDescriptor.colorAttachments[0].pixelFormat = .rgba16Float
             psoDescriptor.depthAttachmentPixelFormat = .depth32Float
             psoDescriptor.rasterSampleCount = psoConfig.sampleCount
@@ -257,7 +252,7 @@ class PBRMeshLoader {
         return pbrMeshes
     }
 
-    private func decideShader(from vertexDescriptor: MDLVertexDescriptor) throws -> (MTLFunction, MTLFunction) {
+    private func decideVertexShader(from vertexDescriptor: MDLVertexDescriptor) throws -> MTLFunction {
         var existingPosition: Bool = false
         var existingNormal: Bool = false
         var existingTangent: Bool = false
@@ -284,29 +279,36 @@ class PBRMeshLoader {
             }
         }
 
-        if existingPosition && existingNormal && existingModulationColor && existingTextureCoordinate {
-            os_log("Using PNUC shaders")
-            return (pipelineStateConfig.pnucVertexShader, pipelineStateConfig.pnucFragmentShader)
-        } else if existingPosition && existingNormal && existingTextureCoordinate && existingTangent {
+        if existingPosition && existingNormal && existingTangent && existingModulationColor && existingTextureCoordinate {
+            os_log("Using PNTUC shaders")
+            return pipelineStateConfig.pntucVertexShader
+        } else if existingPosition && existingNormal && existingTangent && existingTextureCoordinate {
             os_log("Using PNTU shaders")
-            return (pipelineStateConfig.pntuVertexShader, pipelineStateConfig.pntuFragmentShader)
-        } else if existingPosition && existingNormal && existingTextureCoordinate {
-            os_log("Using PNU shaders")
-            return (pipelineStateConfig.pnuVertexShader, pipelineStateConfig.pnuFragmentShader)
+            return pipelineStateConfig.pntuVertexShader
+        } else if existingPosition && existingNormal && existingTangent && existingModulationColor {
+            os_log("Using PNTC shaders")
+            return pipelineStateConfig.pntcVertexShader
+        } else if existingPosition && existingNormal && existingTangent {
+            os_log("Using PNT shaders")
+            return pipelineStateConfig.pntVertexShader
+        } else if existingPosition && existingNormal && existingModulationColor {
+            os_log("Using PNC shaders")
+            return pipelineStateConfig.pncVertexShader
         } else if existingPosition && existingNormal {
             os_log("Using PN shaders")
-            return (pipelineStateConfig.pnVertexShader, pipelineStateConfig.pnFragmentShader)
-        } else if existingPosition && existingTextureCoordinate {
-            os_log("Using PU shaders")
-            return (pipelineStateConfig.puVertexShader, pipelineStateConfig.puFragmentShader)
-        } else if existingPosition {
-            os_log("Using P shaders")
-            return (pipelineStateConfig.pVertexShader, pipelineStateConfig.pFragmentShader)
+            return pipelineStateConfig.pnVertexShader
         } else {
             throw NSError(
                 domain: "MDLAssetLoader",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Unsupported vertex descriptor"]
+                userInfo: [NSLocalizedDescriptionKey: """
+                Unsupported vertex descriptor.
+                Make sure that the vertex descriptor contains at least the position, normal, and tangent coordinate attributes.
+                ---
+                existingPosition: \(existingPosition),
+                existingNormal: \(existingNormal),
+                existingTangent: \(existingTangent)
+                """]
             )
         }
     }

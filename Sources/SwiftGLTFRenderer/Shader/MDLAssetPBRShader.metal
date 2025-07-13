@@ -117,451 +117,94 @@ float3x3 make_tbn(float3 N, float3 T, float Tw) {
     return float3x3(T, B, N);
 }
 
-// MARK: - Shaders for PNU(Position, Normal, UV)
-
-struct VertexIn_PNU {
-    float3 position [[attribute(0)]];
-    float3 normal [[attribute(1)]];
-    float2 uv [[attribute(3)]];
-};
-
-struct VertexOut_PNU {
+struct PBRVertexOut {
     float4 position [[position]];
     float3 worldPosition;
     float3 normal;
+    bool tangentAvailable;
+    float4 tangent;
     float2 uv;
+    float4 modulationColor;
 };
 
-vertex VertexOut_PNU pbr_pnu_vertex_shader(VertexIn_PNU in [[stage_in]],
-                                   constant float4x4 &model [[buffer(1)]],
-                                   constant float4x4 &view [[buffer(2)]],
-                                   constant float4x4 &projection [[buffer(3)]],
-                                   constant float3x3 &normalMatrix [[buffer(4)]]) {
-    VertexOut_PNU out;
-
-    float4x4 mvpMatrix = projection * view * model;
-
-    out.position = mvpMatrix * float4(in.position, 1.0);
-    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
-    out.normal = normalize(normalMatrix * in.normal);
-    out.uv = in.uv;
-    return out;
-}
-
-fragment float4 pbr_pnu_fragment_shader(VertexOut_PNU in [[stage_in]],
-                                        constant PBRSceneUniforms &uniforms [[buffer(0)]],
-                                        texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                                        texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                                        texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                                        texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                                        sampler baseColorSampler [[ sampler(0) ]],
-                                        texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                        sampler normalSampler [[ sampler(1) ]],
-                                        texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                        sampler metallicRoughnessSampler [[ sampler(2) ]],
-                                        texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                        sampler emissiveSampler [[ sampler(3) ]],
-                                        texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                                        sampler occlusionSampler [[ sampler(4) ]]) {
-
-    float3 albedo = baseColorTexture.sample(baseColorSampler, in.uv).rgb;
-    float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).b;
-    float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).g;
-    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, in.uv).r;
-
-    // Default normal from vertex normal
-    float3 normal = normalize(in.normal);
-    if (normalTexture.get_width() > 0 && normalTexture.get_height() > 0) {
-        float3 normalSample = normalTexture.sample(normalSampler, in.uv).rgb;
-        float3 tangentNormal = normalSample * 2.0 - 1.0;
-
-        // Construct a TBN matrix assuming the normal is Z and use a fixed tangent space
-        float3x3 tbn = make_tbn(normal);
-
-        normal = normalize(tbn * tangentNormal);
-    }
-    float3 worldPosition = in.worldPosition;
-    float3 viewPosition = uniforms.viewPosition;
-
-    // Direct lighting
-    float3 directLighting = compute_direct_lighting(normal,
-                                                    worldPosition,
-                                                    albedo,
-                                                    metallic,
-                                                    roughness,
-                                                    uniforms.viewPosition,
-                                                    uniforms.lightPosition,
-                                                    uniforms.ambientLightColor);
-
-    // Indirect lighting
-    float3 indirectLighting = compute_indirect_lighting(normal,
-                                                        worldPosition,
-                                                        viewPosition,
-                                                        albedo,
-                                                        metallic,
-                                                        roughness,
-                                                        ambientOcclusion,
-                                                        specularCubeMap,
-                                                        irradianceMap,
-                                                        brdfLUT);
-
-    // Emissive lighting
-    float3 emissive = emissiveTexture.sample(emissiveSampler, in.uv).rgb;
-
-    // Final color
-    float3 color = directLighting + indirectLighting + emissive;
-
-    return float4(color, 1.0);
-};
-
-// MARK: - Shader for PN(Position, Normal)
+// MARK: - Vertex shader for PN(Position, Normal)
 
 struct VertexIn_PN {
     float3 position [[attribute(0)]];
     float3 normal [[attribute(1)]];
 };
 
-struct VertexOut_PN {
-    float4 position [[position]];
-    float3 worldPosition;
-    float3 normal;
-};
-
-vertex VertexOut_PN pbr_pn_vertex_shader(VertexIn_PN in [[stage_in]],
-                                         constant float4x4 &model [[buffer(1)]],
-                                         constant float4x4 &view [[buffer(2)]],
-                                         constant float4x4 &projection [[buffer(3)]],
-                                         constant float3x3 &normalMatrix [[buffer(4)]]) {
-    VertexOut_PN out;
+vertex PBRVertexOut pn_vertex_shader(VertexIn_PN in [[stage_in]],
+                                   constant float4x4 &model [[buffer(1)]],
+                                   constant float4x4 &view [[buffer(2)]],
+                                   constant float4x4 &projection [[buffer(3)]],
+                                   constant float3x3 &normalMatrix [[buffer(4)]]) {
+    PBRVertexOut out;
 
     float4x4 mvpMatrix = projection * view * model;
 
     out.position = mvpMatrix * float4(in.position, 1.0);
     out.worldPosition = (model * float4(in.position, 1.0)).xyz;
     out.normal = normalize(normalMatrix * in.normal);
+    out.tangentAvailable = false; // No tangent available
+    out.tangent = float4(0.0); // Default tangent
+    out.uv = float2(0.0); // Default UV
+    out.modulationColor = float4(1.0); // Default modulation color
     return out;
 }
 
-fragment float4 pbr_pn_fragment_shader(VertexOut_PN in [[stage_in]],
-                                       constant PBRSceneUniforms &uniforms [[buffer(0)]],
-                                       texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                                       texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                                       texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                                       texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                                       sampler baseColorSampler [[ sampler(0) ]],
-                                       texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                       sampler normalSampler [[ sampler(1) ]],
-                                       texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                       sampler metallicRoughnessSampler [[ sampler(2) ]],
-                                       texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                       sampler emissiveSampler [[ sampler(3) ]],
-                                       texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                                       sampler occlusionSampler [[ sampler(4) ]]) {
+// MARK: - Vertex shader for PNC(Position, Normal, Color)
 
-    // Default albedo from material
-    float2 uv = float2(0, 0);
-    float3 albedo = baseColorTexture.sample(baseColorSampler, uv).rgb;
-    float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).b;
-    float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).g;
-    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, uv).r;
-
-    float3 normal = normalize(in.normal);
-    float3 worldPosition = in.worldPosition;
-    float3 viewPosition = uniforms.viewPosition;
-
-    // Direct lighting
-    float3 directLighting = compute_direct_lighting(normal,
-                                                    worldPosition,
-                                                    albedo,
-                                                    metallic,
-                                                    roughness,
-                                                    uniforms.viewPosition,
-                                                    uniforms.lightPosition,
-                                                    uniforms.ambientLightColor);
-
-    // Indirect lighting
-    float3 indirectLighting = compute_indirect_lighting(normal,
-                                                        worldPosition,
-                                                        viewPosition,
-                                                        albedo,
-                                                        metallic,
-                                                        roughness,
-                                                        ambientOcclusion,
-                                                        specularCubeMap,
-                                                        irradianceMap,
-                                                        brdfLUT);
-
-    // Emissive lighting
-    float3 emissive = emissiveTexture.sample(emissiveSampler, uv).rgb;
-
-    // Final color
-    float3 color = directLighting + indirectLighting + emissive;
-
-    return float4(color, 1.0);
-};
-
-// MARK: -Shader for PU(Position, UV)
-
-struct VertexIn_PU {
-    float3 position [[attribute(0)]];
-    float2 uv [[attribute(3)]];
-};
-
-struct VertexOut_PU {
-    float4 position [[position]];
-    float3 worldPosition;
-    float2 uv;
-};
-
-vertex VertexOut_PU pbr_pu_vertex_shader(VertexIn_PU in [[stage_in]],
-                                         constant float4x4 &model [[buffer(1)]],
-                                         constant float4x4 &view [[buffer(2)]],
-                                         constant float4x4 &projection [[buffer(3)]]) {
-    VertexOut_PU out;
-
-    float4x4 mvpMatrix = projection * view * model;
-
-    out.position = mvpMatrix * float4(in.position, 1.0);
-    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
-    out.uv = in.uv;
-    return out;
-}
-
-fragment float4 pbr_pu_fragment_shader(VertexOut_PU in [[stage_in]],
-                                       constant PBRSceneUniforms &uniforms [[buffer(0)]],
-                                       texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                                       texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                                       texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                                       texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                                       sampler baseColorSampler [[ sampler(0) ]],
-                                       texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                       sampler normalSampler [[ sampler(1) ]],
-                                       texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                       sampler metallicRoughnessSampler [[ sampler(2) ]],
-                                       texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                       sampler emissiveSampler [[ sampler(3) ]],
-                                       texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                                       sampler occlusionSampler [[ sampler(4) ]]) {
-
-    float3 albedo = baseColorTexture.sample(baseColorSampler, in.uv).rgb;
-    float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).b;
-    float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).g;
-    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, in.uv).r;
-
-    float3 normal = normalize(uniforms.viewPosition); // Default normal for view position
-    float3 worldPosition = in.worldPosition;
-    float3 viewPosition = uniforms.viewPosition;
-
-    // Direct lighting
-    float3 directLighting = compute_direct_lighting(normal,
-                                                    worldPosition,
-                                                    albedo,
-                                                    metallic,
-                                                    roughness,
-                                                    uniforms.viewPosition,
-                                                    uniforms.lightPosition,
-                                                    uniforms.ambientLightColor);
-
-    // Indirect lighting
-    float3 indirectLighting = compute_indirect_lighting(normal,
-                                                        worldPosition,
-                                                        viewPosition,
-                                                        albedo,
-                                                        metallic,
-                                                        roughness,
-                                                        ambientOcclusion,
-                                                        specularCubeMap,
-                                                        irradianceMap,
-                                                        brdfLUT);
-
-    // Emissive lighting
-    float3 emissive = emissiveTexture.sample(emissiveSampler, float2(0, 0)).rgb;
-
-    // Final color
-    float3 color = directLighting + indirectLighting + emissive;
-
-    return float4(color, 1.0);
-};
-
-// MARK: - Shader for P(Position)
-
-struct VertexIn_P {
-    float3 position [[attribute(0)]];
-};
-
-struct VertexOut_P {
-    float4 position [[position]];
-    float3 worldPosition;
-};
-
-vertex VertexOut_P pbr_p_vertex_shader(VertexIn_P in [[stage_in]],
-                                       constant float4x4 &model [[buffer(1)]],
-                                       constant float4x4 &view [[buffer(2)]],
-                                       constant float4x4 &projection [[buffer(3)]]) {
-    VertexOut_P out;
-
-    float4x4 mvpMatrix = projection * view * model;
-
-    out.position = mvpMatrix * float4(in.position, 1.0);
-    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
-    return out;
-}
-
-fragment float4 pbr_p_fragment_shader(VertexOut_P in [[stage_in]],
-                                      constant PBRSceneUniforms &uniforms [[buffer(0)]],
-                                      texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                                      texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                                      texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                                      texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                                      sampler baseColorSampler [[ sampler(0) ]],
-                                      texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                      sampler normalSampler [[ sampler(1) ]],
-                                      texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                      sampler metallicRoughnessSampler [[ sampler(2) ]],
-                                      texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                      sampler emissiveSampler [[ sampler(3) ]],
-                                      texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                                      sampler occlusionSampler [[ sampler(4) ]]) {
-
-    float2 uv = float2(0, 0); // Default UV coordinates
-    float3 albedo = baseColorTexture.sample(baseColorSampler, uv).rgb;
-    float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).b;
-    float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).g;
-    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, uv).r;
-
-    float3 normal = normalize(uniforms.viewPosition); // Default normal for view position
-    float3 worldPosition = in.worldPosition;
-    float3 viewPosition = uniforms.viewPosition;
-
-    // Direct lighting
-    float3 directLighting = compute_direct_lighting(normal,
-                                                    worldPosition,
-                                                    albedo,
-                                                    metallic,
-                                                    roughness,
-                                                    uniforms.viewPosition,
-                                                    uniforms.lightPosition,
-                                                    uniforms.ambientLightColor);
-
-    // Indirect lighting
-    float3 indirectLighting = compute_indirect_lighting(normal,
-                                                        worldPosition,
-                                                        viewPosition,
-                                                        albedo,
-                                                        metallic,
-                                                        roughness,
-                                                        ambientOcclusion,
-                                                        specularCubeMap,
-                                                        irradianceMap,
-                                                        brdfLUT);
-
-    // Emissive lighting
-    float3 emissive = emissiveTexture.sample(emissiveSampler, float2(0, 0)).rgb;
-
-    // Final color
-    float3 color = directLighting + indirectLighting + emissive;
-
-    return float4(color, 1.0);
-};
-
-// MARK: - Shaders for PNUC(Position, Normal, UV, Modulation-Color)
-
-struct VertexIn_PNUC {
+struct VertexIn_PNC {
     float3 position [[attribute(0)]];
     float3 normal [[attribute(1)]];
-    float2 uv [[attribute(3)]];
-    float4 modulationColor [[attribute(4)]];
+    float4 modulationColor [[attribute(2)]];
 };
 
-struct VertexOut_PNUC {
-    float4 position [[position]];
-    float3 worldPosition;
-    float3 normal;
-    float2 uv;
-    float4 modulationColor;
-};
-
-vertex VertexOut_PNUC pbr_pnuc_vertex_shader(VertexIn_PNUC in [[stage_in]],
-                                               constant float4x4 &model [[buffer(1)]],
-                                               constant float4x4 &view [[buffer(2)]],
-                                               constant float4x4 &projection [[buffer(3)]],
-                                               constant float3x3 &normalMatrix [[buffer(4)]]) {
-    VertexOut_PNUC out;
+vertex PBRVertexOut pnc_vertex_shader(VertexIn_PNC in [[stage_in]],
+                                   constant float4x4 &model [[buffer(1)]],
+                                   constant float4x4 &view [[buffer(2)]],
+                                   constant float4x4 &projection [[buffer(3)]],
+                                   constant float3x3 &normalMatrix [[buffer(4)]]) {
+    PBRVertexOut out;
 
     float4x4 mvpMatrix = projection * view * model;
 
     out.position = mvpMatrix * float4(in.position, 1.0);
     out.worldPosition = (model * float4(in.position, 1.0)).xyz;
     out.normal = normalize(normalMatrix * in.normal);
-    out.uv = in.uv;
+    out.tangentAvailable = false; // No tangent available
+    out.tangent = float4(0.0); // Default tangent
+    out.uv = float2(0.0); // Default UV
     out.modulationColor = in.modulationColor;
     return out;
 }
 
-fragment float4 pbr_pnuc_fragment_shader(VertexOut_PNUC in [[stage_in]],
-                                         constant PBRSceneUniforms &uniforms [[buffer(0)]],
-                                         texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                                         texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                                         texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                                         texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                                         sampler baseColorSampler [[ sampler(0) ]],
-                                         texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                         sampler normalSampler [[ sampler(1) ]],
-                                         texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                         sampler metallicRoughnessSampler [[ sampler(2) ]],
-                                         texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                         sampler emissiveSampler [[ sampler(3) ]],
-                                         texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                                         sampler occlusionSampler [[ sampler(4) ]]) {
+// MARK: - Shaders for PNT(Position, Normal, Tangent)
 
-    float3 albedo = baseColorTexture.sample(baseColorSampler, in.uv).rgb * in.modulationColor.rgb;
-    float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).b;
-    float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).g;
-    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, in.uv).r;
+struct VertexIn_PNT {
+    float3 position [[attribute(0)]];
+    float3 normal [[attribute(1)]];
+    float4 tangent [[attribute(2)]];
+};
 
-    // Default normal from vertex normal
-    float3 normal = normalize(in.normal);
-    if (normalTexture.get_width() > 0 && normalTexture.get_height() > 0) {
-        float3 normalSample = normalTexture.sample(normalSampler, in.uv).rgb;
-        float3 tangentNormal = normalSample * 2.0 - 1.0;
+vertex PBRVertexOut pnt_vertex_shader(VertexIn_PNT in [[stage_in]],
+                                   constant float4x4 &model [[buffer(1)]],
+                                   constant float4x4 &view [[buffer(2)]],
+                                   constant float4x4 &projection [[buffer(3)]],
+                                   constant float3x3 &normalMatrix [[buffer(4)]]) {
+    PBRVertexOut out;
 
-        // Construct a TBN matrix assuming the normal is Z and use a fixed tangent space
-        float3x3 TBN = make_tbn(normal);
+    float4x4 mvpMatrix = projection * view * model;
 
-        normal = normalize(TBN * tangentNormal);
-    }
-    float3 worldPosition = in.worldPosition;
-    float3 viewPosition = uniforms.viewPosition;
-
-    // Direct lighting
-    float3 directLighting = compute_direct_lighting(normal,
-                                                    worldPosition,
-                                                    albedo,
-                                                    metallic,
-                                                    roughness,
-                                                    uniforms.viewPosition,
-                                                    uniforms.lightPosition,
-                                                    uniforms.ambientLightColor);
-
-    // Indirect lighting
-    float3 indirectLighting = compute_indirect_lighting(normal,
-                                                        worldPosition,
-                                                        viewPosition,
-                                                        albedo,
-                                                        metallic,
-                                                        roughness,
-                                                        ambientOcclusion,
-                                                        specularCubeMap,
-                                                        irradianceMap,
-                                                        brdfLUT);
-
-    // Emissive lighting
-    float3 emissive = emissiveTexture.sample(emissiveSampler, in.uv).rgb;
-
-    // Final color
-    float3 color = directLighting + indirectLighting + emissive;
-
-    return float4(color, 1.0);
+    out.position = mvpMatrix * float4(in.position, 1.0);
+    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
+    out.normal = normalize(normalMatrix * in.normal);
+    out.tangentAvailable = true;
+    out.tangent = normalize(float4(normalMatrix * in.tangent.xyz, in.tangent.w));
+    out.uv = float2(0.0); // Default UV
+    out.modulationColor = float4(1.0); // Default modulation color
+    return out;
 }
 
 // MARK: - Shaders for PNTU(Position, Normal, Tangent, UV)
@@ -573,20 +216,69 @@ struct VertexIn_PNTU {
     float2 uv [[attribute(3)]];
 };
 
-struct VertexOut_PNTU {
-    float4 position [[position]];
-    float3 worldPosition;
-    float3 normal;
-    float4 tangent;
-    float2 uv;
-};
-
-vertex VertexOut_PNTU pbr_pntu_vertex_shader(VertexIn_PNTU in [[stage_in]],
+vertex PBRVertexOut pntu_vertex_shader(VertexIn_PNTU in [[stage_in]],
                                              constant float4x4 &model [[buffer(1)]],
                                              constant float4x4 &view [[buffer(2)]],
                                              constant float4x4 &projection [[buffer(3)]],
                                              constant float3x3 &normalMatrix [[buffer(4)]]) {
-    VertexOut_PNTU out;
+    PBRVertexOut out;
+
+    float4x4 mvpMatrix = projection * view * model;
+
+    out.position = mvpMatrix * float4(in.position, 1.0);
+    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
+    out.normal = normalize(normalMatrix * in.normal);
+    out.tangentAvailable = true;
+    out.tangent = normalize(float4(normalMatrix * in.tangent.xyz, in.tangent.w));
+    out.uv = in.uv;
+    out.modulationColor = float4(1.0); // Default modulation color
+    return out;
+}
+
+// MARK: - Vertex shader for PNTC
+
+struct VertexIn_PNTC {
+    float3 position [[attribute(0)]];
+    float3 normal [[attribute(1)]];
+    float4 tangent [[attribute(2)]];
+    float4 modulationColor [[attribute(4)]];
+};
+
+vertex PBRVertexOut pntc_vertex_shader(VertexIn_PNTC in [[stage_in]],
+                                               constant float4x4 &model [[buffer(1)]],
+                                               constant float4x4 &view [[buffer(2)]],
+                                               constant float4x4 &projection [[buffer(3)]],
+                                               constant float3x3 &normalMatrix [[buffer(4)]]) {
+    PBRVertexOut out;
+
+    float4x4 mvpMatrix = projection * view * model;
+
+    out.position = mvpMatrix * float4(in.position, 1.0);
+    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
+    out.normal = normalize(normalMatrix * in.normal);
+    out.tangentAvailable = true;
+    out.tangent = normalize(float4(normalMatrix * in.tangent.xyz, in.tangent.w));
+    out.uv = float2(0.0); // Default UV
+    out.modulationColor = in.modulationColor;
+    return out;
+}
+
+// MARK: - Shaders for PNTUC(Position, Normal, Tangent, UV, Modulation-Color)
+
+struct VertexIn_PNTUC {
+    float3 position [[attribute(0)]];
+    float3 normal [[attribute(1)]];
+    float4 tangent [[attribute(2)]];
+    float2 uv [[attribute(3)]];
+    float4 modulationColor [[attribute(4)]];
+};
+
+vertex PBRVertexOut pntuc_vertex_shader(VertexIn_PNTUC in [[stage_in]],
+                                               constant float4x4 &model [[buffer(1)]],
+                                               constant float4x4 &view [[buffer(2)]],
+                                               constant float4x4 &projection [[buffer(3)]],
+                                               constant float3x3 &normalMatrix [[buffer(4)]]) {
+    PBRVertexOut out;
 
     float4x4 mvpMatrix = projection * view * model;
 
@@ -595,39 +287,41 @@ vertex VertexOut_PNTU pbr_pntu_vertex_shader(VertexIn_PNTU in [[stage_in]],
     out.normal = normalize(normalMatrix * in.normal);
     out.tangent = normalize(float4(normalMatrix * in.tangent.xyz, in.tangent.w));
     out.uv = in.uv;
+    out.modulationColor = in.modulationColor;
     return out;
 }
 
-fragment float4 pbr_pntu_fragment_shader(VertexOut_PNTU in [[stage_in]],
-                                         constant PBRSceneUniforms &uniforms [[buffer(0)]],
-                                         texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                                         texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                                         texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                                         texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                                         sampler baseColorSampler [[ sampler(0) ]],
-                                         texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                         sampler normalSampler [[ sampler(1) ]],
-                                         texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                         sampler metallicRoughnessSampler [[ sampler(2) ]],
-                                         texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                         sampler emissiveSampler [[ sampler(3) ]],
-                                         texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                                         sampler occlusionSampler [[ sampler(4) ]]) {
 
-    float3 albedo = baseColorTexture.sample(baseColorSampler, in.uv).rgb;
+
+// MARK: - PBR Shader
+
+fragment float4 pbr_shader(PBRVertexOut in [[stage_in]],
+                           constant PBRSceneUniforms &uniforms [[buffer(0)]],
+                           texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
+                           texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
+                           texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
+                           texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
+                           sampler baseColorSampler [[ sampler(0) ]],
+                           texture2d<float, access::sample> normalTexture [[ texture(4) ]],
+                           sampler normalSampler [[ sampler(1) ]],
+                           texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
+                           sampler metallicRoughnessSampler [[ sampler(2) ]],
+                           texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
+                           sampler emissiveSampler [[ sampler(3) ]],
+                           texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
+                           sampler occlusionSampler [[ sampler(4) ]]) {
+
+    float3 albedo = baseColorTexture.sample(baseColorSampler, in.uv).rgb * in.modulationColor.rgb;
     float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).b;
     float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, in.uv).g;
     float ambientOcclusion = occlusionTexture.sample(occlusionSampler, in.uv).r;
 
-    // Default normal from vertex normal
-    float3 normal = float3(0, 0, 1);
-    if (normalTexture.get_width() > 0 && normalTexture.get_height() > 0) {
-        float3 N = normalize(in.normal);
-        float3 normalSample = normalTexture.sample(normalSampler, in.uv).rgb;
-        float3 normalTexValue = normalSample * 2.0 - 1.0;
-        float3x3 TBN = make_tbn(N, in.tangent.rgb, in.tangent.w);
-        normal = normalize(TBN * normalTexValue);
-    }
+    float3 N = normalize(in.normal);
+    float3x3 TBN = in.tangentAvailable ? make_tbn(N, in.tangent.xyz, in.tangent.w) : make_tbn(N);
+
+    float3 normalTexValue = normalTexture.sample(normalSampler, in.uv).rgb * 2.0 - 1.0;
+    float3 normal = normalize(TBN * normalTexValue);
+
     float3 worldPosition = in.worldPosition;
     float3 viewPosition = uniforms.viewPosition;
 
