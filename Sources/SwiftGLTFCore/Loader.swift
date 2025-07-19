@@ -4,7 +4,6 @@ import ImageIO
 import CoreGraphics
 import simd
 
-// MARK: - Data URI Helpers
 /// Extracts the raw Data from a Data URI string (base64 encoded)
 func dataFromDataURI(_ uri: String) throws -> Data {
     // Extract base64 string after comma

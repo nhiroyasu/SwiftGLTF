@@ -91,6 +91,64 @@ struct IndexInfo {
     }
 }
 
+public func makeMDLAsset(
+    from gltfContainer: GLTFContainer,
+    options: GLTFDecodeOptions = .default
+) throws -> MDLAsset {
+    #if DEBUG
+    let now = Date()
+    #endif
+
+    let gltf = gltfContainer.gltf
+
+    let device = MTLCreateSystemDefaultDevice()!
+    let allocator = MTKMeshBufferAllocator(device: device)
+    let asset = MDLAsset(bufferAllocator: allocator)
+    let binaryLoader = GLTFBinaryLoader(gltfContainer: gltfContainer)
+
+    // 全ての mesh を先に変換して保持（再利用のため）
+    // en: Convert all meshes first and keep them for reuse
+    var mdlMeshMap: [Int: [MDLMesh]] = [:]
+    for (index, mesh) in (gltf.meshes ?? []).enumerated() {
+        mdlMeshMap[index] = try makeMDLMesh(
+            from: mesh,
+            using: gltf,
+            binaryLoader: binaryLoader,
+            options: options
+        )
+    }
+
+    // デフォルトシーンを取得
+    let sceneIndex = gltf.scene ?? 0
+    guard let scene = gltf.scenes?[sceneIndex] else {
+        throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "No valid scene found"])
+    }
+
+    for rootNodeIndex in scene.nodes ?? [] {
+        let root = buildNodeTree(gltf: gltf, mdlMeshMap: mdlMeshMap, nodeIndex: rootNodeIndex, options: options)
+        asset.add(root)
+    }
+
+    if options.autoScale,
+       let positionAccessorIndex = gltf.meshes?.flatMap({ $0.primitives.map({ $0.attributes[GLTFAttribute.position.rawValue]}) }).first?.flatMap({ $0 }),
+       let positionAccessor = gltf.accessors?[positionAccessorIndex],
+       let max = positionAccessor.max?.max() {
+        let scale = 1 / max
+        for i in 0..<asset.count {
+            let matrix = asset.object(at: i).transform?.matrix ?? matrix_identity_float4x4
+            asset.object(at: i).transform = GLTFTransform(matrix: scaleMatrix(scale, scale, scale) * matrix)
+        }
+        os_log("Scaling asset by factor: %{public}f", log: .default, type: .info, scale)
+    }
+
+    #if DEBUG
+    let elapsed = Date().timeIntervalSince(now)
+    os_log("MDLAsset created in %{public}.2f seconds", log: .default, type: .info, elapsed)
+    #endif
+
+    return asset
+}
+
 public func makeMDLMesh(
     from mesh: Mesh,
     using gltf: GLTF,
@@ -175,64 +233,6 @@ public func makeMDLMesh(
         mdlMeshes.append(mesh)
     }
     return mdlMeshes
-}
-
-public func makeMDLAsset(
-    from gltfContainer: GLTFContainer,
-    options: GLTFDecodeOptions = .default
-) throws -> MDLAsset {
-    #if DEBUG
-    let now = Date()
-    #endif
-
-    let gltf = gltfContainer.gltf
-
-    let device = MTLCreateSystemDefaultDevice()!
-    let allocator = MTKMeshBufferAllocator(device: device)
-    let asset = MDLAsset(bufferAllocator: allocator)
-    let binaryLoader = GLTFBinaryLoader(gltfContainer: gltfContainer)
-
-    // 全ての mesh を先に変換して保持（再利用のため）
-    // en: Convert all meshes first and keep them for reuse
-    var mdlMeshMap: [Int: [MDLMesh]] = [:]
-    for (index, mesh) in (gltf.meshes ?? []).enumerated() {
-        mdlMeshMap[index] = try makeMDLMesh(
-            from: mesh,
-            using: gltf,
-            binaryLoader: binaryLoader,
-            options: options
-        )
-    }
-
-    // デフォルトシーンを取得
-    let sceneIndex = gltf.scene ?? 0
-    guard let scene = gltf.scenes?[sceneIndex] else {
-        throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "No valid scene found"])
-    }
-
-    for rootNodeIndex in scene.nodes ?? [] {
-        let root = buildNodeTree(gltf: gltf, mdlMeshMap: mdlMeshMap, nodeIndex: rootNodeIndex, options: options)
-        asset.add(root)
-    }
-
-    if options.autoScale,
-       let positionAccessorIndex = gltf.meshes?.flatMap({ $0.primitives.map({ $0.attributes[GLTFAttribute.position.rawValue]}) }).first?.flatMap({ $0 }),
-       let positionAccessor = gltf.accessors?[positionAccessorIndex],
-       let max = positionAccessor.max?.max() {
-        let scale = 1 / max
-        for i in 0..<asset.count {
-            let matrix = asset.object(at: i).transform?.matrix ?? matrix_identity_float4x4
-            asset.object(at: i).transform = GLTFTransform(matrix: scaleMatrix(scale, scale, scale) * matrix)
-        }
-        os_log("Scaling asset by factor: %{public}f", log: .default, type: .info, scale)
-    }
-
-    #if DEBUG
-    let elapsed = Date().timeIntervalSince(now)
-    os_log("MDLAsset created in %{public}.2f seconds", log: .default, type: .info, elapsed)
-    #endif
-
-    return asset
 }
 
 // 各ノードを再帰的に MDLObject に変換
