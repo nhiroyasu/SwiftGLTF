@@ -40,6 +40,25 @@
                 <string>model/gltf+json</string>
             </dict>
 		</dict>
+        <dict>
+                <key>UTTypeIdentifier</key>
+                <string>org.khronos.glb</string>
+                <key>UTTypeDescription</key>
+                <string>Binary glTF</string>
+                <key>UTTypeConformsTo</key>
+                <array>
+                    <string>public.data</string>
+                </array>
+                <key>UTTypeTagSpecification</key>
+                <dict>
+                    <key>public.filename-extension</key>
+                    <array>
+                        <string>glb</string>
+                    </array>
+                    <key>public.mime-type</key>
+                    <string>model/gltf-binary</string>
+                </dict>
+            </dict>
 	</array>
 </dict>
 </plist>

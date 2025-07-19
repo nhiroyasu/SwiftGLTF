@@ -1,6 +1,5 @@
 import UIKit
 import MetalKit
-import SwiftGLTFCore
 import SwiftGLTF
 import SwiftGLTFRenderer
 
@@ -18,21 +17,20 @@ class ViewController: UIViewController {
 
             do {
                 let url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
-                let data = try Data(contentsOf: url)
-                let gltf = try loadGLTF(from: data)
-                let asset = try makeMDLAsset(from: gltf, baseURL: url.deletingLastPathComponent())
-                try await  setupMTLView(asset: asset)
+                let asset = try makeMDLAsset(from: url)
+                try await setupMTLView(asset: asset)
             } catch {
                 print("Error loading GLTF: \(error)")
             }
 
             // Add a button to open a GLTF file
-            // TODO: In the case of iOS, it is not possible to obtain read permission for bin and png files associated with glTF files, so the Open button will not be displayed until .glb files are supported.
-            /*
+            var config = UIButton.Configuration.filled()
+            config.baseBackgroundColor = .systemBlue
+            config.cornerStyle = .medium
             let openButton = UIButton(
-                configuration: .bordered(),
+                configuration: config,
                 primaryAction: UIAction(
-                    title: "Open GLTF File",
+                    title: "Open .glb",
                     handler: { [weak self] _ in
                         self?.openGLTFFile()
                     }
@@ -42,9 +40,8 @@ class ViewController: UIViewController {
             self.view.addSubview(openButton)
             NSLayoutConstraint.activate([
                 openButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-                openButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
+                openButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16)
             ])
-             */
         }
     }
 
@@ -66,7 +63,7 @@ class ViewController: UIViewController {
     }
 
     func openGLTFFile() {
-        let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: [.gltf, .glb])
+        let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: [.glb])
         documentPicker.allowsMultipleSelection = false
         documentPicker.delegate = self
         present(documentPicker, animated: true, completion: nil)
@@ -78,12 +75,16 @@ extension ViewController: UIDocumentPickerDelegate {
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { return }
         do {
-            let data = try Data(contentsOf: url)
-            let gltf = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-            let asset = try makeMDLAsset(from: gltf)
+            let asset = try makeMDLAsset(from: url)
             try mtlView.setAsset(asset)
         } catch {
-            print("Error loading GLTF file: \(error)")
+            let alert = UIAlertController(
+                title: "Error",
+                message: "Failed to load GLTF file: \(error.localizedDescription)",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+            present(alert, animated: true, completion: nil)
         }
     }
 }

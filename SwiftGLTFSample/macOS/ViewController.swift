@@ -1,7 +1,6 @@
 import Cocoa
 import MetalKit
 import OSLog
-import SwiftGLTFCore
 import SwiftGLTF
 import SwiftGLTFRenderer
 
@@ -60,7 +59,7 @@ class ViewController: NSViewController {
         ])
 
         // Add a button to open a GLTF file
-        let openButton = NSButton(title: "Open GLTF File", target: self, action: #selector(openGLTFFile))
+        let openButton = NSButton(title: "Open .gltf or .glb", target: self, action: #selector(openGLTFFile))
         openButton.translatesAutoresizingMaskIntoConstraints = false
         self.view.addSubview(openButton)
         NSLayoutConstraint.activate([
