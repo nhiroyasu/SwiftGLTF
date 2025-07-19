@@ -182,14 +182,34 @@ private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFContainer {
     // Extract external images or data URIs
     var textures: [MDLTexture] = []
     for (idx, image) in (gltf.images ?? []).enumerated() {
-        if let uri = image.uri, let url = URL(string: uri, relativeTo: baseURL) {
+        if let uri = image.uri {
             if uri.hasPrefix("data:") {
-                // TODO: handle data URI
-                throw NSError(domain: "GLTF", code: -1,
-                              userInfo: [NSLocalizedDescriptionKey: "Data URI for image not implemented"])
-            } else {
+                // Data URI: data:<mime>;base64,<data>
+                guard let comma = uri.firstIndex(of: ",") else {
+                    throw NSError(domain: "GLTF", code: -1,
+                                  userInfo: [NSLocalizedDescriptionKey: "Invalid data URI for image"])
+                }
+                let b64 = String(uri[uri.index(after: comma)...])
+                guard let imageData = Data(base64Encoded: b64) else {
+                    throw NSError(domain: "GLTF", code: -1,
+                                  userInfo: [NSLocalizedDescriptionKey: "Failed to decode base64 image data"])
+                }
+                // Write image data to temporary file and load via MDLURLTexture
+                // Determine file extension from MIME type in data URI header
+                let header = String(uri[uri.index(uri.startIndex, offsetBy: 5)..<uri.firstIndex(of: ",")!])
+                let mimeType = header.components(separatedBy: ";")[0]
+                let ext = mimeType.components(separatedBy: "/").last ?? "bin"
+                let tempURL = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("gltf_texture_\(idx).\(ext)")
+                try imageData.write(to: tempURL)
+                let texture = MDLURLTexture(url: tempURL, name: "Texture_\(idx)")
+                textures.append(texture)
+            } else if let url = URL(string: uri, relativeTo: baseURL) {
                 let texture = MDLURLTexture(url: url, name: "Texture_\(idx)")
                 textures.append(texture)
+            } else {
+                throw NSError(domain: "GLTF", code: -1,
+                              userInfo: [NSLocalizedDescriptionKey: "Image URI is missing or invalid"])
             }
         } else {
             throw NSError(domain: "GLTF", code: -1,
