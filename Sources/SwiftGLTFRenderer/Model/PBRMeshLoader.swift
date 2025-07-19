@@ -47,9 +47,7 @@ class PBRMeshLoader {
         return pbrMeshes
     }
 
-    private func makeSamplerState(from sampler: MDLTextureSampler?, device: MTLDevice) -> MTLSamplerState? {
-        guard let sampler = sampler else { return nil }
-
+    private func makeSamplerState(from sampler: MDLTextureSampler, device: MTLDevice) throws -> MTLSamplerState {
         let descriptor = MTLSamplerDescriptor()
 
         switch sampler.hardwareFilter?.magFilter {
@@ -78,7 +76,15 @@ class PBRMeshLoader {
         default: break
         }
 
-        return device.makeSamplerState(descriptor: descriptor)
+        if let samplerState = device.makeSamplerState(descriptor: descriptor) {
+            return samplerState
+        } else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create sampler state"]
+            )
+        }
     }
 
     private func loadRecursiveMeshes(
@@ -96,91 +102,20 @@ class PBRMeshLoader {
 
             var submeshes: [PBRMesh.Submesh] = []
             for (mtkSubmesh, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
-                // Load a base color texture and sampler
-                let baseColorTextureProp = mdlSubmesh.material?.propertyNamed(MaterialPropertyName.baseColorTexture.rawValue)
-                let baseColorFactorProp = mdlSubmesh.material?.propertyNamed(MaterialPropertyName.baseColorFactor.rawValue)
+                // Base color texture and sampler
+                let (baseColorTexture, baseColorSamplerState) = try makeBaseColorTextureAndSampler(device: device, material: mdlSubmesh.material)
 
-                let baseColorSampler: MDLTextureSampler
-                if let mdlSampler = baseColorTextureProp?.textureSamplerValue {
-                    baseColorSampler = mdlSampler
-                } else {
-                    baseColorSampler = makeDummySampler(
-                        textureValue: Array<Float16>([1, 1, 1, 1]),
-                        channelCount: 4,
-                        channelEncoding: .float16
-                    )
-                }
-                var baseColorTexture: MTLTexture?
-                if let tex = baseColorSampler.texture {
-                    baseColorTexture = try convertTextureWithCache(tex, convertLinearColorSpace: true, device: device)
-                }
-                if let tex = baseColorTexture, let color = baseColorFactorProp?.float4Value {
-                    baseColorTexture = try shaderConnection.makeBaseColorTexture(
-                        baseColorFactor: color,
-                        baseColorTexture: tex
-                    )
-                }
+                // Normal texture and sampler
+                let (normalTexture, normalSamplerState) = try makeNormalTextureAndSampler(device: device, material: mdlSubmesh.material)
 
-                let baseColorSamplerState = makeSamplerState(from: baseColorSampler, device: device)
+                // Make metallic roughness texture and sampler
+                let (metallicRoughnessTexture, metallicRoughnessSamplerState) = try makeMetallicRoughnessTextureAndSampler(device: device, material: mdlSubmesh.material)
 
-                // Load a normal texture and sampler
-                let normalSampler: MDLTextureSampler = {
-                    if let s = mdlSubmesh.material?.property(with: .tangentSpaceNormal)?.textureSamplerValue {
-                        return s
-                    } else {
-                        let floatPixels: [Float16] = [0.5, 0.5, 1.0, 1.0]
-                        return makeDummySampler(textureValue: floatPixels, channelCount: 4, channelEncoding: .float16)
-                    }
-                }()
-                var normalTexture: MTLTexture?
-                if let tex = normalSampler.texture {
-                    normalTexture = try convertTextureWithCache(tex, device: device)
-                }
-                let normalSamplerState = makeSamplerState(from: normalSampler, device: device)
-
-                // Make material properties
-                let metallicFactor: Float = mdlSubmesh.material?.property(with: .metallic)?.floatValue ?? 1.0
-                let roughnessFactor: Float = mdlSubmesh.material?.property(with: .roughness)?.floatValue ?? 1.0
-                let metallicRoughnessMDLSampler = {
-                    if let s = mdlSubmesh.material?.propertyNamed("metallicRoughnessTexture")?.textureSamplerValue {
-                        return s
-                    } else {
-                        let metallicRoughness: [Float16] = [0, 1, 1, 0]
-                        return makeDummySampler(textureValue: metallicRoughness, channelCount: 4, channelEncoding: .float16)
-                    }
-                }()
-
-                var metallicRoughnessTexture: MTLTexture?
-                var metallicRoughnessSamplerState: MTLSamplerState?
-                if let tex = try metallicRoughnessMDLSampler.texture?.imageFromTexture(device: device) {
-                    metallicRoughnessTexture = try shaderConnection.makeMetallicRoughnessTexture(
-                        metallicFactor: metallicFactor,
-                        roughnessFactor: roughnessFactor,
-                        baseMetallicRoughnessTexture: tex
-                    )
-                    metallicRoughnessSamplerState = makeSamplerState(from: metallicRoughnessMDLSampler, device: device)
-                }
-
-                // Make emissive texture
+                // Make emissive texture and sampler
                 let (emissiveTexture, emissiveSamplerState) = try makeEmissiveTextureAndSampler(device, mdlSubmesh.material)
 
-                let occlusionSampler: MDLTextureSampler = {
-                    if let s = mdlSubmesh.material?.property(with: .ambientOcclusion)?.textureSamplerValue {
-                        return s
-                    } else {
-                        let occlusion: [Float16] = [1, 0, 0, 0]
-                        return makeDummySampler(textureValue: occlusion, channelCount: 4, channelEncoding: .float16)
-                    }
-                }()
-                var occlusionTexture: MTLTexture?
-                var occlusionSamplerState: MTLSamplerState?
-                if let tex = try occlusionSampler.texture?.imageFromTexture(device: device) {
-                    occlusionTexture = try shaderConnection.makeOcclusionTexture(
-                        occlusionFactor: mdlSubmesh.material?.property(with: .ambientOcclusionScale)?.floatValue ?? 1.0,
-                        occlusionTexture: tex
-                    )
-                    occlusionSamplerState = makeSamplerState(from: occlusionSampler, device: device)
-                }
+                // Occlusion texture and sampler
+                let (occlusionTexture, occlusionSamplerState) = try makeOcclusionTextureAndSampler(device: device, material: mdlSubmesh.material)
 
                 let submeshData = PBRMesh.Submesh(
                     primitiveType: mtkSubmesh.primitiveType,
@@ -319,9 +254,118 @@ class PBRMeshLoader {
         }
     }
 
+    // MARK: - Texture & Sampler Helpers
+
+    private func makeBaseColorTextureAndSampler(device: MTLDevice, material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
+        let prop = material?.propertyNamed(MaterialPropertyName.baseColorTexture.rawValue)
+        let factorProp = material?.propertyNamed(MaterialPropertyName.baseColorFactor.rawValue)
+
+        let sampler: MDLTextureSampler
+        if let s = prop?.textureSamplerValue {
+            sampler = s
+        } else {
+            sampler = makeDummySampler(textureValue: Array<Float16>(repeating: 1, count: 4), channelCount: 4, channelEncoding: .float16)
+        }
+
+        guard let tex = sampler.texture else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Base color texture not found"]
+            )
+        }
+        let color = factorProp?.float4Value ?? SIMD4<Float>(1, 1, 1, 1)
+        var texture = try convertTextureWithCache(tex, convertLinearColorSpace: true, device: device)
+        texture = try shaderConnection.makeBaseColorTexture(baseColorFactor: color, baseColorTexture: texture)
+
+        let samplerState = try makeSamplerState(from: sampler, device: device)
+
+        return (texture, samplerState)
+    }
+
+    private func makeNormalTextureAndSampler(device: MTLDevice, material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
+        let sampler: MDLTextureSampler
+        if let s = material?.property(with: .tangentSpaceNormal)?.textureSamplerValue {
+            sampler = s
+        } else {
+            sampler = makeDummySampler(textureValue: [Float16(0.5), 0.5, 1.0, 1.0], channelCount: 4, channelEncoding: .float16)
+        }
+
+        guard let texture = try sampler.texture?.imageFromTexture(device: device) else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Normal texture not found"]
+            )
+        }
+
+        let samplerState = try makeSamplerState(from: sampler, device: device)
+
+        return (texture, samplerState)
+    }
+
+    private func makeMetallicRoughnessTextureAndSampler(device: MTLDevice, material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
+        let metallicRoughnessTextureProp = material?.propertyNamed(MaterialPropertyName.metallicRoughnessTexture.rawValue)
+        let metallicFactorProp = material?.property(with: .metallic)
+        let roughnessFactorProp = material?.property(with: .roughness)
+
+        let metallicRoughnessMDLSampler = if let mdlSampler = metallicRoughnessTextureProp?.textureSamplerValue {
+            mdlSampler
+        } else {
+            makeDummySampler(
+                textureValue: Array<Float16>([0, 1, 1, 0]),
+                channelCount: 4,
+                channelEncoding: .float16
+            )
+        }
+
+        guard let tex = try metallicRoughnessMDLSampler.texture?.imageFromTexture(device: device) else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Metallic roughness texture not found"]
+            )
+        }
+
+        let metallicFactor = metallicFactorProp?.floatValue ?? 1.0
+        let roughnessFactor = roughnessFactorProp?.floatValue ?? 1.0
+        let texture = try shaderConnection.makeMetallicRoughnessTexture(
+            metallicFactor: metallicFactor,
+            roughnessFactor: roughnessFactor,
+            baseMetallicRoughnessTexture: tex
+        )
+
+        let samplerState = try makeSamplerState(from: metallicRoughnessMDLSampler, device: device)
+
+        return (texture, samplerState)
+    }
+
+    private func makeOcclusionTextureAndSampler(device: MTLDevice, material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
+        let sampler: MDLTextureSampler
+        if let s = material?.property(with: .ambientOcclusion)?.textureSamplerValue {
+            sampler = s
+        } else {
+            sampler = makeDummySampler(textureValue: [Float16(1), 0, 0, 0], channelCount: 4, channelEncoding: .float16)
+        }
+
+        guard let tex = try sampler.texture?.imageFromTexture(device: device) else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Ambient occlusion texture not found"]
+            )
+        }
+        let factor = material?.property(with: .ambientOcclusionScale)?.floatValue ?? 1.0
+        let texture = try shaderConnection.makeOcclusionTexture(occlusionFactor: factor, occlusionTexture: tex)
+
+        let samplerState = try makeSamplerState(from: sampler, device: device)
+        return (texture, samplerState)
+    }
+
     private func makeEmissiveTextureAndSampler(_ device: MTLDevice, _ material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
         let emissiveTextureProp = material?.propertyNamed(MaterialPropertyName.emissiveTexture.rawValue)
         let emissiveFactorProp = material?.propertyNamed(MaterialPropertyName.emissiveFactor.rawValue)
+
         let emissiveSampler: MDLTextureSampler = if let mdlSampler = emissiveTextureProp?.textureSamplerValue {
             mdlSampler
         } else {
@@ -343,13 +387,7 @@ class PBRMeshLoader {
             emissiveFactor: emissiveFactorProp?.float3Value ?? SIMD3<Float>(0, 0, 0),
             emissiveTexture: tex
         )
-        guard let emissiveSamplerState = makeSamplerState(from: emissiveSampler, device: device) else {
-            throw NSError(
-                domain: "MDLAssetLoader",
-                code: 2,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to create emissive sampler state"]
-            )
-        }
+        let emissiveSamplerState = try makeSamplerState(from: emissiveSampler, device: device)
 
         return (emissiveTexture, emissiveSamplerState)
     }
