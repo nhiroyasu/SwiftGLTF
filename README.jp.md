@@ -38,18 +38,13 @@ import SwiftGLTFRenderer
 
 // ...
 
- let gltfUrl = // glTFまたはGLBファイルのURL
-let data = try Data(contentsOf: gltfUrl)
-let gltf = try loadGLTF(from: data)
-let asset = try makeMDLAsset(
-    from: gltf,
-    baseURL: url.deletingLastPathComponent(),
-    options: options
-)
+let gltfUrl = // glTFまたはGLBファイルのURL
+let asset = try makeMDLAsset(from: gltfUrl)
 
+let device = MTLCreateSystemDefaultDevice()!
 let mtlView = try await MDLAssetPBRMTKView(
     frame: view.frame,
-    device: MTLCreateSystemDefaultDevice()!,
+    device: device,
     commandQueue: device.makeCommandQueue()!,
     asset: asset
 )
