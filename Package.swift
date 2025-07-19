@@ -49,10 +49,13 @@ let package = Package(
             resources: [
                 .process("Cube/Resources/cube.gltf"),
                 .process("Cube/Resources/cube.bin"),
+                .process("CubeBinary/Resources/cube.glb"),
                 .process("CubeWithTexture/Resources/bricks_cube.gltf"),
+                .process("CubeWithTexture/Resources/bricks_cube_empty_sampler.gltf"),
                 .process("CubeWithTexture/Resources/bricks_cube.bin"),
                 .process("CubeWithTexture/Resources/Bricks101_2K-JPG_Color.jpg"),
                 .process("CubeWithTexture/Resources/Bricks101_2K-JPG_NormalGL.jpg"),
+                .process("CubeBinaryWithTexture/Resources/bricks_cube.glb"),
                 .process("MaterialCube/Resources/material_cube.gltf"),
                 .process("MaterialCube/Resources/material_cube.bin"),
                 .process("PlainCube/Resources/plain_cube.gltf"),
@@ -64,6 +67,8 @@ let package = Package(
             ]),
 
         .target(name: "SwiftGLTFCore"),
+        .testTarget(name: "SwiftGLTFCoreTests",
+                    dependencies: ["SwiftGLTFCore"]),
 
         .target(
             name: "MikkTSpace",

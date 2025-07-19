@@ -97,24 +97,19 @@ class PBRMeshLoader {
             for (mtkSubmesh, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
                 // Load a base color texture and sampler
                 // TODO: Multiple base color texture to color factor
-                let baseColorTexUrl: URL? = mdlSubmesh.material?.property(with: .baseColor)?.urlValue
                 let baseColorSampler: MDLTextureSampler = {
                     if let s = mdlSubmesh.material?.property(with: .baseColor)?.textureSamplerValue {
                         return s
                     } else {
-                        let color = mdlSubmesh.material?.property(with: .baseColor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
+                        var color = mdlSubmesh.material?.property(with: .baseColor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
+                        color = linearToSrgb(color)
                         let floatPixels: [Float16] = [Float16(color.x), Float16(color.y), Float16(color.z), 1.0]
                         return makeDummySampler(textureValue: floatPixels, channelCount: 4, channelEncoding: .float16)
                     }
                 }()
                 var baseColorTexture: MTLTexture?
                 if let tex = baseColorSampler.texture {
-                    let shouldConvertedToLinear: Bool = if let url = baseColorTexUrl {
-                        isLinearColorSpace(from: url) == false
-                    } else {
-                        false
-                    }
-                    baseColorTexture = try convertTextureWithCache(tex, convertLinearColorSpace: shouldConvertedToLinear, device: device)
+                    baseColorTexture = try convertTextureWithCache(tex, convertLinearColorSpace: true, device: device)
                 }
                 let baseColorSamplerState = makeSamplerState(from: baseColorSampler, device: device)
 
@@ -510,36 +505,6 @@ private func convertSrgb2Linear(_ texture: MTLTexture) throws -> MTLTexture {
     commandBuffer.commit()
     commandBuffer.waitUntilCompleted()
     return outputTexture
-}
-
-
-private func isLinearColorSpace(from url: URL) -> Bool? {
-    guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil) else {
-        return nil
-    }
-
-    let options: [CFString: Any] = [
-        kCGImageSourceShouldCache: true // 必要に応じてキャッシュ
-    ]
-    if let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, options as CFDictionary) {
-        switch cgImage.colorSpace?.name {
-        case CGColorSpace.linearSRGB,
-            CGColorSpace.linearGray,
-            CGColorSpace.linearDisplayP3,
-            CGColorSpace.linearITUR_2020,
-            CGColorSpace.acescgLinear,
-            CGColorSpace.genericRGBLinear,
-            CGColorSpace.extendedLinearGray,
-            CGColorSpace.extendedLinearSRGB,
-            CGColorSpace.extendedLinearDisplayP3,
-            CGColorSpace.extendedLinearITUR_2020:
-            return true
-        default:
-            return false
-        }
-    } else {
-        return nil
-    }
 }
 
 private func makeDummySampler<T: Numeric>(

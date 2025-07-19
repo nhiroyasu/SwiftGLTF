@@ -7,7 +7,7 @@ A project that enables using glTF files in Swift.
 ![preview3](./Screenshots/preview3.png)  
 
 ## Features
-- Decodes glTF files and makes them available as `MDLAsset` in Swift
+- Decodes glTF and GLB files and makes them available as `MDLAsset` in Swift
 - High-performance glTF rendering with Metal
 
 ### Planned Features
@@ -39,7 +39,7 @@ import SwiftGLTFRenderer
 
 // ...
 
-let gltfUrl = // URL to your glTF file
+let gltfUrl = // URL to your glTF or GLB file
 let data = try Data(contentsOf: gltfUrl)
 let gltf = try loadGLTF(from: data)
 let asset = try makeMDLAsset(
@@ -63,7 +63,7 @@ view.addSubview(mtlView)
 ### File Formats
 | Format              | Supported |
 |---------------------|-----------|
-| glTF Binary (.glb)  | ❌         |
+| glTF Binary (.glb)  | ✅         |
 | glTF JSON (.gltf)   | ✅         |
 
 ### Buffer Formats

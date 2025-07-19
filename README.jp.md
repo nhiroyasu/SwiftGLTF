@@ -1,12 +1,12 @@
 # SwiftGLTF
-glTFファイルをSwiftで利用できるようにするプロジェクト
+glTFおよびGLBファイルをSwiftで利用できるようにするプロジェクト
 
 ![preview1](./Screenshots/preview1.png)
 ![preview2](./Screenshots/preview2.png)
 ![preview3](./Screenshots/preview3.png)
 
 ## Features
-- glTFファイルをデコードし、 `MDLAsset` としてSwiftで扱えるようにする
+- glTFおよびGLBファイルをデコードし、 `MDLAsset` としてSwiftで扱えるようにする
 - MetalによるglTFファイルの高速レンダリング
 
 ### 将来的な機能
@@ -38,7 +38,7 @@ import SwiftGLTFRenderer
 
 // ...
 
-let gltfUrl = // URL to your glTF file
+ let gltfUrl = // glTFまたはGLBファイルのURL
 let data = try Data(contentsOf: gltfUrl)
 let gltf = try loadGLTF(from: data)
 let asset = try makeMDLAsset(
@@ -62,7 +62,7 @@ view.addSubview(mtlView)
 ### File formats
 | Format              | Supported |
 |---------------------|-----------|
-| glTF Binary (.glb)  | ❌         |
+| glTF Binary (.glb)  | ✅         |
 | glTF JSON (.gltf)   | ✅         |
 
 ### Buffer formats

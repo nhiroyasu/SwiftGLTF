@@ -1,6 +1,20 @@
 import Foundation
 import ModelIO
 
+public struct GLTFContainer {
+    public let gltf: GLTF
+    /// Embedded binary chunks; for .glb files this contains the BIN chunk data
+    public let binaryBuffers: [Data]
+    /// Image binary data mapped by image index (embedded or external)
+    public let binaryTextures: [MDLTexture]
+
+    public init(gltf: GLTF, binaryBuffers: [Data], binaryTextures: [MDLTexture]) {
+        self.gltf = gltf
+        self.binaryBuffers = binaryBuffers
+        self.binaryTextures = binaryTextures
+    }
+}
+
 public struct GLTF: Codable {
     public let asset: Asset
     public let buffers: [Buffer]?
@@ -198,9 +212,31 @@ public struct Image: Codable {
     public let name: String?
 }
 
+public struct ImageIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+    public let value: Int
+
+    public init(_ value: Int) {
+        self.value = value
+    }
+
+    public init(integerLiteral value: Int) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try container.decode(Int.self)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
 public struct Texture: Codable {
     public let sampler: Int?
-    public let source: Int?
+    public let source: ImageIndex?
     public let name: String?
 }
 
