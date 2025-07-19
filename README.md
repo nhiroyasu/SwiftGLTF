@@ -1,4 +1,5 @@
 # SwiftGLTF
+[![Swift](https://github.com/nhiroyasu/SwiftGLTF/actions/workflows/swift.yml/badge.svg)](https://github.com/nhiroyasu/SwiftGLTF/actions/workflows/swift.yml)
 
 A project that enables using glTF files in Swift.
 
