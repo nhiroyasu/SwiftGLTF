@@ -64,6 +64,8 @@ let package = Package(
                 .process("TangentCube/Resources/tangent_cube.bin"),
                 .process("EmissiveCube/Resources/emissive_cube.gltf"),
                 .process("EmissiveCube/Resources/emissive_cube.bin"),
+                .process("BoxTextured/Resources/EmbeddedBoxTextured.gltf"),
+                .process("BoxTextured/Resources/CesiumLogoFlat.png"),
             ]),
 
         .target(name: "SwiftGLTFCore"),

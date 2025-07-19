@@ -1,6 +1,63 @@
 import Foundation
 import ModelIO
 import ImageIO
+import CoreGraphics
+import simd
+
+// MARK: - Data URI Helpers
+fileprivate func dataFromDataURI(_ uri: String) throws -> Data {
+    // Extract base64 string after comma
+    guard let comma = uri.firstIndex(of: ",") else {
+        throw NSError(domain: "GLTF", code: -1,
+                      userInfo: [NSLocalizedDescriptionKey: "Invalid data URI"])
+    }
+    let b64 = String(uri[uri.index(after: comma)...])
+    guard let data = Data(base64Encoded: b64) else {
+        throw NSError(domain: "GLTF", code: -1,
+                      userInfo: [NSLocalizedDescriptionKey: "Failed to decode base64 data"])
+    }
+    return data
+}
+
+fileprivate func mdlTextureFromDataURI(_ uri: String, name: String) throws -> MDLTexture {
+    let imageData = try dataFromDataURI(uri)
+    guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
+          let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+        throw NSError(domain: "GLTF", code: -1,
+                      userInfo: [NSLocalizedDescriptionKey: "Failed to create image from data URI"])
+    }
+    // Render CGImage into raw RGBA8 buffer
+    let width = cgImage.width
+    let height = cgImage.height
+    let bytesPerPixel = 4
+    let bytesPerRow = bytesPerPixel * width
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+    guard let context = CGContext(data: nil, width: width, height: height,
+                                  bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+                                  space: colorSpace, bitmapInfo: bitmapInfo) else {
+        throw NSError(domain: "GLTF", code: -1,
+                      userInfo: [NSLocalizedDescriptionKey: "Failed to create CGContext for image"])
+    }
+    let rect = CGRect(x: 0, y: 0, width: width, height: height)
+    context.draw(cgImage, in: rect)
+    guard let dataPtr = context.data else {
+        throw NSError(domain: "GLTF", code: -1,
+                      userInfo: [NSLocalizedDescriptionKey: "Failed to access image pixel data"])
+    }
+    let pixelData = Data(bytes: dataPtr, count: bytesPerRow * height)
+    // Create MDLTexture from raw data, flip origin
+    let dims = vector_int2(Int32(width), Int32(height))
+    let texture = MDLTexture(data: pixelData,
+                             topLeftOrigin: false,
+                             name: name,
+                             dimensions: dims,
+                             rowStride: bytesPerRow,
+                             channelCount: bytesPerPixel,
+                             channelEncoding: .uInt8,
+                             isCube: false)
+    return texture
+}
 
 // Returns true if the data begins with the glb magic "glTF" header
 func isGLB(_ data: Data) -> Bool {
@@ -184,25 +241,8 @@ private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFContainer {
     for (idx, image) in (gltf.images ?? []).enumerated() {
         if let uri = image.uri {
             if uri.hasPrefix("data:") {
-                // Data URI: data:<mime>;base64,<data>
-                guard let comma = uri.firstIndex(of: ",") else {
-                    throw NSError(domain: "GLTF", code: -1,
-                                  userInfo: [NSLocalizedDescriptionKey: "Invalid data URI for image"])
-                }
-                let b64 = String(uri[uri.index(after: comma)...])
-                guard let imageData = Data(base64Encoded: b64) else {
-                    throw NSError(domain: "GLTF", code: -1,
-                                  userInfo: [NSLocalizedDescriptionKey: "Failed to decode base64 image data"])
-                }
-                // Write image data to temporary file and load via MDLURLTexture
-                // Determine file extension from MIME type in data URI header
-                let header = String(uri[uri.index(uri.startIndex, offsetBy: 5)..<uri.firstIndex(of: ",")!])
-                let mimeType = header.components(separatedBy: ";")[0]
-                let ext = mimeType.components(separatedBy: "/").last ?? "bin"
-                let tempURL = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("gltf_texture_\(idx).\(ext)")
-                try imageData.write(to: tempURL)
-                let texture = MDLURLTexture(url: tempURL, name: "Texture_\(idx)")
+                // Data URI texture
+                let texture = try mdlTextureFromDataURI(uri, name: "Texture_\(idx)")
                 textures.append(texture)
             } else if let url = URL(string: uri, relativeTo: baseURL) {
                 let texture = MDLURLTexture(url: url, name: "Texture_\(idx)")
