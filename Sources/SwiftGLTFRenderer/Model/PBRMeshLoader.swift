@@ -257,8 +257,8 @@ class PBRMeshLoader {
     // MARK: - Texture & Sampler Helpers
 
     private func makeBaseColorTextureAndSampler(device: MTLDevice, material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
-        let prop = material?.propertyNamed(MaterialPropertyName.baseColorTexture.rawValue)
-        let factorProp = material?.propertyNamed(MaterialPropertyName.baseColorFactor.rawValue)
+        let prop = material?.propertyNamed(.baseColorTexture)
+        let factorProp = material?.propertyNamed(.baseColorFactor)
 
         let sampler: MDLTextureSampler
         if let s = prop?.textureSamplerValue {
@@ -285,7 +285,7 @@ class PBRMeshLoader {
 
     private func makeNormalTextureAndSampler(device: MTLDevice, material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
         let sampler: MDLTextureSampler
-        if let s = material?.property(with: .tangentSpaceNormal)?.textureSamplerValue {
+        if let s = material?.propertyNamed(.normalTexture)?.textureSamplerValue {
             sampler = s
         } else {
             sampler = makeDummySampler(textureValue: [Float16(0.5), 0.5, 1.0, 1.0], channelCount: 4, channelEncoding: .float16)
@@ -305,9 +305,9 @@ class PBRMeshLoader {
     }
 
     private func makeMetallicRoughnessTextureAndSampler(device: MTLDevice, material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
-        let metallicRoughnessTextureProp = material?.propertyNamed(MaterialPropertyName.metallicRoughnessTexture.rawValue)
-        let metallicFactorProp = material?.property(with: .metallic)
-        let roughnessFactorProp = material?.property(with: .roughness)
+        let metallicRoughnessTextureProp = material?.propertyNamed(.metallicRoughnessTexture)
+        let metallicFactorProp = material?.propertyNamed(.metallic)
+        let roughnessFactorProp = material?.propertyNamed(.roughness)
 
         let metallicRoughnessMDLSampler = if let mdlSampler = metallicRoughnessTextureProp?.textureSamplerValue {
             mdlSampler
@@ -342,7 +342,7 @@ class PBRMeshLoader {
 
     private func makeOcclusionTextureAndSampler(device: MTLDevice, material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
         let sampler: MDLTextureSampler
-        if let s = material?.property(with: .ambientOcclusion)?.textureSamplerValue {
+        if let s = material?.propertyNamed(.occlusion)?.textureSamplerValue {
             sampler = s
         } else {
             sampler = makeDummySampler(textureValue: [Float16(1), 0, 0, 0], channelCount: 4, channelEncoding: .float16)
@@ -355,7 +355,7 @@ class PBRMeshLoader {
                 userInfo: [NSLocalizedDescriptionKey: "Ambient occlusion texture not found"]
             )
         }
-        let factor = material?.property(with: .ambientOcclusionScale)?.floatValue ?? 1.0
+        let factor = material?.propertyNamed(.occlusionStrength)?.floatValue ?? 1.0
         let texture = try shaderConnection.makeOcclusionTexture(occlusionFactor: factor, occlusionTexture: tex)
 
         let samplerState = try makeSamplerState(from: sampler, device: device)
@@ -363,8 +363,8 @@ class PBRMeshLoader {
     }
 
     private func makeEmissiveTextureAndSampler(_ device: MTLDevice, _ material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
-        let emissiveTextureProp = material?.propertyNamed(MaterialPropertyName.emissiveTexture.rawValue)
-        let emissiveFactorProp = material?.propertyNamed(MaterialPropertyName.emissiveFactor.rawValue)
+        let emissiveTextureProp = material?.propertyNamed(.emissiveTexture)
+        let emissiveFactorProp = material?.propertyNamed(.emissiveFactor)
 
         let emissiveSampler: MDLTextureSampler = if let mdlSampler = emissiveTextureProp?.textureSamplerValue {
             mdlSampler

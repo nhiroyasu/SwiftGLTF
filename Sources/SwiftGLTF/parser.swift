@@ -698,7 +698,7 @@ private func makeMDLMaterial(
 
     // Normal Texture
     if let sampler = loadTextureSampler(for: gltfMaterial.normalTexture, from: gltf, binaryLoader: binaryLoader) {
-        let prop = MDLMaterialProperty(name: "normalTexture", semantic: .tangentSpaceNormal, textureSampler: sampler)
+        let prop = MDLMaterialProperty(name: MaterialPropertyName.normalTexture.rawValue, semantic: .tangentSpaceNormal, textureSampler: sampler)
         material.setProperty(prop)
     }
 
