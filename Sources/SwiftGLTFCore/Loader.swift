@@ -5,7 +5,8 @@ import CoreGraphics
 import simd
 
 // MARK: - Data URI Helpers
-fileprivate func dataFromDataURI(_ uri: String) throws -> Data {
+/// Extracts the raw Data from a Data URI string (base64 encoded)
+func dataFromDataURI(_ uri: String) throws -> Data {
     // Extract base64 string after comma
     guard let comma = uri.firstIndex(of: ",") else {
         throw NSError(domain: "GLTF", code: -1,
@@ -19,7 +20,8 @@ fileprivate func dataFromDataURI(_ uri: String) throws -> Data {
     return data
 }
 
-fileprivate func mdlTextureFromDataURI(_ uri: String, name: String) throws -> MDLTexture {
+/// Creates an MDLTexture directly from a Data URI string containing image data
+func mdlTextureFromDataURI(_ uri: String, name: String) throws -> MDLTexture {
     let imageData = try dataFromDataURI(uri)
     guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
           let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
