@@ -23,11 +23,6 @@ jobs:
     - name: Show Xcode version
       run: xcodebuild -version
       
-    - name: Set up Swift
-      uses: swift-actions/setup-swift@v2
-      with:
-        swift-version: "5.10.0"
-      
     - name: Show Swift version
       run: swift --version
 
