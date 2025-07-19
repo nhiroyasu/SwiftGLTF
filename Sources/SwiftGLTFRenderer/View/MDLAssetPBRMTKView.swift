@@ -25,6 +25,7 @@ public class MDLAssetPBRMTKView: MTKView {
     private var rotationY: Float32 = .pi / 2
     private var upSign: Float32 = 1
     private var distance: Float32 = 5
+    private var targetOffset: SIMD3<Float> = .zero
 
     private var ambientLightColor: SIMD3<Float> = SIMD3<Float>(1, 1, 1) * 5
     private var lightPosition: SIMD3<Float> = SIMD3<Float>(0, 5, -5)
@@ -187,6 +188,7 @@ public class MDLAssetPBRMTKView: MTKView {
         rotationY = .pi / 2
         upSign = 1
         distance = 5
+        targetOffset = .zero
     }
 
     // MARK: - Rendering
@@ -260,7 +262,9 @@ public class MDLAssetPBRMTKView: MTKView {
         for mesh in meshes {
             // Make buffer
 
-            var model = mesh.transform
+            let modelTransform = mesh.transform
+            let offsetTranslation = translationMatrix(targetOffset.x, targetOffset.y, targetOffset.z)
+            var model = offsetTranslation * modelTransform
             mesh.modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
 
             var normalMatrix = float3x3(model).transpose.inverse
@@ -365,10 +369,21 @@ public class MDLAssetPBRMTKView: MTKView {
     #elseif os(macOS)
 
     public override func scrollWheel(with event: NSEvent) {
-        let multiplier: Float32 = 1
-        rotationY = rotationY - multiplier * 2.0 * .pi * Float32(event.scrollingDeltaY) / Float32(self.frame.height)
-        upSign = sin(rotationY) >= 0 ? 1 : -1
-        rotationX = rotationX - upSign * multiplier * 2.0 * .pi * Float32(event.scrollingDeltaX) / Float32(self.frame.width)
+        // Shift + scroll: pan camera (move eye & target in world space), otherwise rotate camera
+        if event.modifierFlags.contains(.shift) {
+            let panMultiplier: Float32 = 0.01
+            let dx = Float32(event.scrollingDeltaX)
+            let dy = Float32(event.scrollingDeltaY)
+
+            targetOffset.x += panMultiplier * (dx * cos(rotationX + .pi / 2))
+            targetOffset.y -= panMultiplier * dy
+            targetOffset.z += panMultiplier * (dx * sin(rotationX + .pi / 2))
+        } else {
+            let multiplier: Float32 = 1
+            rotationY -= multiplier * 2.0 * .pi * Float32(event.scrollingDeltaY) / Float32(self.frame.height)
+            upSign = sin(rotationY) >= 0 ? 1 : -1
+            rotationX -= upSign * multiplier * 2.0 * .pi * Float32(event.scrollingDeltaX) / Float32(self.frame.width)
+        }
     }
 
     public override func magnify(with event: NSEvent) {
