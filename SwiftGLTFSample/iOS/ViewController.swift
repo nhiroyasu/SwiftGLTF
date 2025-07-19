@@ -63,7 +63,7 @@ class ViewController: UIViewController {
     }
 
     func openGLTFFile() {
-        let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: [.glb])
+        let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: [.glb, .vrm])
         documentPicker.allowsMultipleSelection = false
         documentPicker.delegate = self
         present(documentPicker, animated: true, completion: nil)

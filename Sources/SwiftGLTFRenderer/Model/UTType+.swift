@@ -8,4 +8,8 @@ public extension UTType {
     static var glb: UTType {
         UTType(importedAs: "org.khronos.glb")
     }
+
+    static var vrm: UTType {
+        UTType(importedAs: "org.khronos.vrm")
+    }
 }

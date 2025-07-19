@@ -70,7 +70,7 @@ class ViewController: NSViewController {
 
     @objc func openGLTFFile() {
         let openPanel = NSOpenPanel()
-        openPanel.allowedContentTypes = [.gltf, .glb]
+        openPanel.allowedContentTypes = [.gltf, .glb, .vrm]
         openPanel.begin { [weak self] result in
             guard let self, result == .OK, let url = openPanel.url else { return }
             showGLTF(url: url)
