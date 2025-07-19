@@ -1,5 +1,6 @@
 import MetalKit
 import Accelerate
+import SwiftGLTF
 
 struct MDLAssetLoaderPipelineStateConfig {
     let pntucVertexShader: MTLFunction
@@ -96,32 +97,30 @@ class PBRMeshLoader {
             var submeshes: [PBRMesh.Submesh] = []
             for (mtkSubmesh, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
                 // Load a base color texture and sampler
-                // TODO: Multiple base color texture to color factor
-                let baseColorSampler: MDLTextureSampler = {
-                    for prop in mdlSubmesh.material?.properties(with: .baseColor) ?? [] {
-                        switch prop.type {
-                        case .texture:
-                            if let s = mdlSubmesh.material?.property(with: .baseColor)?.textureSamplerValue {
-                                return s
-                            }
-                        case .float4:
-                            if let color = mdlSubmesh.material?.property(with: .baseColor)?.float4Value {
-                                let srgbColor = linearToSrgb(color)
-                                let floatPixels: [Float16] = [Float16(srgbColor.x), Float16(srgbColor.y), Float16(srgbColor.z), Float16(srgbColor.w)]
-                                return makeDummySampler(textureValue: floatPixels, channelCount: 4, channelEncoding: .float16)
-                            }
-                        default:
-                            os_log("Found unexpected base color property: %@", type: .error, prop.name)
-                        }
-                    }
-                    
-                    let floatPixels: [Float16] = [1, 1, 1, 1]
-                    return makeDummySampler(textureValue: floatPixels, channelCount: 4, channelEncoding: .float16)
-                }()
+                let baseColorTextureProp = mdlSubmesh.material?.propertyNamed(MaterialPropertyName.baseColorTexture.rawValue)
+                let baseColorFactorProp = mdlSubmesh.material?.propertyNamed(MaterialPropertyName.baseColorFactor.rawValue)
+
+                let baseColorSampler: MDLTextureSampler
+                if let mdlSampler = baseColorTextureProp?.textureSamplerValue {
+                    baseColorSampler = mdlSampler
+                } else {
+                    baseColorSampler = makeDummySampler(
+                        textureValue: Array<Float16>([1, 1, 1, 1]),
+                        channelCount: 4,
+                        channelEncoding: .float16
+                    )
+                }
                 var baseColorTexture: MTLTexture?
                 if let tex = baseColorSampler.texture {
                     baseColorTexture = try convertTextureWithCache(tex, convertLinearColorSpace: true, device: device)
                 }
+                if let tex = baseColorTexture, let color = baseColorFactorProp?.float4Value {
+                    baseColorTexture = try shaderConnection.makeBaseColorTexture(
+                        baseColorFactor: color,
+                        baseColorTexture: tex
+                    )
+                }
+
                 let baseColorSamplerState = makeSamplerState(from: baseColorSampler, device: device)
 
                 // Load a normal texture and sampler

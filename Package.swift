@@ -37,6 +37,8 @@ let package = Package(
                 .process("Shader/PBRTextureComputeShader.metal"),
                 .process("Shader/SkyboxShader.metal"),
                 .process("Shader/Srgb2LinearShader.metal"),
+                .process("Shader/OcclusionMultiplierShader.metal"),
+                .process("Shader/BaseColorMultiplierShader.metal"),
             ]),
 
 
