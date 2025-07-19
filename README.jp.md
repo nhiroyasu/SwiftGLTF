@@ -69,7 +69,7 @@ view.addSubview(mtlView)
 | Format                              | Supported |
 |-------------------------------------|-----------|
 | External .bin file                  | ✅         |
-| Embedded (data URI in .gltf)        | ❌         |
+| Embedded (data URI in .gltf)        | ✅         |
 
 ### Image formats
 | Format     | Supported |
@@ -126,6 +126,16 @@ view.addSubview(mtlView)
 | rotation                 | ❌         |
 | scale                    | ❌         |
 | morph target weights     | ❌         |
+
+### Scenes
+| Feature                 | Supported |
+|-------------------------|-----------|
+| Multiple scenes         | ❌         |
+
+### Cameras
+| Feature                 | Supported |
+|-------------------------|-----------|
+| Camera                  | ❌         |
 
 ## Build
 ### Sample Project

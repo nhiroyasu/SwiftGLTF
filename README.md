@@ -128,6 +128,16 @@ view.addSubview(mtlView)
 | scale                    | ❌         |
 | morph target weights     | ❌         |
 
+### Scenes
+| Feature                 | Supported |
+|-------------------------|-----------|
+| Multiple scenes         | ❌         |
+
+### Cameras
+| Feature                 | Supported |
+|-------------------------|-----------|
+| Camera                  | ❌         |
+
 ## Build
 ### Sample Project
 - You can build the sample project by opening `SwiftGLTFSample.xcodeproj`.
