@@ -138,3 +138,18 @@ float3x3 inverse(float3x3 m) {
 float3x3 makeNormalMatrix(float4x4 mvp) {
     return inverse(transpose(_float3x3(mvp)));
 }
+
+float toolMultiplier(float value) {
+    const float t1 = 0.6;
+    const float t2 = 0.3;
+
+    float shadeColor;
+    if (value > t1) {
+        shadeColor = 1;
+    } else if (value > t2) {
+        shadeColor = 0.6;
+    } else {
+        shadeColor = 0.3;
+    }
+    return shadeColor;
+}

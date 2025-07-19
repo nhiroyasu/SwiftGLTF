@@ -17,5 +17,6 @@ float4 linearToSrgb(float4 rgbaLinear);
 float3x3 _float3x3(float4x4 m);
 float3x3 inverse(float3x3 m);
 float3x3 makeNormalMatrix(float4x4 mvp);
+float toolMultiplier(float value);
 
 #endif /* helper_h */

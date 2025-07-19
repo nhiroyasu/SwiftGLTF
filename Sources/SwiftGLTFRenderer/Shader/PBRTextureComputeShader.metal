@@ -26,6 +26,7 @@ kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)
     float B = 0.0;
 
     // フレネル項と幾何減衰項の計算
+    // en: Calculation of Fresnel terms and geometric attenuation terms
     const int SAMPLE_COUNT = 1024;
     for (int i = 0; i < SAMPLE_COUNT; i++) {
         float2 xi = hammersley(i, SAMPLE_COUNT);
@@ -48,7 +49,6 @@ kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)
     A /= float(SAMPLE_COUNT);
     B /= float(SAMPLE_COUNT);
 
-    // BRDF LUT に保存
     brdfLUT.write(float4(A, B, 0.0, 1.0), gid);
 }
 
