@@ -70,7 +70,7 @@ view.addSubview(mtlView)
 | Format                              | Supported |
 |-------------------------------------|-----------|
 | External .bin file                  | ✅         |
-| Embedded (data URI in .gltf)        | ❌         |
+| Embedded (data URI in .gltf)        | ✅         |
 
 ### Image Formats
 | Format     | Supported |
