@@ -728,14 +728,14 @@ private func makeMDLMaterial(
         }
 
         // Metallic
-        let metallicProp = MDLMaterialProperty(name: "metallic", semantic: .metallic, float: 1.0)
+        let metallicProp = MDLMaterialProperty(name: MaterialPropertyName.metallic.rawValue, semantic: .metallic, float: 1.0)
         if let metallic = pbr.metallicFactor {
             metallicProp.floatValue = metallic
         }
         material.setProperty(metallicProp)
 
         // Roughness
-        let roughnessProp = MDLMaterialProperty(name: "roughness", semantic: .roughness, float: 1.0)
+        let roughnessProp = MDLMaterialProperty(name: MaterialPropertyName.roughness.rawValue, semantic: .roughness, float: 1.0)
         if let roughness = pbr.roughnessFactor {
             roughnessProp.floatValue = roughness
         }
@@ -744,35 +744,46 @@ private func makeMDLMaterial(
         // Metallic Roughness Texture
         if let metallicRoughnessTexture = pbr.metallicRoughnessTexture,
            let sampler = loadTextureSampler(for: metallicRoughnessTexture, from: gltf, binaryLoader: binaryLoader) {
-            let metallicRoughnessProp = MDLMaterialProperty(name: "metallicRoughnessTexture", semantic: .userDefined, textureSampler: sampler)
+            let metallicRoughnessProp = MDLMaterialProperty(name: MaterialPropertyName.metallicRoughnessTexture.rawValue, semantic: .userDefined, textureSampler: sampler)
             material.setProperty(metallicRoughnessProp)
         }
 
         // Emissive (with support for KHR_materials_emissive_strength)
         // Compute base emissive color
         var emissiveColor = simd_float3(0, 0, 0)
-        if let emissiveFactor = gltfMaterial.emissiveFactor, emissiveFactor.count >= 3 {
+        if let emissiveFactor = gltfMaterial.emissiveFactor, emissiveFactor.count == 3 {
             emissiveColor = simd_float3(emissiveFactor[0], emissiveFactor[1], emissiveFactor[2])
         }
         // Apply emissive strength extension if present
         let emissiveStrength: Float = gltfMaterial.extensions?.khrMaterialsEmissiveStrength?.emissiveStrength ?? 1.0
         emissiveColor *= emissiveStrength
-        let emissiveProp = MDLMaterialProperty(name: "emissive", semantic: .emission, float3: emissiveColor)
-        if let emissiveTexture = gltfMaterial.emissiveTexture,
-           let sampler = loadTextureSampler(for: emissiveTexture, from: gltf, binaryLoader: binaryLoader) {
-            emissiveProp.textureSamplerValue = sampler
-        }
+
+        let emissiveProp = MDLMaterialProperty(
+            name: MaterialPropertyName.emissiveFactor.rawValue,
+            semantic: .emission,
+            float3: emissiveColor
+        )
         material.setProperty(emissiveProp)
 
+        if let emissiveTexture = gltfMaterial.emissiveTexture,
+           let sampler = loadTextureSampler(for: emissiveTexture, from: gltf, binaryLoader: binaryLoader) {
+            let emissiveTextureProp = MDLMaterialProperty(
+                name: MaterialPropertyName.emissiveTexture.rawValue,
+                semantic: .emission,
+                textureSampler: sampler
+            )
+            material.setProperty(emissiveTextureProp)
+        }
+
         // Occlusion
-        let occlusionProp = MDLMaterialProperty(name: "occlusion", semantic: .ambientOcclusion)
+        let occlusionProp = MDLMaterialProperty(name: MaterialPropertyName.occlusion.rawValue, semantic: .ambientOcclusion)
         if let occlusionTexture = gltfMaterial.occlusionTexture,
            let sampler = loadTextureSampler(for: occlusionTexture, from: gltf, binaryLoader: binaryLoader) {
             occlusionProp.textureSamplerValue = sampler
         }
         material.setProperty(occlusionProp)
 
-        let occlusionStrengthProp = MDLMaterialProperty(name: "occlusionStrength", semantic: .ambientOcclusionScale, float: 1.0)
+        let occlusionStrengthProp = MDLMaterialProperty(name: MaterialPropertyName.occlusionStrength.rawValue, semantic: .ambientOcclusionScale, float: 1.0)
         if let occlusionStrength = gltfMaterial.occlusionTexture?.strength {
             occlusionStrengthProp.floatValue = occlusionStrength
         }

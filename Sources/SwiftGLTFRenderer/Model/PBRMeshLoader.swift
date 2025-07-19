@@ -161,23 +161,8 @@ class PBRMeshLoader {
                     metallicRoughnessSamplerState = makeSamplerState(from: metallicRoughnessMDLSampler, device: device)
                 }
 
-                let emissiveSampler: MDLTextureSampler = {
-                    if let s = mdlSubmesh.material?.property(with: .emission)?.textureSamplerValue {
-                        return s
-                    } else {
-                        let emissive: [Float16] = [1, 1, 1, 1]
-                        return makeDummySampler(textureValue: emissive, channelCount: 4, channelEncoding: .float16)
-                    }
-                }()
-                var emissiveTexture: MTLTexture?
-                var emissiveSamplerState: MTLSamplerState?
-                if let tex = try emissiveSampler.texture?.imageFromTexture(device: device, convertLinearColorSpace: true) {
-                    emissiveTexture = try shaderConnection.makeEmissiveTexture(
-                        emissiveFactor: mdlSubmesh.material?.property(with: .emission)?.float3Value ?? SIMD3<Float>(0, 0, 0),
-                        emissiveTexture: tex
-                    )
-                    emissiveSamplerState = makeSamplerState(from: emissiveSampler, device: device)
-                }
+                // Make emissive texture
+                let (emissiveTexture, emissiveSamplerState) = try makeEmissiveTextureAndSampler(device, mdlSubmesh.material)
 
                 let occlusionSampler: MDLTextureSampler = {
                     if let s = mdlSubmesh.material?.property(with: .ambientOcclusion)?.textureSamplerValue {
@@ -332,6 +317,41 @@ class PBRMeshLoader {
             }
             return mtkTex
         }
+    }
+
+    private func makeEmissiveTextureAndSampler(_ device: MTLDevice, _ material: MDLMaterial?) throws -> (MTLTexture, MTLSamplerState) {
+        let emissiveTextureProp = material?.propertyNamed(MaterialPropertyName.emissiveTexture.rawValue)
+        let emissiveFactorProp = material?.propertyNamed(MaterialPropertyName.emissiveFactor.rawValue)
+        let emissiveSampler: MDLTextureSampler = if let mdlSampler = emissiveTextureProp?.textureSamplerValue {
+            mdlSampler
+        } else {
+            makeDummySampler(
+                textureValue: Array<Float16>([1, 1, 1, 1]),
+                channelCount: 4,
+                channelEncoding: .float16
+            )
+        }
+
+        guard let tex = try emissiveSampler.texture?.imageFromTexture(device: device, convertLinearColorSpace: true) else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to load emissive texture"]
+            )
+        }
+        let emissiveTexture = try shaderConnection.makeEmissiveTexture(
+            emissiveFactor: emissiveFactorProp?.float3Value ?? SIMD3<Float>(0, 0, 0),
+            emissiveTexture: tex
+        )
+        guard let emissiveSamplerState = makeSamplerState(from: emissiveSampler, device: device) else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create emissive sampler state"]
+            )
+        }
+
+        return (emissiveTexture, emissiveSamplerState)
     }
 }
 

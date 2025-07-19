@@ -7,7 +7,8 @@ public enum MaterialPropertyName: String {
     case metallic
     case roughness
     case metallicRoughnessTexture
-    case emissive
+    case emissiveFactor
+    case emissiveTexture
     case occlusion
     case occlusionStrength
 }
