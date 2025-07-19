@@ -98,14 +98,25 @@ class PBRMeshLoader {
                 // Load a base color texture and sampler
                 // TODO: Multiple base color texture to color factor
                 let baseColorSampler: MDLTextureSampler = {
-                    if let s = mdlSubmesh.material?.property(with: .baseColor)?.textureSamplerValue {
-                        return s
-                    } else {
-                        var color = mdlSubmesh.material?.property(with: .baseColor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
-                        color = linearToSrgb(color)
-                        let floatPixels: [Float16] = [Float16(color.x), Float16(color.y), Float16(color.z), 1.0]
-                        return makeDummySampler(textureValue: floatPixels, channelCount: 4, channelEncoding: .float16)
+                    for prop in mdlSubmesh.material?.properties(with: .baseColor) ?? [] {
+                        switch prop.type {
+                        case .texture:
+                            if let s = mdlSubmesh.material?.property(with: .baseColor)?.textureSamplerValue {
+                                return s
+                            }
+                        case .float4:
+                            if let color = mdlSubmesh.material?.property(with: .baseColor)?.float4Value {
+                                let srgbColor = linearToSrgb(color)
+                                let floatPixels: [Float16] = [Float16(srgbColor.x), Float16(srgbColor.y), Float16(srgbColor.z), Float16(srgbColor.w)]
+                                return makeDummySampler(textureValue: floatPixels, channelCount: 4, channelEncoding: .float16)
+                            }
+                        default:
+                            os_log("Found unexpected base color property: %@", type: .error, prop.name)
+                        }
                     }
+                    
+                    let floatPixels: [Float16] = [1, 1, 1, 1]
+                    return makeDummySampler(textureValue: floatPixels, channelCount: 4, channelEncoding: .float16)
                 }()
                 var baseColorTexture: MTLTexture?
                 if let tex = baseColorSampler.texture {

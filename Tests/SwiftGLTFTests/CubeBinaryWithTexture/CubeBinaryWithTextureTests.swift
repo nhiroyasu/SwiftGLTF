@@ -41,9 +41,9 @@ struct CubeBinaryWithTextureTests {
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
 
-        let baseColor = material.property(with: .baseColor)!
-        #expect(baseColor.type == .texture)
-        let baseColorTexture = baseColor.textureSamplerValue!.texture!
+        let baseColorTextureProp = material.properties(with: .baseColor).first(where: { $0.type == .texture })!
+        #expect(baseColorTextureProp.type == .texture)
+        let baseColorTexture = baseColorTextureProp.textureSamplerValue!.texture!
 
         let normal = material.property(with: .tangentSpaceNormal)!
         #expect(normal.type == .texture)
@@ -66,8 +66,8 @@ struct CubeBinaryWithTextureTests {
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
 
-        let baseColor = material.property(with: .baseColor)!
-        let sampler = baseColor.textureSamplerValue!
+        let baseColorTextureProp = material.properties(with: .baseColor).first(where: { $0.type == .texture })!
+        let sampler = baseColorTextureProp.textureSamplerValue!
 
         let textureIndex = gltf.materials![0].pbrMetallicRoughness!.baseColorTexture!.index
         let samplerIndex = gltf.textures![textureIndex.value].sampler!

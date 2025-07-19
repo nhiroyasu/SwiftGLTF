@@ -706,15 +706,26 @@ private func makeMDLMaterial(
     if let pbr = gltfMaterial.pbrMetallicRoughness {
 
         // Base Color
-        let colorProp = MDLMaterialProperty(name: "baseColor", semantic: .baseColor, float4: SIMD4<Float>(1, 1, 1, 1))
-        if let baseColor = pbr.baseColorFactor, baseColor.count == 4 {
-            colorProp.float4Value = SIMD4<Float>(baseColor[0], baseColor[1], baseColor[2], baseColor[3])
-            colorProp.color = CGColor(red: CGFloat(baseColor[0]), green: CGFloat(baseColor[1]), blue: CGFloat(baseColor[2]), alpha: CGFloat(baseColor[3]))
+        let baseColor: SIMD4<Float> = if let baseColor = pbr.baseColorFactor, baseColor.count == 4 {
+            SIMD4<Float>(baseColor[0], baseColor[1], baseColor[2], baseColor[3])
+        } else {
+            SIMD4<Float>(1.0, 1.0, 1.0, 1.0) // The default is white according to the GLTF specification.
         }
+        let colorFactorProp = MDLMaterialProperty(
+            name: MaterialPropertyName.baseColorFactor.rawValue,
+            semantic: .baseColor,
+            float4: SIMD4<Float>(baseColor[0], baseColor[1], baseColor[2], baseColor[3])
+        )
+        material.setProperty(colorFactorProp)
+
         if let sampler = loadTextureSampler(for: pbr.baseColorTexture, from: gltf, binaryLoader: binaryLoader) {
-            colorProp.textureSamplerValue = sampler
+            let colorTextureProp = MDLMaterialProperty(
+                name: MaterialPropertyName.baseColorTexture.rawValue,
+                semantic: .baseColor,
+                textureSampler: sampler
+            )
+            material.setProperty(colorTextureProp)
         }
-        material.setProperty(colorProp)
 
         // Metallic
         let metallicProp = MDLMaterialProperty(name: "metallic", semantic: .metallic, float: 1.0)
