@@ -22,12 +22,7 @@ class ViewController: NSViewController {
             
             do {
                 let url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
-                let data = try Data(contentsOf: url)
-                let gltf = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-                let asset = try makeMDLAsset(
-                    from: gltf,
-                    options: options
-                )
+                let asset = try makeMDLAsset(from: url, options: options)
                 try await  setup(asset: asset)
             } catch {
                 print("Error loading GLTF: \(error)")
@@ -85,12 +80,7 @@ class ViewController: NSViewController {
 
     func showGLTF(url: URL) {
         do {
-            let data = try Data(contentsOf: url)
-            let gltf = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-            let asset = try makeMDLAsset(
-                from: gltf,
-                options: options
-            )
+            let asset = try makeMDLAsset(from: url, options: options)
             try mtlView.setAsset(asset)
         } catch {
             os_log("Error loading GLTF file: %@", type: .error, error.localizedDescription)

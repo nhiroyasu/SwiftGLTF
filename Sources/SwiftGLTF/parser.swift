@@ -91,6 +91,12 @@ struct IndexInfo {
     }
 }
 
+public func makeMDLAsset(from url: URL, options: GLTFDecodeOptions = .default) throws -> MDLAsset {
+    let data = try Data(contentsOf: url)
+    let gltfContainer = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
+    return try makeMDLAsset(from: gltfContainer, options: options)
+}
+
 public func makeMDLAsset(
     from gltfContainer: GLTFContainer,
     options: GLTFDecodeOptions = .default
