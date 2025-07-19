@@ -40,16 +40,15 @@ struct TangentCubeTests {
             throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "tangent_cube.gltf not found"])
         }
         let data = try Data(contentsOf: gltfURL)
-        let gltf = try loadGLTF(from: data)
+        let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
         let asset = try makeMDLAsset(
-            from: gltf,
-            baseURL: gltfURL.deletingLastPathComponent(),
+            from: gltfContainer,
             options: .init(
                 convertToLeftHanded: false,
                 generateNormalVertexIfNeeded: false,
                 generateTangentVertexIfNeeded: false
             )
         )
-        return (gltf, asset)
+        return (gltfContainer.gltf, asset)
     }
 }

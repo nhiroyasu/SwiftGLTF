@@ -18,7 +18,7 @@ class DraggableView: NSView {
         guard let item = sender.draggingPasteboard.pasteboardItems?.first,
               let path = item.string(forType: .fileURL),
               let url = URL(string: path),
-              url.absoluteString.hasSuffix(".gltf") else {
+              (url.absoluteString.hasSuffix(".gltf") || url.absoluteString.hasSuffix(".glb")) else {
             return []
         }
         return .link

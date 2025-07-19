@@ -1,5 +1,6 @@
 import UIKit
 import MetalKit
+import SwiftGLTFCore
 import SwiftGLTF
 import SwiftGLTFRenderer
 
@@ -65,7 +66,7 @@ class ViewController: UIViewController {
     }
 
     func openGLTFFile() {
-        let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: [.gltf])
+        let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: [.gltf, .glb])
         documentPicker.allowsMultipleSelection = false
         documentPicker.delegate = self
         present(documentPicker, animated: true, completion: nil)
@@ -78,8 +79,8 @@ extension ViewController: UIDocumentPickerDelegate {
         guard let url = urls.first else { return }
         do {
             let data = try Data(contentsOf: url)
-            let gltf = try loadGLTF(from: data)
-            let asset = try makeMDLAsset(from: gltf, baseURL: url.deletingLastPathComponent())
+            let gltf = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
+            let asset = try makeMDLAsset(from: gltf)
             try mtlView.setAsset(asset)
         } catch {
             print("Error loading GLTF file: \(error)")

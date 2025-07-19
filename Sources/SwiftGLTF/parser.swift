@@ -2,68 +2,6 @@ import Foundation
 import MetalKit
 import SwiftGLTFCore
 import OSLog
-// MARK: - glb detection and loader stub
-/// Returns true if the data begins with the glb magic "glTF" header
-private func isGLB(_ data: Data) -> Bool {
-    guard data.count >= 4 else { return false }
-    // ASCII "glTF" == [0x67, 0x6C, 0x54, 0x46]
-    let magic = data.prefix(4)
-    return magic == Data([0x67, 0x6C, 0x54, 0x46])
-}
-/// Load a binary glTF (.glb) and decode to GLTF struct
-private func loadGLB(_ data: Data) throws -> GLTF {
-    // Minimum header: 12 bytes (magic, version, length)
-    guard data.count >= 12 else {
-        throw NSError(domain: "SwiftGLTF", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "GLB data too short for header"])
-    }
-    // Validate magic "glTF"
-    let magic = data.prefix(4)
-    let expectedMagic = Data([0x67, 0x6C, 0x54, 0x46])
-    guard magic == expectedMagic else {
-        throw NSError(domain: "SwiftGLTF", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Invalid GLB magic header"])
-    }
-    // Read version (uint32 little endian)
-    let version: UInt32 = data[4..<8].withUnsafeBytes { $0.load(as: UInt32.self) }.littleEndian
-    guard version == 2 else {
-        throw NSError(domain: "SwiftGLTF", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Unsupported GLB version: \(version)"])
-    }
-    // Read total length
-    let totalLength: UInt32 = data[8..<12].withUnsafeBytes { $0.load(as: UInt32.self) }.littleEndian
-    guard totalLength == data.count else {
-        throw NSError(domain: "SwiftGLTF", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "GLB length mismatch"])
-    }
-    // Parse chunks to find JSON chunk
-    var offset = 12
-    var jsonData: Data? = nil
-    while offset + 8 <= data.count {
-        let chunkLength: UInt32 = data[offset..<(offset+4)].withUnsafeBytes { $0.load(as: UInt32.self) }.littleEndian
-        let chunkType: UInt32 = data[(offset+4)..<(offset+8)].withUnsafeBytes { $0.load(as: UInt32.self) }.littleEndian
-        let chunkStart = offset + 8
-        let chunkEnd = chunkStart + Int(chunkLength)
-        guard chunkEnd <= data.count else {
-            throw NSError(domain: "SwiftGLTF", code: -1,
-                          userInfo: [NSLocalizedDescriptionKey: "GLB chunk exceeds data bounds"])
-        }
-        let chunk = data[chunkStart..<chunkEnd]
-        // JSON chunk type == 0x4E4F534A
-        if chunkType == 0x4E4F534A {
-            jsonData = chunk
-            break
-        }
-        offset = chunkEnd
-    }
-    guard let jsonChunk = jsonData else {
-        throw NSError(domain: "SwiftGLTF", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "JSON chunk not found in GLB"])
-    }
-    // Decode JSON chunk
-    let decoder = JSONDecoder()
-    return try decoder.decode(GLTF.self, from: jsonChunk)
-}
 
 public enum GLTFVertexAttributeIndex {
     static let POSITION = 0
@@ -153,25 +91,10 @@ struct IndexInfo {
     }
 }
 
-
-
-public func loadGLTF(from data: Data) throws -> GLTF {
-    // detect JSON vs. binary glb
-    if isGLB(data) {
-        // glb support to be implemented
-        return try loadGLB(data)
-    } else {
-        let decoder = JSONDecoder()
-        let gltf = try decoder.decode(GLTF.self, from: data)
-        return gltf
-    }
-}
-
 public func makeMDLMesh(
     from mesh: Mesh,
     using gltf: GLTF,
-    bufferLoader: GLTFBufferLoader,
-    preloadTextures: [Int: MDLTexture?],
+    binaryLoader: GLTFBinaryLoader,
     options: GLTFDecodeOptions = .default
 ) throws -> [MDLMesh] {
     let allocator = MTKMeshBufferAllocator(device: MTLCreateSystemDefaultDevice()!) // TODO: Metal device should be passed from outside
@@ -181,15 +104,15 @@ public func makeMDLMesh(
         let vertexCount = retrieveVertexCount(for: primitive, accessors: gltf.accessors ?? [])
 
         // Make an index buffer
-        let indexInfo = try makeIndexInfo(for: primitive, accessors: gltf.accessors ?? [], vertexCount: vertexCount, bufferLoader: bufferLoader)
+        let indexInfo = try makeIndexInfo(for: primitive, accessors: gltf.accessors ?? [], vertexCount: vertexCount, binaryLoader: binaryLoader)
         let indexBuffer = allocator.newBuffer(with: indexInfo.data, type: .index)
 
         // Make a vertex buffer
-        let positionVertex = try makePositionVertex(for: primitive, accessors: gltf.accessors ?? [], bufferLoader: bufferLoader)
-        var normalVertex = try makeNormalVertex(for: primitive, accessors: gltf.accessors ?? [], bufferLoader: bufferLoader)
-        var tangentVertex = try makeTangentVertex(for: primitive, accessors: gltf.accessors ?? [], bufferLoader: bufferLoader)
-        let texcoordVertex = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], bufferLoader: bufferLoader)
-        let modulationColorVertex = try makeModulationColorVertex(for: primitive, accessors: gltf.accessors ?? [], bufferLoader: bufferLoader)
+        let positionVertex = try makePositionVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
+        var normalVertex = try makeNormalVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
+        var tangentVertex = try makeTangentVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
+        let texcoordVertex = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
+        let modulationColorVertex = try makeModulationColorVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
 
         if options.generateNormalVertexIfNeeded,
            normalVertex == nil,
@@ -230,7 +153,7 @@ public func makeMDLMesh(
         let vertexBuffer = allocator.newBuffer(with: vertexData, type: .vertex)
 
         // Create a MDLMaterial
-        let mdlMaterial = try makeMDLMaterial(for: primitive, gltf, bufferLoader, preloadTextures)
+        let mdlMaterial = try makeMDLMaterial(for: primitive, gltf, binaryLoader)
 
         // Generate a submesh
         let submesh: MDLSubmesh
@@ -254,16 +177,20 @@ public func makeMDLMesh(
     return mdlMeshes
 }
 
-public func makeMDLAsset(from gltf: GLTF, baseURL: URL, options: GLTFDecodeOptions = .default) throws -> MDLAsset {
+public func makeMDLAsset(
+    from gltfContainer: GLTFContainer,
+    options: GLTFDecodeOptions = .default
+) throws -> MDLAsset {
     #if DEBUG
     let now = Date()
     #endif
 
+    let gltf = gltfContainer.gltf
+
     let device = MTLCreateSystemDefaultDevice()!
     let allocator = MTKMeshBufferAllocator(device: device)
     let asset = MDLAsset(bufferAllocator: allocator)
-    let bufferLoader = try GLTFBufferLoader(gltf: gltf, baseURL: baseURL)
-    let preloadTextures = preloadRawTextures(gltf, baseURL: baseURL)
+    let binaryLoader = GLTFBinaryLoader(gltfContainer: gltfContainer)
 
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
@@ -272,8 +199,7 @@ public func makeMDLAsset(from gltf: GLTF, baseURL: URL, options: GLTFDecodeOptio
         mdlMeshMap[index] = try makeMDLMesh(
             from: mesh,
             using: gltf,
-            bufferLoader: bufferLoader,
-            preloadTextures: preloadTextures,
+            binaryLoader: binaryLoader,
             options: options
         )
     }
@@ -368,116 +294,70 @@ func buildNodeTree(
 
 func loadTextureSampler(
     for textureInfo: TextureInfo?,
-    from gltf: GLTF, // TODO: All gltf objects are not needed. Just the textures are enough.
-    textures: [Int: MDLTexture?]
+    from gltf: GLTF,
+    binaryLoader: GLTFBinaryLoader
 ) -> MDLTextureSampler? {
-    guard let textureIndex = textureInfo?.index else {
-        return nil
-    }
-
-    return loadTextureSampler(
-        textureIndex: textureIndex,
-        from: gltf,
-        textures: textures
-    )
+    guard let textureIndex = textureInfo?.index else { return nil }
+    return loadTextureSampler(textureIndex: textureIndex, from: gltf, binaryLoader: binaryLoader)
 }
 
 func loadTextureSampler(
     for textureInfo: OcclusionTextureInfo?,
-    from gltf: GLTF, // TODO: All gltf objects are not needed. Just the textures are enough.
-    textures: [Int: MDLTexture?]
+    from gltf: GLTF,
+    binaryLoader: GLTFBinaryLoader
 ) -> MDLTextureSampler? {
-    guard let textureIndex = textureInfo?.index else {
-        return nil
-    }
-
-    return loadTextureSampler(
-        textureIndex: textureIndex,
-        from: gltf,
-        textures: textures
-    )
+    guard let textureIndex = textureInfo?.index else { return nil }
+    return loadTextureSampler(textureIndex: textureIndex, from: gltf, binaryLoader: binaryLoader)
 }
 
 // テクスチャ読み込みヘルパー
 // en: Helper function to load texture sampler
 func loadTextureSampler(
     textureIndex: TextureIndex,
-    from gltf: GLTF, // TODO: All gltf objects are not needed. Just the textures are enough.
-    textures: [Int: MDLTexture?]
+    from gltf: GLTF,
+    binaryLoader: GLTFBinaryLoader
 ) -> MDLTextureSampler? {
-    guard let texture = gltf.textures?[textureIndex.value],
-          let sourceIndex = texture.source else {
+    // Load texture data via binaryLoader
+    guard let gltfTexture = gltf.textures?[textureIndex.value],
+          let sourceIndex = gltfTexture.source else {
         return nil
     }
-
-
-    guard let mdlTexture = textures[sourceIndex] else {
-        os_log("Texture not found for index %{public}d", log: .default, type: .error, sourceIndex)
+    let mdlTexture: MDLTexture
+    do {
+        mdlTexture = try binaryLoader.extractTexture(textureIndex: sourceIndex)
+    } catch {
+        os_log("Texture not found for index %{public}d", log: .default, type: .error, sourceIndex.value)
         return nil
     }
-
     let sampler = MDLTextureSampler()
     sampler.texture = mdlTexture
-
-    if let samplerIndex = texture.sampler {
-        if let gltfSampler = gltf.samplers?[samplerIndex] {
-            let filter = MDLTextureFilter()
-
-            if let magFilter = gltfSampler.magFilter {
-                filter.magFilter = convertFilterMode(magFilter)
-            } else {
-                // Set default value according to glTF specification
-                filter.minFilter = .linear
-            }
-            if let minFilter = gltfSampler.minFilter {
-                filter.minFilter = convertFilterMode(minFilter)
-            } else {
-                // Set default value according to glTF specification
-                filter.minFilter = .linear
-            }
-            if let wrapS = gltfSampler.wrapS {
-                filter.sWrapMode = convertWrapMode(wrapS)
-            } else {
-                // Set default value according to glTF specification
-                filter.sWrapMode = .repeat
-            }
-            if let wrapT = gltfSampler.wrapT {
-                filter.tWrapMode = convertWrapMode(wrapT)
-            } else {
-                // Set default value according to glTF specification
-                filter.tWrapMode = .repeat
-            }
-
-            sampler.hardwareFilter = filter
+    // Configure sampler filtering and wrapping if specified
+    if let samplerIndex = gltfTexture.sampler,
+       let gltfSampler = gltf.samplers?[samplerIndex] {
+        let filter = MDLTextureFilter()
+        if let magFilter = gltfSampler.magFilter {
+            filter.magFilter = convertFilterMode(magFilter)
+        } else {
+            filter.minFilter = .linear
         }
+        if let minFilter = gltfSampler.minFilter {
+            filter.minFilter = convertFilterMode(minFilter)
+        } else {
+            filter.minFilter = .linear
+        }
+        if let wrapS = gltfSampler.wrapS {
+            filter.sWrapMode = convertWrapMode(wrapS)
+        } else {
+            filter.sWrapMode = .repeat
+        }
+        if let wrapT = gltfSampler.wrapT {
+            filter.tWrapMode = convertWrapMode(wrapT)
+        } else {
+            filter.tWrapMode = .repeat
+        }
+        sampler.hardwareFilter = filter
     }
-
     return sampler
-}
-
-func extractUrl(for info: TextureInfo?, from gltf: GLTF, baseURL: URL) -> URL? {
-    guard let textureIndex = info?.index else {
-        return nil
-    }
-
-    return extractUrl(textureIndex: textureIndex, from: gltf, baseURL: baseURL)
-}
-
-func extractUrl(for info: OcclusionTextureInfo?, from gltf: GLTF, baseURL: URL) -> URL? {
-    guard let textureIndex = info?.index else {
-        return nil
-    }
-    return extractUrl(textureIndex: textureIndex, from: gltf, baseURL: baseURL)
-}
-
-func extractUrl(textureIndex: TextureIndex, from gltf: GLTF, baseURL: URL) -> URL? {
-    guard let texture = gltf.textures?[textureIndex.value],
-          let sourceIndex = texture.source,
-          let image = gltf.images?[sourceIndex],
-          let uri = image.uri else {
-        return nil
-    }
-    return baseURL.appendingPathComponent(uri)
 }
 
 private func convertFilterMode(_ mode: GLTFFilterMode) -> MDLMaterialTextureFilterMode {
@@ -500,19 +380,6 @@ private func convertWrapMode(_ mode: GLTFWrapMode) -> MDLMaterialTextureWrapMode
     }
 }
 
-private func preloadRawTextures(_ gltf: GLTF, baseURL: URL) -> [Int: MDLTexture?] {
-    var textures: [Int: MDLTexture?] = [:]
-    for (index, image) in (gltf.images ?? []).enumerated() {
-        if let uri = image.uri, let url = URL(string: uri, relativeTo: baseURL) {
-            let tex = MDLURLTexture(url: url, name: image.name ?? "Texture_\(index)")
-            textures[index] = tex
-        } else {
-            textures[index] = nil
-        }
-    }
-    return textures
-}
-
 private func retrieveVertexCount(
     for primitive: Primitive,
     accessors: [Accessor]
@@ -530,7 +397,7 @@ private func retrieveVertexCount(
 private func makePositionVertex(
     for primitive: Primitive,
     accessors: [Accessor],
-    bufferLoader: GLTFBufferLoader
+    binaryLoader: GLTFBinaryLoader
 ) throws -> VertexInfo {
     guard let positionAccessorIndex = primitive.attributes[GLTFAttribute.position.rawValue] else {
         throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing POSITION attribute"])
@@ -544,7 +411,7 @@ private func makePositionVertex(
         throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid POSITION accessor"])
     }
     let positionVertex = VertexInfo(
-        data: try bufferLoader.extractData(accessorIndex: AccessorIndex(positionAccessorIndex)),
+        data: try binaryLoader.extractData(accessorIndex: AccessorIndex(positionAccessorIndex)),
         componentFormat: positionVertexFormat.format,
         componentSize: positionVertexFormat.byteSize
     )
@@ -554,7 +421,7 @@ private func makePositionVertex(
 private func makeNormalVertex(
     for primitive: Primitive,
     accessors: [Accessor],
-    bufferLoader: GLTFBufferLoader
+    binaryLoader: GLTFBinaryLoader
 ) throws -> VertexInfo? {
     guard let normalIndex = primitive.attributes[GLTFAttribute.normal.rawValue],
           accessors.indices.contains(normalIndex),
@@ -562,7 +429,7 @@ private func makeNormalVertex(
         return nil
     }
     return VertexInfo(
-        data: try bufferLoader.extractData(accessorIndex: AccessorIndex(normalIndex)),
+        data: try binaryLoader.extractData(accessorIndex: AccessorIndex(normalIndex)),
         componentFormat: normalVertexFormat.format,
         componentSize: normalVertexFormat.byteSize
     )
@@ -571,7 +438,7 @@ private func makeNormalVertex(
 private func makeTangentVertex(
     for primitive: Primitive,
     accessors: [Accessor],
-    bufferLoader: GLTFBufferLoader
+    binaryLoader: GLTFBinaryLoader
 ) throws -> VertexInfo? {
     guard let index = primitive.attributes[GLTFAttribute.tangent.rawValue],
           accessors.indices.contains(index),
@@ -579,7 +446,7 @@ private func makeTangentVertex(
         return nil
     }
     return VertexInfo(
-        data: try bufferLoader.extractData(accessorIndex: AccessorIndex(index)),
+        data: try binaryLoader.extractData(accessorIndex: AccessorIndex(index)),
         componentFormat: format.format,
         componentSize: format.byteSize
     )
@@ -588,7 +455,7 @@ private func makeTangentVertex(
 private func makeTexcoordVertex(
     for primitive: Primitive,
     accessors: [Accessor],
-    bufferLoader: GLTFBufferLoader
+    binaryLoader: GLTFBinaryLoader
 ) throws -> VertexInfo? {
     guard let index = primitive.attributes[GLTFAttribute.texcoord(0).rawValue],
           accessors.indices.contains(index),
@@ -596,7 +463,7 @@ private func makeTexcoordVertex(
         return nil
     }
     return VertexInfo(
-        data: try bufferLoader.extractData(accessorIndex: AccessorIndex(index)),
+        data: try binaryLoader.extractData(accessorIndex: AccessorIndex(index)),
         componentFormat: format.format,
         componentSize: format.byteSize
     )
@@ -605,7 +472,7 @@ private func makeTexcoordVertex(
 private func makeModulationColorVertex(
     for primitive: Primitive,
     accessors: [Accessor],
-    bufferLoader: GLTFBufferLoader
+    binaryLoader: GLTFBinaryLoader
 ) throws -> VertexInfo? {
     guard let index = primitive.attributes[GLTFAttribute.color(0).rawValue],
           accessors.indices.contains(index),
@@ -613,7 +480,7 @@ private func makeModulationColorVertex(
         return nil
     }
     return VertexInfo(
-        data: try bufferLoader.extractData(accessorIndex: AccessorIndex(index)),
+        data: try binaryLoader.extractData(accessorIndex: AccessorIndex(index)),
         componentFormat: format.format,
         componentSize: format.byteSize
     )
@@ -623,7 +490,7 @@ private func makeIndexInfo(
     for primitive: Primitive,
     accessors: [Accessor],
     vertexCount: Int,
-    bufferLoader: GLTFBufferLoader
+    binaryLoader: GLTFBinaryLoader
 ) throws -> IndexInfo {
     if let indexAccessorIndex = primitive.indices {
         guard accessors.count > indexAccessorIndex.value else {
@@ -631,7 +498,7 @@ private func makeIndexInfo(
         }
 
         let accessor = accessors[indexAccessorIndex.value]
-        let indexData = try bufferLoader.extractData(accessorIndex: indexAccessorIndex)
+        let indexData = try binaryLoader.extractData(accessorIndex: indexAccessorIndex)
         let indexCount = accessor.count
 
         let indexType: MDLIndexBitDepth
@@ -807,8 +674,7 @@ private func makeVertexData(
 private func makeMDLMaterial(
     for primitive: Primitive,
     _ gltf: GLTF,
-    _ bufferLoader: GLTFBufferLoader,
-    _ textures: [Int: MDLTexture?]
+    _ binaryLoader: GLTFBinaryLoader
 ) throws -> MDLMaterial? {
     guard let materialIndex = primitive.material else {
         return nil
@@ -825,7 +691,7 @@ private func makeMDLMaterial(
                                scatteringFunction: MDLScatteringFunction())
 
     // Normal Texture
-    if let sampler = loadTextureSampler(for: gltfMaterial.normalTexture, from: gltf, textures: textures) {
+    if let sampler = loadTextureSampler(for: gltfMaterial.normalTexture, from: gltf, binaryLoader: binaryLoader) {
         let prop = MDLMaterialProperty(name: "normalTexture", semantic: .tangentSpaceNormal, textureSampler: sampler)
         material.setProperty(prop)
     }
@@ -839,9 +705,8 @@ private func makeMDLMaterial(
             colorProp.float4Value = SIMD4<Float>(baseColor[0], baseColor[1], baseColor[2], baseColor[3])
             colorProp.color = CGColor(red: CGFloat(baseColor[0]), green: CGFloat(baseColor[1]), blue: CGFloat(baseColor[2]), alpha: CGFloat(baseColor[3]))
         }
-        if let sampler = loadTextureSampler(for: pbr.baseColorTexture, from: gltf, textures: textures) {
+        if let sampler = loadTextureSampler(for: pbr.baseColorTexture, from: gltf, binaryLoader: binaryLoader) {
             colorProp.textureSamplerValue = sampler
-            colorProp.urlValue = extractUrl(for: pbr.baseColorTexture, from: gltf, baseURL: bufferLoader.baseURL)
         }
         material.setProperty(colorProp)
 
@@ -861,7 +726,7 @@ private func makeMDLMaterial(
 
         // Metallic Roughness Texture
         if let metallicRoughnessTexture = pbr.metallicRoughnessTexture,
-           let sampler = loadTextureSampler(for: metallicRoughnessTexture, from: gltf, textures: textures) {
+           let sampler = loadTextureSampler(for: metallicRoughnessTexture, from: gltf, binaryLoader: binaryLoader) {
             let metallicRoughnessProp = MDLMaterialProperty(name: "metallicRoughnessTexture", semantic: .userDefined, textureSampler: sampler)
             material.setProperty(metallicRoughnessProp)
         }
@@ -877,18 +742,16 @@ private func makeMDLMaterial(
         emissiveColor *= emissiveStrength
         let emissiveProp = MDLMaterialProperty(name: "emissive", semantic: .emission, float3: emissiveColor)
         if let emissiveTexture = gltfMaterial.emissiveTexture,
-           let sampler = loadTextureSampler(for: emissiveTexture, from: gltf, textures: textures) {
+           let sampler = loadTextureSampler(for: emissiveTexture, from: gltf, binaryLoader: binaryLoader) {
             emissiveProp.textureSamplerValue = sampler
-            emissiveProp.urlValue = extractUrl(for: emissiveTexture, from: gltf, baseURL: bufferLoader.baseURL)
         }
         material.setProperty(emissiveProp)
 
         // Occlusion
         let occlusionProp = MDLMaterialProperty(name: "occlusion", semantic: .ambientOcclusion)
         if let occlusionTexture = gltfMaterial.occlusionTexture,
-           let sampler = loadTextureSampler(for: occlusionTexture, from: gltf, textures: textures) {
+           let sampler = loadTextureSampler(for: occlusionTexture, from: gltf, binaryLoader: binaryLoader) {
             occlusionProp.textureSamplerValue = sampler
-            occlusionProp.urlValue = extractUrl(for: occlusionTexture, from: gltf, baseURL: bufferLoader.baseURL)
         }
         material.setProperty(occlusionProp)
 

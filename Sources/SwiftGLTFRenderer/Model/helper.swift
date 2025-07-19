@@ -133,6 +133,14 @@ func linearToSrgb(_ c: Float) -> Float {
     }
 }
 
+func linearToSrgb(_ rgb: SIMD3<Float>) -> SIMD3<Float> {
+    return SIMD3<Float>(
+        linearToSrgb(rgb.x),
+        linearToSrgb(rgb.y),
+        linearToSrgb(rgb.z)
+    )
+}
+
 func srgbToLinear(_ rgb: (Float, Float, Float)) -> (Float, Float, Float) {
     return (
         srgbToLinear(rgb.0),

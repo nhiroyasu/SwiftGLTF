@@ -35,8 +35,8 @@ struct PlainCubeTests {
             throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "plain_cube.gltf not found"])
         }
         let data = try Data(contentsOf: gltfURL)
-        let gltf = try loadGLTF(from: data)
-        let asset = try makeMDLAsset(from: gltf, baseURL: gltfURL.deletingLastPathComponent())
-        return (gltf, asset)
+        let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
+        let asset = try makeMDLAsset(from: gltfContainer)
+        return (gltfContainer.gltf, asset)
     }
 }
