@@ -382,7 +382,7 @@ fragment float4 normal_display_shader(PBRVertexOut in [[stage_in]],
     return float4(normal, 1.0); // Display normal as RGB
 }
 
-fragment float4 ndotv_ndotl_display_shader(PBRVertexOut in [[stage_in]],
+fragment float4 ndotv_display_shader(PBRVertexOut in [[stage_in]],
                                       constant PBRSceneUniforms &uniforms [[buffer(0)]],
                                       texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
                                       texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
@@ -406,9 +406,6 @@ fragment float4 ndotv_ndotl_display_shader(PBRVertexOut in [[stage_in]],
     float3 V = normalize(uniforms.viewPosition - in.worldPosition);
     float ndotv = max(dot(normal, V), 0.0);
 
-    float3 L = normalize(uniforms.lightPosition - in.worldPosition);
-    float ndotl = max(dot(normal, L), 0.0);
-
-    return float4(ndotv, ndotl, 0, 1.0); // Grayscale output
+    return float4(ndotv, ndotv, ndotv, 1.0); // Grayscale output
 }
 
