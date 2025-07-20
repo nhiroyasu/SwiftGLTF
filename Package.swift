@@ -40,6 +40,13 @@ let package = Package(
                 .process("Shader/OcclusionMultiplierShader.metal"),
                 .process("Shader/BaseColorMultiplierShader.metal"),
             ]),
+        .testTarget(
+            name: "SwiftGLTFRendererTests",
+            dependencies: ["SwiftGLTFRenderer"],
+            resources: [
+                .process("Resources/"),
+                .process("Golden/"),
+            ]),
 
 
         .target(

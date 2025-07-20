@@ -11,6 +11,32 @@ struct MDLAssetLoaderPipelineStateConfig {
     let pnVertexShader: MTLFunction
     let pbrFragmentShader: MTLFunction
     let sampleCount: Int
+    let colorPixelFormat: MTLPixelFormat
+    let depthPixelFormat: MTLPixelFormat
+
+    init(
+        pntucVertexShader: MTLFunction,
+        pntuVertexShader: MTLFunction,
+        pntcVertexShader: MTLFunction,
+        pntVertexShader: MTLFunction,
+        pncVertexShader: MTLFunction,
+        pnVertexShader: MTLFunction,
+        pbrFragmentShader: MTLFunction,
+        sampleCount: Int,
+        colorPixelFormat: MTLPixelFormat = .rgba16Float,
+        depthPixelFormat: MTLPixelFormat = .depth32Float
+    ) {
+        self.pntucVertexShader = pntucVertexShader
+        self.pntuVertexShader = pntuVertexShader
+        self.pntcVertexShader = pntcVertexShader
+        self.pntVertexShader = pntVertexShader
+        self.pncVertexShader = pncVertexShader
+        self.pnVertexShader = pnVertexShader
+        self.pbrFragmentShader = pbrFragmentShader
+        self.sampleCount = sampleCount
+        self.colorPixelFormat = colorPixelFormat
+        self.depthPixelFormat = depthPixelFormat
+    }
 }
 
 class PBRMeshLoader {
@@ -141,8 +167,8 @@ class PBRMeshLoader {
             let psoDescriptor = MTLRenderPipelineDescriptor()
             psoDescriptor.vertexFunction = vertexShader
             psoDescriptor.fragmentFunction = psoConfig.pbrFragmentShader
-            psoDescriptor.colorAttachments[0].pixelFormat = .rgba16Float
-            psoDescriptor.depthAttachmentPixelFormat = .depth32Float
+            psoDescriptor.colorAttachments[0].pixelFormat = psoConfig.colorPixelFormat
+            psoDescriptor.depthAttachmentPixelFormat = psoConfig.depthPixelFormat
             psoDescriptor.rasterSampleCount = psoConfig.sampleCount
             psoDescriptor.vertexDescriptor = MTKMetalVertexDescriptorFromModelIO(mtkMesh.vertexDescriptor)
             let pso = try device.makeRenderPipelineState(descriptor: psoDescriptor)
