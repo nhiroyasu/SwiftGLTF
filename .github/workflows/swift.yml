@@ -76,3 +76,6 @@ jobs:
           commit-message: "[bot] Update `.metallib` files"
           branch: auto/make-updates
           base: main
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          delete-branch: true
