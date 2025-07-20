@@ -26,6 +26,9 @@ jobs:
     - name: Show Swift version
       run: swift --version
 
+    - name: Setup
+      run: make
+
     - name: Build
       run: swift build -v
 
