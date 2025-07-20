@@ -2,10 +2,12 @@ import Metal
 
 class ShaderConnection {
     let device: MTLDevice
+    let library: MTLLibrary
     let commandQueue: MTLCommandQueue
 
-    init(device: MTLDevice, commandQueue: MTLCommandQueue) {
+    init(device: MTLDevice, library: MTLLibrary, commandQueue: MTLCommandQueue) {
         self.device = device
+        self.library = library
         self.commandQueue = commandQueue
     }
 
@@ -14,8 +16,6 @@ class ShaderConnection {
         roughnessFactor: Float,
         baseMetallicRoughnessTexture: MTLTexture
     ) throws -> MTLTexture {
-        let library = try device.makeDefaultLibrary(bundle: Bundle.module)
-        
         guard let computeShader = library.makeFunction(name: "metallic_roughness_texture_shader") else {
             throw NSError(domain: "ShaderConnection", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create metallic roughness shader function"])
         }
@@ -71,7 +71,6 @@ class ShaderConnection {
         emissiveFactor: SIMD3<Float>,
         emissiveTexture: MTLTexture
     ) throws -> MTLTexture {
-        let library = try device.makeDefaultLibrary(bundle: Bundle.module)
         guard let computeShader = library.makeFunction(name: "emissive_multiplier_shader") else {
             throw NSError(domain: "ShaderConnection", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create metallic roughness shader function"])
         }
@@ -120,7 +119,6 @@ class ShaderConnection {
         occlusionFactor: Float,
         occlusionTexture: MTLTexture
     ) throws -> MTLTexture {
-        let library = try device.makeDefaultLibrary(bundle: Bundle.module)
         guard let computeShader = library.makeFunction(name: "occlusion_multiplier_shader") else {
             throw NSError(domain: "ShaderConnection", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create occlusion shader function"])
         }
@@ -166,8 +164,6 @@ class ShaderConnection {
     }
 
     func makeBaseColorTexture(baseColorFactor: SIMD4<Float>, baseColorTexture: MTLTexture) throws -> MTLTexture {
-        let library = try device.makeDefaultLibrary(bundle: Bundle.module)
-
         guard let computeShader = library.makeFunction(name: "base_color_multiplier_shader") else {
             throw NSError(domain: "ShaderConnection", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create base color shader function"])
         }
@@ -203,6 +199,47 @@ class ShaderConnection {
         let threadgroups = MTLSize(
             width: (outputTexture.width + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
             height: (outputTexture.height + threadsPerThreadgroup.height - 1) / threadsPerThreadgroup.height,
+            depth: 1
+        )
+        computeEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
+        computeEncoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        return outputTexture
+    }
+
+    func convertSrgb2Linear(texture: MTLTexture) throws -> MTLTexture {
+        let outputTextureDescriptor = MTLTextureDescriptor()
+        outputTextureDescriptor.pixelFormat = .rgba32Float
+        outputTextureDescriptor.width = texture.width
+        outputTextureDescriptor.height = texture.height
+        outputTextureDescriptor.usage = [.shaderRead, .shaderWrite]
+        guard let outputTexture = texture.device.makeTexture(descriptor: outputTextureDescriptor) else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create output texture"]
+            )
+        }
+
+        guard let convertShader = library.makeFunction(name: "texture_srgb_2_linear_shader") else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create convert shader"]
+            )
+        }
+        let pso = try device.makeComputePipelineState(function: convertShader)
+
+        let commandBuffer = commandQueue.makeCommandBuffer()!
+        let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
+        computeEncoder.setComputePipelineState(pso)
+        computeEncoder.setTexture(texture, index: 0)
+        computeEncoder.setTexture(outputTexture, index: 1)
+        let threadsPerThreadgroup = MTLSize(width: 16, height: 16, depth: 1)
+        let threadgroups = MTLSize(
+            width: (texture.width + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
+            height: (texture.height + threadsPerThreadgroup.height - 1) / threadsPerThreadgroup.height,
             depth: 1
         )
         computeEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerThreadgroup)

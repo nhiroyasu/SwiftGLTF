@@ -1,5 +1,5 @@
 #include <metal_stdlib>
-#include "headers/metal_helper.h"
+#include "../../SwiftGLTFShaderTypes/includes/metal_helper.h"
 using namespace metal;
 
 kernel void srgb_2_linear_shader(constant float *srgb [[buffer(0)]],

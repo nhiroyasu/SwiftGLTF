@@ -56,9 +56,13 @@ public class MDLAssetPBRMTKView: MTKView {
     ) async throws {
         self.commandQueue = commandQueue
 
-        let library = try device.makeDefaultLibrary(bundle: Bundle.module)
+        let library = try device.makePackageLibrary()
 
-        self.shaderConnection = ShaderConnection(device: device, commandQueue: commandQueue)
+        self.shaderConnection = ShaderConnection(
+            device: device,
+            library: library,
+            commandQueue: commandQueue
+        )
 
         // Load environment textures
         guard let envMapUrl = Bundle.main.url(forResource: "env_map", withExtension: "exr") else {

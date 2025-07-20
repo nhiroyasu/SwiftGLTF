@@ -1,13 +1,13 @@
 {
-  "originHash" : "6b8064100e6c22b38ddd3b3965d3b38f332a5834c0662b321091b99281499bec",
+  "originHash" : "20bcf2643f43c8cbba034e0c292627f3f76e9da8c51c690b116de94b3a2f97fe",
   "pins" : [
     {
       "identity" : "img2cubemap",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nhiroyasu/Img2Cubemap.git",
       "state" : {
-        "revision" : "9b432119f9e360eb898f1dbb1b6ccc58aa9e4f55",
-        "version" : "0.1.1"
+        "revision" : "d6184d4de2785d499b1c1a059d72ab776b4f0685",
+        "version" : "0.1.3"
       }
     },
     {

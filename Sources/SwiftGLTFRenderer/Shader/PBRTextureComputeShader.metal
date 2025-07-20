@@ -1,6 +1,6 @@
 #include <metal_stdlib>
-#include "headers/pbr.h"
-#include "headers/metal_helper.h"
+#include "../../SwiftGLTFShaderTypes/includes/pbr.h"
+#include "../../SwiftGLTFShaderTypes/includes/metal_helper.h"
 using namespace metal;
 
 kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)]],

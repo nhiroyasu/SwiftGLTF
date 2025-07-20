@@ -265,16 +265,16 @@ class PBRMeshLoader {
     }
 
     private func convertTextureWithCache(
-        _ tex: MDLTexture,
+        _ mdlTex: MDLTexture,
         convertLinearColorSpace: Bool = false,
         device: MTLDevice
     ) throws -> MTLTexture {
-        if let cachedTexture = texturesCache[tex.name] {
+        if let cachedTexture = texturesCache[mdlTex.name] {
             return cachedTexture
         } else {
-            let mtkTex: MTLTexture = try tex.imageFromTexture(device: device, convertLinearColorSpace: convertLinearColorSpace)
-            if !tex.name.isEmpty {
-                texturesCache[tex.name] = mtkTex
+            let mtkTex: MTLTexture = try mdl2mtlTexture(mdlTex, device: device, convertLinearColorSpace: convertLinearColorSpace)
+            if !mdlTex.name.isEmpty {
+                texturesCache[mdlTex.name] = mtkTex
             }
             return mtkTex
         }
@@ -317,7 +317,10 @@ class PBRMeshLoader {
             sampler = makeDummySampler(textureValue: [Float16(0.5), 0.5, 1.0, 1.0], channelCount: 4, channelEncoding: .float16)
         }
 
-        guard let texture = try sampler.texture?.imageFromTexture(device: device) else {
+        let texture: MTLTexture
+        if let mdlTex = sampler.texture {
+            texture = try mdl2mtlTexture(mdlTex, device: device)
+        } else {
             throw NSError(
                 domain: "MDLAssetLoader",
                 code: 1,
@@ -345,7 +348,10 @@ class PBRMeshLoader {
             )
         }
 
-        guard let tex = try metallicRoughnessMDLSampler.texture?.imageFromTexture(device: device) else {
+        let tex: MTLTexture
+        if let mdlTex = metallicRoughnessMDLSampler.texture {
+            tex = try mdl2mtlTexture(mdlTex, device: device)
+        } else {
             throw NSError(
                 domain: "MDLAssetLoader",
                 code: 1,
@@ -374,7 +380,10 @@ class PBRMeshLoader {
             sampler = makeDummySampler(textureValue: [Float16(1), 0, 0, 0], channelCount: 4, channelEncoding: .float16)
         }
 
-        guard let tex = try sampler.texture?.imageFromTexture(device: device) else {
+        let tex: MTLTexture
+        if let mdlTex = sampler.texture {
+            tex = try mdl2mtlTexture(mdlTex, device: device)
+        } else {
             throw NSError(
                 domain: "MDLAssetLoader",
                 code: 1,
@@ -402,7 +411,10 @@ class PBRMeshLoader {
             )
         }
 
-        guard let tex = try emissiveSampler.texture?.imageFromTexture(device: device, convertLinearColorSpace: true) else {
+        let tex: MTLTexture
+        if let mdlTex = emissiveSampler.texture {
+            tex = try mdl2mtlTexture(mdlTex, device: device, convertLinearColorSpace: true)
+        } else {
             throw NSError(
                 domain: "MDLAssetLoader",
                 code: 1,
@@ -417,20 +429,22 @@ class PBRMeshLoader {
 
         return (emissiveTexture, emissiveSamplerState)
     }
-}
 
-extension MDLTexture {
-    func imageFromTexture(device: MTLDevice, convertLinearColorSpace: Bool = false) throws -> MTLTexture {
+    private func mdl2mtlTexture(
+        _ mdlTexture: MDLTexture,
+        device: MTLDevice,
+        convertLinearColorSpace: Bool = false
+    ) throws -> MTLTexture {
         let descriptor = MTLTextureDescriptor()
-        descriptor.pixelFormat = switch channelCount {
+        descriptor.pixelFormat = switch mdlTexture.channelCount {
         case 1: .r32Float
         case 2: .rg32Float
         // case 3: TODO: No suitable format exists for MTLPixelFormat
         case 4: .rgba32Float
         default: throw NSError(domain: "MDLTexture", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unsupported channel count"])
         }
-        descriptor.width = Int(self.dimensions.x)
-        descriptor.height = Int(self.dimensions.y)
+        descriptor.width = Int(mdlTexture.dimensions.x)
+        descriptor.height = Int(mdlTexture.dimensions.y)
         descriptor.usage = [.shaderRead]
 
         guard let texture = device.makeTexture(descriptor: descriptor) else {
@@ -441,8 +455,8 @@ extension MDLTexture {
             )
         }
 
-        let region = MTLRegionMake2D(0, 0, Int(self.dimensions.x), Int(self.dimensions.y))
-        guard let texelData = self.texelDataWithBottomLeftOrigin() else {
+        let region = MTLRegionMake2D(0, 0, Int(mdlTexture.dimensions.x), Int(mdlTexture.dimensions.y))
+        guard let texelData = mdlTexture.texelDataWithBottomLeftOrigin() else {
             throw NSError(
                 domain: "MDLTexture",
                 code: 3,
@@ -450,12 +464,12 @@ extension MDLTexture {
             )
         }
 
-        let channelCount = Int(self.channelCount)
-        let pixelCount = Int(self.dimensions.x * self.dimensions.y)
+        let channelCount = Int(mdlTexture.channelCount)
+        let pixelCount = Int(mdlTexture.dimensions.x * mdlTexture.dimensions.y)
         let floatPixelCount = pixelCount * channelCount
         var floatPixels = [Float](repeating: 0, count: floatPixelCount)
 
-        switch self.channelEncoding {
+        switch mdlTexture.channelEncoding {
         case .uint8:
             let src = texelData.withUnsafeBytes { rawBufferPointer in
                 let floatBufferPointer = rawBufferPointer.bindMemory(to: UInt8.self)
@@ -490,7 +504,7 @@ extension MDLTexture {
             )
         }
 
-        let bytesPerRow = channelCount * MemoryLayout<Float>.size * Int(self.dimensions.x)
+        let bytesPerRow = channelCount * MemoryLayout<Float>.size * Int(mdlTexture.dimensions.x)
         floatPixels.withUnsafeBytes { ptr in
             texture.replace(
                 region: region,
@@ -501,104 +515,61 @@ extension MDLTexture {
         }
 
         if convertLinearColorSpace {
-            return try convertSrgb2Linear(texture)
+            return try shaderConnection.convertSrgb2Linear(texture: texture)
         } else {
             return texture
         }
     }
-
-
-    func convertUInt8ToFloat(_ src: [UInt8]) -> [Float] {
-        let count = src.count
-        var float32Array = [Float](repeating: 0, count: count)
-
-        vDSP_vfltu8(src, 1, &float32Array, 1, vDSP_Length(count))
-        var scale: Float = 1.0 / 255.0
-        var outArray = [Float](repeating: 0, count: count)
-        vDSP_vsmul(&float32Array, 1, &scale, &outArray, 1, vDSP_Length(count))
-
-        return outArray
-    }
-
-    func convertUInt16ToFloat(_ src: [UInt16]) -> [Float] {
-        let count = src.count
-        var float32Array = [Float](repeating: 0, count: count)
-
-        vDSP_vfltu16(src, 1, &float32Array, 1, vDSP_Length(count))
-        var scale: Float = 1.0 / 65535.0
-        var outArray = [Float](repeating: 0, count: count)
-        vDSP_vsmul(&float32Array, 1, &scale, &outArray, 1, vDSP_Length(count))
-
-        return outArray
-    }
-
-    func convertFloat16ToFloat32_vImage(_ input: [Float16]) -> [Float] {
-        let width = input.count
-        var input = input
-        var srcBuffer = vImage_Buffer(
-            data: input.withUnsafeMutableBytes { $0.baseAddress },
-            height: vImagePixelCount(1),
-            width: vImagePixelCount(width),
-            rowBytes: width * MemoryLayout<Float16>.size
-        )
-
-        var dstArray = [Float](repeating: 0, count: input.count)
-        var dstBuffer = vImage_Buffer(
-            data: dstArray.withUnsafeMutableBytes { $0.baseAddress },
-            height: vImagePixelCount(1),
-            width: vImagePixelCount(input.count),
-            rowBytes: width * MemoryLayout<Float>.size
-        )
-
-        let error = vImageConvert_Planar16FtoPlanarF(&srcBuffer, &dstBuffer, 0)
-        if error != kvImageNoError {
-            print("vImage error: \(error)")
-        }
-
-        return dstArray
-    }
 }
 
-private func convertSrgb2Linear(_ texture: MTLTexture) throws -> MTLTexture {
-    let outputTextureDescriptor = MTLTextureDescriptor()
-    outputTextureDescriptor.pixelFormat = .rgba32Float
-    outputTextureDescriptor.width = texture.width
-    outputTextureDescriptor.height = texture.height
-    outputTextureDescriptor.usage = [.shaderRead, .shaderWrite]
-    guard let outputTexture = texture.device.makeTexture(descriptor: outputTextureDescriptor) else {
-        throw NSError(
-            domain: "MDLAssetLoader",
-            code: 2,
-            userInfo: [NSLocalizedDescriptionKey: "Failed to create output texture"]
-        )
-    }
+private func convertUInt8ToFloat(_ src: [UInt8]) -> [Float] {
+    let count = src.count
+    var float32Array = [Float](repeating: 0, count: count)
 
-    guard let convertShader = try texture.device.makeDefaultLibrary(bundle: Bundle.module).makeFunction(name: "texture_srgb_2_linear_shader") else {
-        throw NSError(
-            domain: "MDLAssetLoader",
-            code: 3,
-            userInfo: [NSLocalizedDescriptionKey: "Failed to create convert shader"]
-        )
-    }
-    let pso = try texture.device.makeComputePipelineState(function: convertShader)
+    vDSP_vfltu8(src, 1, &float32Array, 1, vDSP_Length(count))
+    var scale: Float = 1.0 / 255.0
+    var outArray = [Float](repeating: 0, count: count)
+    vDSP_vsmul(&float32Array, 1, &scale, &outArray, 1, vDSP_Length(count))
 
-    let commandQueue = texture.device.makeCommandQueue()!
-    let commandBuffer = commandQueue.makeCommandBuffer()!
-    let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
-    computeEncoder.setComputePipelineState(pso)
-    computeEncoder.setTexture(texture, index: 0)
-    computeEncoder.setTexture(outputTexture, index: 1)
-    let threadsPerThreadgroup = MTLSize(width: 16, height: 16, depth: 1)
-    let threadgroups = MTLSize(
-        width: (texture.width + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
-        height: (texture.height + threadsPerThreadgroup.height - 1) / threadsPerThreadgroup.height,
-        depth: 1
+    return outArray
+}
+
+private func convertUInt16ToFloat(_ src: [UInt16]) -> [Float] {
+    let count = src.count
+    var float32Array = [Float](repeating: 0, count: count)
+
+    vDSP_vfltu16(src, 1, &float32Array, 1, vDSP_Length(count))
+    var scale: Float = 1.0 / 65535.0
+    var outArray = [Float](repeating: 0, count: count)
+    vDSP_vsmul(&float32Array, 1, &scale, &outArray, 1, vDSP_Length(count))
+
+    return outArray
+}
+
+private func convertFloat16ToFloat32_vImage(_ input: [Float16]) -> [Float] {
+    let width = input.count
+    var input = input
+    var srcBuffer = vImage_Buffer(
+        data: input.withUnsafeMutableBytes { $0.baseAddress },
+        height: vImagePixelCount(1),
+        width: vImagePixelCount(width),
+        rowBytes: width * MemoryLayout<Float16>.size
     )
-    computeEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
-    computeEncoder.endEncoding()
-    commandBuffer.commit()
-    commandBuffer.waitUntilCompleted()
-    return outputTexture
+
+    var dstArray = [Float](repeating: 0, count: input.count)
+    var dstBuffer = vImage_Buffer(
+        data: dstArray.withUnsafeMutableBytes { $0.baseAddress },
+        height: vImagePixelCount(1),
+        width: vImagePixelCount(input.count),
+        rowBytes: width * MemoryLayout<Float>.size
+    )
+
+    let error = vImageConvert_Planar16FtoPlanarF(&srcBuffer, &dstBuffer, 0)
+    if error != kvImageNoError {
+        print("vImage error: \(error)")
+    }
+
+    return dstArray
 }
 
 private func makeDummySampler<T: Numeric>(

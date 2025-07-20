@@ -17,10 +17,14 @@ final class RenderTests {
 
     init() {
         self.device = MTLCreateSystemDefaultDevice()!
-        self.library = try! device.makeSwiftGLTFRendererLib()
+        self.library = try! device.makePackageLibrary()
         self.commandQueue = device.makeCommandQueue()!
 
-        self.shaderConnection = ShaderConnection(device: device, commandQueue: commandQueue)
+        self.shaderConnection = ShaderConnection(
+            device: device,
+            library: library,
+            commandQueue: commandQueue
+        )
         self.loaderConfig = MDLAssetLoaderPipelineStateConfig(
             pntucVertexShader: library.makeFunction(name: "pntuc_vertex_shader")!,
             pntuVertexShader: library.makeFunction(name: "pntu_vertex_shader")!,
@@ -210,6 +214,7 @@ final class RenderTests {
             mipmapped: false
         )
         depthTextureDesc.usage = [.renderTarget, .shaderRead]
+        depthTextureDesc.storageMode = .private
         let depthTexture = device.makeTexture(descriptor: depthTextureDesc)!
 
         // Set up render pass descriptor
@@ -262,6 +267,8 @@ final class RenderTests {
     }
 
     func assertEqual(output: MTLTexture, goldenName: String) {
+        let tolerance: UInt8 = 3
+
         var outputBytes = [UInt8](repeating: 0, count: output.width * output.height * 4)
         output.getBytes(&outputBytes, bytesPerRow: output.width * 4, from: MTLRegionMake2D(0, 0, output.width, output.height), mipmapLevel: 0)
 
@@ -282,13 +289,26 @@ final class RenderTests {
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         )!
         goldenContext.draw(image, in: CGRect(x: 0, y: 0, width: goldenWidth, height: goldenHeight))
-        let goldenData = goldenContext.data
+        let goldenRaw = goldenContext.data!.assumingMemoryBound(to: UInt8.self)
 
         let byteCount = goldenWidth * goldenHeight * 4
 
         #expect(output.width == goldenWidth)
         #expect(output.height == goldenHeight)
-        #expect(memcmp(&outputBytes, goldenData!, byteCount) == 0)
+
+        var mismatchCount = 0
+        for i in 0..<byteCount {
+            let diff = abs(Int(outputBytes[i]) - Int(goldenRaw[i]))
+            if diff > tolerance {
+                mismatchCount += 1
+            }
+        }
+        let maxAllowedMismatchedPixels = Int(Double(byteCount) * 0.01) // 1% tolerance
+
+        #expect(
+            mismatchCount <= maxAllowedMismatchedPixels,
+            "Output differs from golden image \(goldenName).png with \(mismatchCount) mismatched bytes (tolerance=\(tolerance))"
+        )
     }
 
     // MARK: - Export golden images

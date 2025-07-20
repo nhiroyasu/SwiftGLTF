@@ -27,7 +27,7 @@ public class MDLAssetMTKView: MTKView {
         let (_, metalKitMesh) = try MTKMesh.newMeshes(asset: asset, device: device)
         self.meshes = metalKitMesh
 
-        let library = try device.makeDefaultLibrary(bundle: Bundle.module)
+        let library = try device.makePackageLibrary()
 
         // Create a render pipeline descriptor
         let pipelineDescriptor = MTLRenderPipelineDescriptor()

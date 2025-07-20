@@ -1,5 +1,5 @@
 #include <metal_stdlib>
-#include "headers/BlinnPhong.h"
+#include "../../SwiftGLTFShaderTypes/includes/BlinnPhong.h"
 
 using namespace metal;
 

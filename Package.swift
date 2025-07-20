@@ -16,11 +16,10 @@ let package = Package(
             targets: ["SwiftGLTF"]),
         .library(
             name: "SwiftGLTFRenderer",
-            targets: ["SwiftGLTFRenderer"]
-        )
+            targets: ["SwiftGLTFRenderer"])
     ],
     dependencies: [
-        .package(url: "https://github.com/nhiroyasu/Img2Cubemap.git", from: "0.1.1")
+        .package(url: "https://github.com/nhiroyasu/Img2Cubemap.git", from: "0.1.3")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -29,16 +28,7 @@ let package = Package(
             name: "SwiftGLTFRenderer",
             dependencies: ["SwiftGLTF", "Img2Cubemap"],
             resources: [
-                .process("Shader/EmissiveMultiplierShader.metal"),
-                .process("Shader/metal_helper.metal"),
-                .process("Shader/MDLAssetBlinnPhongShader.metal"),
-                .process("Shader/MDLAssetPBRShader.metal"),
-                .process("Shader/MetallicRoughnessTextureShader.metal"),
-                .process("Shader/PBRTextureComputeShader.metal"),
-                .process("Shader/SkyboxShader.metal"),
-                .process("Shader/Srgb2LinearShader.metal"),
-                .process("Shader/OcclusionMultiplierShader.metal"),
-                .process("Shader/BaseColorMultiplierShader.metal"),
+                .process("Shader/"),
             ]),
         .testTarget(
             name: "SwiftGLTFRendererTests",
@@ -82,8 +72,11 @@ let package = Package(
                     dependencies: ["SwiftGLTFCore"]),
 
         .target(
+            name: "SwiftGLTFShaderTypes",
+            publicHeadersPath: "includes"),
+
+        .target(
             name: "MikkTSpace",
-            publicHeadersPath: "includes"
-        )
+            publicHeadersPath: "includes"),
     ]
 )
