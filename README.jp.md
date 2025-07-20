@@ -94,6 +94,9 @@ view.addSubview(mtlView)
 | occlusionTexture     | ✅         |
 | emissiveTexture      | ✅         |
 | emissiveFactor       | ✅         |
+| alphaMode            | ❌         |
+| alphaCutoff          | ❌         |
+| doubleSided          | ❌         |
 
 ### Vertex Attributes
 | Attribute     | Supported |
