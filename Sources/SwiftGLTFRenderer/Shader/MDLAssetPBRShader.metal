@@ -5,12 +5,6 @@ using namespace metal;
 
 // MARK: - Compute lighting
 
-float3 compute_ambient(float3 albedo) {
-    // Ambient lighting contribution
-    float3 ambientColor = float3(0.03) * albedo; // Simple ambient term
-    return ambientColor;
-}
-
 float3 compute_direct_lighting(float3 normal,
                                float3 worldPosition,
                                float3 albedo,
