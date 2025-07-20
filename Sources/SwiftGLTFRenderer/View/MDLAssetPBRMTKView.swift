@@ -7,9 +7,9 @@ public class MDLAssetPBRMTKView: MTKView {
 
     private let commandQueue: MTLCommandQueue
     private let dso: MTLDepthStencilState
-    private let pbrSceneUniformsBuffer: MTLBuffer
-    private let viewBuffer: MTLBuffer
-    private let projectionBuffer: MTLBuffer
+    private let pbrSceneUniformsBuffer: FrameInFlightBuffer
+    private let viewBuffer: FrameInFlightBuffer
+    private let projectionBuffer: FrameInFlightBuffer
 
     private let specularCubeMapTexture: MTLTexture
     private let irradianceCubeMapTexture: MTLTexture
@@ -17,7 +17,7 @@ public class MDLAssetPBRMTKView: MTKView {
 
     let skyboxCubeVertexBuffer: MTLBuffer
     let skyboxCubeIndexBuffer: MTLBuffer
-    let skyboxVPMatrixBuffer: MTLBuffer
+    let skyboxVPMatrixBuffer: FrameInFlightBuffer
     let skyboxPSO: MTLRenderPipelineState
     let skyboxDSO: MTLDepthStencilState
 
@@ -35,6 +35,10 @@ public class MDLAssetPBRMTKView: MTKView {
 
     private let loaderConfig: MDLAssetLoaderPipelineStateConfig
     private let shaderConnection: ShaderConnection
+
+    private let maxFramesInFlight = 2
+    private var currentBuffer = 0
+    private let frameSemaphores: DispatchSemaphore
 
     public init(
         frame: CGRect,
@@ -96,18 +100,24 @@ public class MDLAssetPBRMTKView: MTKView {
         self.dso = depthStencilState
 
         // Create buffers
-        self.pbrSceneUniformsBuffer = device.makeBuffer(
-            length: MemoryLayout<PBRSceneUniforms>.size,
-            options: []
-        )!
-        self.viewBuffer = device.makeBuffer(
-            length: MemoryLayout<float4x4>.size,
-            options: []
-        )!
-        self.projectionBuffer = device.makeBuffer(
-            length: MemoryLayout<float4x4>.size,
-            options: []
-        )!
+        self.pbrSceneUniformsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+            device.makeBuffer(
+                length: MemoryLayout<PBRSceneUniforms>.size,
+                options: []
+            )!
+        }
+        self.viewBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+            device.makeBuffer(
+                length: MemoryLayout<float4x4>.size,
+                options: []
+            )!
+        }
+        self.projectionBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+            device.makeBuffer(
+                length: MemoryLayout<float4x4>.size,
+                options: []
+            )!
+        }
 
         // Create skybox buffers and pipeline state
         let skyboxPsoDescriptor = MTLRenderPipelineDescriptor()
@@ -126,29 +136,24 @@ public class MDLAssetPBRMTKView: MTKView {
         self.skyboxDSO = device.makeDepthStencilState(descriptor: skyboxDSODescriptor)!
 
         let skyboxCube = Cube(size: 1)
-        guard let skyboxCubeVertexBuffer = device.makeBuffer(
+        self.skyboxCubeVertexBuffer = device.makeBuffer(
             bytes: skyboxCube.vertices,
             length: MemoryLayout<Float>.size * skyboxCube.vertices.count,
             options: .storageModeShared
-        ) else {
-            throw NSError(domain: "MDLAssetMTKView", code: 4, userInfo: [NSLocalizedDescriptionKey: "Failed to create skybox vertex buffer"])
-        }
-        self.skyboxCubeVertexBuffer = skyboxCubeVertexBuffer
-        guard let skyboxCubeIndexBuffer = device.makeBuffer(
+        )!
+        self.skyboxCubeIndexBuffer = device.makeBuffer(
             bytes: skyboxCube.indices,
             length: MemoryLayout<UInt16>.size * skyboxCube.indices.count,
             options: .storageModeShared
-        ) else {
-            throw NSError(domain: "MDLAssetMTKView", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to create skybox index buffer"])
+        )!
+        self.skyboxVPMatrixBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+            device.makeBuffer(
+                length: MemoryLayout<simd_float4x4>.size,
+                options: .storageModeShared
+            )!
         }
-        self.skyboxCubeIndexBuffer = skyboxCubeIndexBuffer
-        guard let skyboxVPMatrixBuffer = device.makeBuffer(
-            length: MemoryLayout<simd_float4x4>.size,
-            options: .storageModeShared
-        ) else {
-            throw NSError(domain: "MDLAssetMTKView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Failed to create skybox MVP matrix buffer"])
-        }
-        self.skyboxVPMatrixBuffer = skyboxVPMatrixBuffer
+
+        frameSemaphores = DispatchSemaphore(value: maxFramesInFlight)
 
         super.init(frame: frame, device: device)
 
@@ -201,6 +206,10 @@ public class MDLAssetPBRMTKView: MTKView {
             return
         }
 
+        // Update frame buffer index
+        frameSemaphores.wait()
+        currentBuffer = (currentBuffer + 1) % maxFramesInFlight
+
         // Draw Skybox
 
         let skyboxTarget = SIMD3<Float>(
@@ -220,12 +229,16 @@ public class MDLAssetPBRMTKView: MTKView {
             far: 100.0
         )
         var skyboxVPMatrix = skyboxProjectionMatrix * skyboxViewMatrix
-        skyboxVPMatrixBuffer.contents().copyMemory(from: &skyboxVPMatrix, byteCount: MemoryLayout<simd_float4x4>.size)
+        skyboxVPMatrixBuffer.updateBuffer(
+            currentBuffer,
+            from: &skyboxVPMatrix,
+            byteCount: MemoryLayout<simd_float4x4>.size
+        )
 
         renderEncoder.setRenderPipelineState(skyboxPSO)
         renderEncoder.setDepthStencilState(skyboxDSO)
         renderEncoder.setVertexBuffer(skyboxCubeVertexBuffer, offset: 0, index: 0)
-        renderEncoder.setVertexBuffer(skyboxVPMatrixBuffer, offset: 0, index: 1)
+        renderEncoder.setVertexBuffer(skyboxVPMatrixBuffer.buffer(currentBuffer), offset: 0, index: 1)
         renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
 
         renderEncoder.drawIndexedPrimitives(
@@ -254,8 +267,16 @@ public class MDLAssetPBRMTKView: MTKView {
             near: 0.1,
             far: 1000.0
         )
-        viewBuffer.contents().copyMemory(from: &view, byteCount: MemoryLayout<float4x4>.size)
-        projectionBuffer.contents().copyMemory(from: &projection, byteCount: MemoryLayout<float4x4>.size)
+        viewBuffer.updateBuffer(
+            currentBuffer,
+            from: &view,
+            byteCount: MemoryLayout<float4x4>.size
+        )
+        projectionBuffer.updateBuffer(
+            currentBuffer,
+            from: &projection,
+            byteCount: MemoryLayout<float4x4>.size
+        )
 
         // Set up render encoder
 
@@ -275,7 +296,8 @@ public class MDLAssetPBRMTKView: MTKView {
                 viewPosition: eye,
                 ambientLightColor: ambientLightColor
             )
-            pbrSceneUniformsBuffer.contents().copyMemory(
+            pbrSceneUniformsBuffer.updateBuffer(
+                currentBuffer,
                 from: &pbrSceneUniforms,
                 byteCount: MemoryLayout<PBRSceneUniforms>.size
             )
@@ -285,10 +307,10 @@ public class MDLAssetPBRMTKView: MTKView {
 
             renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
             renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
-            renderEncoder.setVertexBuffer(viewBuffer, offset: 0, index: 2)
-            renderEncoder.setVertexBuffer(projectionBuffer, offset: 0, index: 3)
+            renderEncoder.setVertexBuffer(viewBuffer.buffer(currentBuffer), offset: 0, index: 2)
+            renderEncoder.setVertexBuffer(projectionBuffer.buffer(currentBuffer), offset: 0, index: 3)
             renderEncoder.setVertexBuffer(mesh.normalMatrixBuffer, offset: 0, index: 4)
-            renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer, offset: 0, index: 0)
+            renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer.buffer(currentBuffer), offset: 0, index: 0)
             renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
             renderEncoder.setFragmentTexture(irradianceCubeMapTexture, index: 1)
             renderEncoder.setFragmentTexture(brdfLUT, index: 2)
@@ -320,6 +342,9 @@ public class MDLAssetPBRMTKView: MTKView {
 
         renderEncoder.endEncoding()
         commandBuffer.present(drawable)
+        commandBuffer.addCompletedHandler { [weak frameSemaphores] _ in
+            frameSemaphores?.signal()
+        }
         commandBuffer.commit()
     }
 
