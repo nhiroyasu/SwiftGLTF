@@ -48,7 +48,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Run make
-        run: make
+        run: make clean && make
 
       - name: Check for changes
         id: diff
