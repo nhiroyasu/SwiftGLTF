@@ -1,0 +1,74 @@
+import MetalKit
+
+func drawSkybox(
+    renderEncoder: MTLRenderCommandEncoder,
+    pso: MTLRenderPipelineState,
+    dso: MTLDepthStencilState,
+    vertexBuffer: MTLBuffer,
+    indexBuffer: MTLBuffer,
+    indexCount: Int,
+    indexType: MTLIndexType,
+    vpMatrixBuffer: MTLBuffer,
+    specularCubeMapTexture: MTLTexture
+) {
+    renderEncoder.setRenderPipelineState(pso)
+    renderEncoder.setDepthStencilState(dso)
+    renderEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
+    renderEncoder.setVertexBuffer(vpMatrixBuffer, offset: 0, index: 1)
+    renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
+
+    renderEncoder.drawIndexedPrimitives(
+        type: .triangle,
+        indexCount: indexCount,
+        indexType: indexType,
+        indexBuffer: indexBuffer,
+        indexBufferOffset: 0
+    )
+}
+
+func drawMesh(
+    renderEncoder: MTLRenderCommandEncoder,
+    mesh: PBRMesh,
+    dso: MTLDepthStencilState,
+    viewBuffer: MTLBuffer,
+    projectionBuffer: MTLBuffer,
+    pbrSceneUniformsBuffer: MTLBuffer,
+    specularCubeMapTexture: MTLTexture,
+    irradianceCubeMapTexture: MTLTexture,
+    brdfLUT: MTLTexture
+) {
+    renderEncoder.setRenderPipelineState(mesh.pso)
+    renderEncoder.setDepthStencilState(dso)
+
+    renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
+    renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
+    renderEncoder.setVertexBuffer(viewBuffer, offset: 0, index: 2)
+    renderEncoder.setVertexBuffer(projectionBuffer, offset: 0, index: 3)
+    renderEncoder.setVertexBuffer(mesh.normalMatrixBuffer, offset: 0, index: 4)
+    renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer, offset: 0, index: 0)
+    renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
+    renderEncoder.setFragmentTexture(irradianceCubeMapTexture, index: 1)
+    renderEncoder.setFragmentTexture(brdfLUT, index: 2)
+
+    for submesh in mesh.submeshes {
+        // Set baseColor, normal, metallic and roughness textures/samplers
+        renderEncoder.setFragmentTexture(submesh.baseColorTexture, index: 3)
+        renderEncoder.setFragmentSamplerState(submesh.baseColorSampler, index: 0)
+        renderEncoder.setFragmentTexture(submesh.normalTexture, index: 4)
+        renderEncoder.setFragmentSamplerState(submesh.normalSampler, index: 1)
+        renderEncoder.setFragmentTexture(submesh.metallicRoughnessTexture, index: 5)
+        renderEncoder.setFragmentSamplerState(submesh.metallicRoughnessSampler, index: 2)
+        renderEncoder.setFragmentTexture(submesh.emissiveTexture, index: 6)
+        renderEncoder.setFragmentSamplerState(submesh.emissiveSampler, index: 3)
+        renderEncoder.setFragmentTexture(submesh.occlusionTexture, index: 7)
+        renderEncoder.setFragmentSamplerState(submesh.occlusionSampler, index: 4)
+
+        renderEncoder.drawIndexedPrimitives(
+            type: submesh.primitiveType,
+            indexCount: submesh.indexCount,
+            indexType: submesh.indexType,
+            indexBuffer: submesh.indexBuffer.buffer,
+            indexBufferOffset: submesh.indexBuffer.offset
+        )
+    }
+}

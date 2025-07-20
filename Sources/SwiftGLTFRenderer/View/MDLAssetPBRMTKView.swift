@@ -40,6 +40,14 @@ public class MDLAssetPBRMTKView: MTKView {
     private var currentBuffer = 0
     private let frameSemaphores: DispatchSemaphore
 
+    var eye: SIMD3<Float> {
+        SIMD3<Float>(
+            distance * cos(rotationX) * sin(rotationY),
+            distance * cos(rotationY),
+            distance * sin(rotationX) * sin(rotationY)
+        )
+    }
+
     public init(
         frame: CGRect,
         device: MTLDevice,
@@ -196,22 +204,15 @@ public class MDLAssetPBRMTKView: MTKView {
         targetOffset = .zero
     }
 
-    // MARK: - Rendering
+    // MARK: - Buffer Management
 
-    public override func draw(_ rect: CGRect) {
-        guard let drawable = currentDrawable,
-              let descriptor = currentRenderPassDescriptor,
-              let commandBuffer = commandQueue.makeCommandBuffer(),
-              let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
-            return
-        }
-
-        // Update frame buffer index
-        frameSemaphores.wait()
-        currentBuffer = (currentBuffer + 1) % maxFramesInFlight
-
-        // Draw Skybox
-
+    private func updateSkyboxBuffer(
+        toVPMatrixBuffer: MTLBuffer,
+        rotationX: Float32,
+        rotationY: Float32,
+        upSign: Float32,
+        drawableSize: CGSize
+    ) {
         let skyboxTarget = SIMD3<Float>(
             -cos(rotationX) * sin(rotationY),
             -cos(rotationY),
@@ -229,116 +230,128 @@ public class MDLAssetPBRMTKView: MTKView {
             far: 100.0
         )
         var skyboxVPMatrix = skyboxProjectionMatrix * skyboxViewMatrix
-        skyboxVPMatrixBuffer.updateBuffer(
-            currentBuffer,
+        toVPMatrixBuffer.contents().copyMemory(
             from: &skyboxVPMatrix,
             byteCount: MemoryLayout<simd_float4x4>.size
         )
+    }
 
-        renderEncoder.setRenderPipelineState(skyboxPSO)
-        renderEncoder.setDepthStencilState(skyboxDSO)
-        renderEncoder.setVertexBuffer(skyboxCubeVertexBuffer, offset: 0, index: 0)
-        renderEncoder.setVertexBuffer(skyboxVPMatrixBuffer.buffer(currentBuffer), offset: 0, index: 1)
-        renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
-
-        renderEncoder.drawIndexedPrimitives(
-            type: .triangle,
-            indexCount: skyboxCubeIndexBuffer.length / MemoryLayout<UInt16>.size,
-            indexType: .uint16,
-            indexBuffer: skyboxCubeIndexBuffer,
-            indexBufferOffset: 0
-        )
-
-        // Draw meshes
-
-        let eye = SIMD3<Float>(
-            distance * cos(rotationX) * sin(rotationY),
-            distance * cos(rotationY),
-            distance * sin(rotationX) * sin(rotationY)
-        )
+    private func updateSceneBuffer(
+        toViewBuffer: MTLBuffer,
+        toProjectionBuffer: MTLBuffer,
+        toPBRSceneUniformsBuffer: MTLBuffer,
+        eye: SIMD3<Float>,
+        lightPosition: SIMD3<Float>,
+        ambientLightColor: SIMD3<Float>,
+        upSign: Float32,
+        drawableSize: CGSize
+    ) {
         var view = lookAt(
             eye: eye,
             target: simd_float3(0, 0, 0),
             up: simd_float3(0, upSign, 0)
         )
+        toViewBuffer.contents().copyMemory(
+            from: &view,
+            byteCount: MemoryLayout<float4x4>.size
+        )
+
         var projection = perspectiveMatrix(
             fov: .pi / 3,
             aspect: Float(drawableSize.width / drawableSize.height),
             near: 0.1,
             far: 1000.0
         )
-        viewBuffer.updateBuffer(
-            currentBuffer,
-            from: &view,
-            byteCount: MemoryLayout<float4x4>.size
-        )
-        projectionBuffer.updateBuffer(
-            currentBuffer,
+        toProjectionBuffer.contents().copyMemory(
             from: &projection,
             byteCount: MemoryLayout<float4x4>.size
         )
 
-        // Set up render encoder
+        var pbrSceneUniforms = PBRSceneUniforms(
+            lightPosition: lightPosition,
+            viewPosition: eye,
+            ambientLightColor: ambientLightColor
+        )
+        toPBRSceneUniformsBuffer.contents().copyMemory(
+            from: &pbrSceneUniforms,
+            byteCount: MemoryLayout<PBRSceneUniforms>.size
+        )
+    }
 
-        for mesh in meshes {
-            // Make buffer
+    private func updateMeshBuffer(
+        toMesh mesh: PBRMesh,
+        targetOffset: SIMD3<Float>
+    ) {
+        let modelTransform = mesh.transform
+        let offsetTranslation = translationMatrix(targetOffset.x, targetOffset.y, targetOffset.z)
+        var model = offsetTranslation * modelTransform
+        mesh.modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
 
-            let modelTransform = mesh.transform
-            let offsetTranslation = translationMatrix(targetOffset.x, targetOffset.y, targetOffset.z)
-            var model = offsetTranslation * modelTransform
-            mesh.modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
+        var normalMatrix = float3x3(model).transpose.inverse
+        mesh.normalMatrixBuffer.contents().copyMemory(from: &normalMatrix, byteCount: MemoryLayout<float3x3>.size)
+    }
 
-            var normalMatrix = float3x3(model).transpose.inverse
-            mesh.normalMatrixBuffer.contents().copyMemory(from: &normalMatrix, byteCount: MemoryLayout<float3x3>.size)
+    // MARK: - Rendering
 
-            var pbrSceneUniforms = PBRSceneUniforms(
-                lightPosition: lightPosition,
-                viewPosition: eye,
-                ambientLightColor: ambientLightColor
-            )
-            pbrSceneUniformsBuffer.updateBuffer(
-                currentBuffer,
-                from: &pbrSceneUniforms,
-                byteCount: MemoryLayout<PBRSceneUniforms>.size
-            )
-
-            renderEncoder.setRenderPipelineState(mesh.pso)
-            renderEncoder.setDepthStencilState(dso)
-
-            renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-            renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
-            renderEncoder.setVertexBuffer(viewBuffer.buffer(currentBuffer), offset: 0, index: 2)
-            renderEncoder.setVertexBuffer(projectionBuffer.buffer(currentBuffer), offset: 0, index: 3)
-            renderEncoder.setVertexBuffer(mesh.normalMatrixBuffer, offset: 0, index: 4)
-            renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer.buffer(currentBuffer), offset: 0, index: 0)
-            renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
-            renderEncoder.setFragmentTexture(irradianceCubeMapTexture, index: 1)
-            renderEncoder.setFragmentTexture(brdfLUT, index: 2)
-
-            // Draw vertices
-
-            for submesh in mesh.submeshes {
-                // Set baseColor, normal, metallic and roughness textures/samplers
-                renderEncoder.setFragmentTexture(submesh.baseColorTexture, index: 3)
-                renderEncoder.setFragmentSamplerState(submesh.baseColorSampler, index: 0)
-                renderEncoder.setFragmentTexture(submesh.normalTexture, index: 4)
-                renderEncoder.setFragmentSamplerState(submesh.normalSampler, index: 1)
-                renderEncoder.setFragmentTexture(submesh.metallicRoughnessTexture, index: 5)
-                renderEncoder.setFragmentSamplerState(submesh.metallicRoughnessSampler, index: 2)
-                renderEncoder.setFragmentTexture(submesh.emissiveTexture, index: 6)
-                renderEncoder.setFragmentSamplerState(submesh.emissiveSampler, index: 3)
-                renderEncoder.setFragmentTexture(submesh.occlusionTexture, index: 7)
-                renderEncoder.setFragmentSamplerState(submesh.occlusionSampler, index: 4)
-
-                renderEncoder.drawIndexedPrimitives(
-                    type: submesh.primitiveType,
-                    indexCount: submesh.indexCount,
-                    indexType: submesh.indexType,
-                    indexBuffer: submesh.indexBuffer.buffer,
-                    indexBufferOffset: submesh.indexBuffer.offset
-                )
-            }
+    public override func draw(_ rect: CGRect) {
+        guard let drawable = currentDrawable,
+              let descriptor = currentRenderPassDescriptor,
+              let commandBuffer = commandQueue.makeCommandBuffer(),
+              let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
+            return
         }
+
+        // Update frame buffer index
+        frameSemaphores.wait()
+        currentBuffer = (currentBuffer + 1) % maxFramesInFlight
+
+        // Draw Skybox
+        updateSkyboxBuffer(
+            toVPMatrixBuffer: skyboxVPMatrixBuffer.buffer(currentBuffer),
+            rotationX: rotationX,
+            rotationY: rotationY,
+            upSign: upSign,
+            drawableSize: drawableSize
+        )
+        drawSkybox(
+            renderEncoder: renderEncoder,
+            pso: skyboxPSO,
+            dso: skyboxDSO,
+            vertexBuffer: skyboxCubeVertexBuffer,
+            indexBuffer: skyboxCubeIndexBuffer,
+            indexCount: skyboxCubeIndexBuffer.length / MemoryLayout<UInt16>.size,
+            indexType: .uint16,
+            vpMatrixBuffer: skyboxVPMatrixBuffer.buffer(currentBuffer),
+            specularCubeMapTexture: specularCubeMapTexture
+        )
+
+        // Draw meshes
+        updateSceneBuffer(
+            toViewBuffer: viewBuffer.buffer(currentBuffer),
+            toProjectionBuffer: projectionBuffer.buffer(currentBuffer),
+            toPBRSceneUniformsBuffer: pbrSceneUniformsBuffer.buffer(currentBuffer),
+            eye: eye,
+            lightPosition: lightPosition,
+            ambientLightColor: ambientLightColor,
+            upSign: upSign,
+            drawableSize: drawableSize
+        )
+        for mesh in meshes {
+            updateMeshBuffer(toMesh: mesh, targetOffset: targetOffset)
+            drawMesh(
+                renderEncoder: renderEncoder,
+                mesh: mesh,
+                dso: dso,
+                viewBuffer: viewBuffer.buffer(currentBuffer),
+                projectionBuffer: projectionBuffer.buffer(currentBuffer),
+                pbrSceneUniformsBuffer: pbrSceneUniformsBuffer.buffer(currentBuffer),
+                specularCubeMapTexture: specularCubeMapTexture,
+                irradianceCubeMapTexture: irradianceCubeMapTexture,
+                brdfLUT: brdfLUT
+            )
+        }
+
+        // Finalize rendering
 
         renderEncoder.endEncoding()
         commandBuffer.present(drawable)
@@ -420,16 +433,4 @@ public class MDLAssetPBRMTKView: MTKView {
     }
 
     #endif
-}
-
-private func printVertextBuffer(_ buffer: MTLBuffer) {
-    let count = buffer.length / MemoryLayout<Float>.size
-    let pointer = buffer.contents().bindMemory(to: Float.self, capacity: count)
-    for i in 0..<count {
-        if i % 5 == 0 {
-            print()
-        }
-        print(pointer[i], terminator: " ")
-    }
-    print()
 }
