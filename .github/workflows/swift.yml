@@ -74,7 +74,7 @@ jobs:
             It updates the `.metallib` files in the repository.
             Do not edit this PR manually.
           commit-message: "[bot] Update `.metallib` files"
-          branch: auto/make-updates
+          branch: bot/make-metallib
           base: main
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
