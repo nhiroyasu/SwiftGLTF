@@ -19,7 +19,7 @@ let package = Package(
             targets: ["SwiftGLTFRenderer"])
     ],
     dependencies: [
-        .package(url: "https://github.com/nhiroyasu/Img2Cubemap.git", from: "0.1.3")
+        .package(url: "https://github.com/nhiroyasu/Img2Cubemap.git", from: "0.1.4")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
