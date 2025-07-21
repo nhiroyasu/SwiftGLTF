@@ -77,6 +77,7 @@ public class GLTFView: MTKView {
         #if os(iOS)
         setupUIForIOS()
         #elseif os(macOS)
+        self.colorspace = CGColorSpaceCreateDeviceRGB()
         #endif
     }
 

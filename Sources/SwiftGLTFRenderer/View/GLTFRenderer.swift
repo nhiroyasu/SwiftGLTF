@@ -38,7 +38,7 @@ public class GLTFRenderer {
         device: MTLDevice = MTLCreateSystemDefaultDevice()!,
         renderingType type: RenderingType = .pbr,
         sampleCount: Int = 4,
-        colorPixelFormat: MTLPixelFormat = .rgba16Float,
+        colorPixelFormat: MTLPixelFormat = .rgba8Unorm_srgb,
         depthPixelFormat: MTLPixelFormat = .depth32Float
     ) async throws {
         self.device = device
