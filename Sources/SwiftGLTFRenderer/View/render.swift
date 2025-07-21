@@ -87,6 +87,7 @@ func drawWireframe(
     renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
     renderEncoder.setVertexBuffer(viewBuffer, offset: 0, index: 2)
     renderEncoder.setVertexBuffer(projectionBuffer, offset: 0, index: 3)
+    renderEncoder.setTriangleFillMode(.lines)
 
     for submesh in mesh.submeshes {
         renderEncoder.drawIndexedPrimitives(
@@ -96,7 +97,5 @@ func drawWireframe(
             indexBuffer: submesh.indexBuffer.buffer,
             indexBufferOffset: submesh.indexBuffer.offset
         )
-        renderEncoder.setTriangleFillMode(.lines)
     }
 }
-

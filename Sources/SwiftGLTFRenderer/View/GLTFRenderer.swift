@@ -3,10 +3,15 @@ import Img2Cubemap
 import simd
 
 public class GLTFRenderer {
+    private var asset: MDLAsset?
     private var meshes: [PBRMesh] = []
+    private var type: RenderingType = .pbr
 
-    private let meshLoader: PBRMeshLoader
-    private let pipelineStateLoader: PBRPipelineStateLoader
+    private let pbrMeshLoader: PBRMeshLoader
+    private let pbrPipelineStateLoader: PBRPipelineStateLoader
+    private let wireframeMeshLoader: WireframeMeshLoader
+    private let wireframePipelineStateLoader: WireframePipelineStateLoader
+
     private let shaderConnection: ShaderConnection
 
     private let dso: MTLDepthStencilState
@@ -31,11 +36,13 @@ public class GLTFRenderer {
 
     public init(
         device: MTLDevice = MTLCreateSystemDefaultDevice()!,
+        renderingType type: RenderingType = .pbr,
         sampleCount: Int = 4,
         colorPixelFormat: MTLPixelFormat = .rgba16Float,
         depthPixelFormat: MTLPixelFormat = .depth32Float
     ) async throws {
         self.device = device
+        self.type = type
         if let commandQueue = device.makeCommandQueue() {
             self.commandQueue = commandQueue
         } else {
@@ -46,23 +53,33 @@ public class GLTFRenderer {
         self.sampleCount = sampleCount
         self.colorPixelFormat = colorPixelFormat
         self.depthPixelFormat = depthPixelFormat
-        self.pipelineStateLoader = PBRPipelineStateLoader(
-            device: device,
-            library: library,
-            config: .init(
-                sampleCount: sampleCount,
-                colorPixelFormat: colorPixelFormat,
-                depthPixelFormat: depthPixelFormat
-            )
-        )
         self.shaderConnection = ShaderConnection(
             device: device,
             library: library,
             commandQueue: commandQueue
         )
-        self.meshLoader = PBRMeshLoader(
+
+        let pipelineStateConfig = PipelineStateLoaderConfig(
+            sampleCount: sampleCount,
+            colorPixelFormat: colorPixelFormat,
+            depthPixelFormat: depthPixelFormat
+        )
+        self.pbrPipelineStateLoader = PBRPipelineStateLoader(
+            device: device,
+            library: library,
+            config: pipelineStateConfig
+        )
+        self.pbrMeshLoader = PBRMeshLoader(
             shaderConnection: shaderConnection,
-            pipelineStateLoader: pipelineStateLoader
+            pipelineStateLoader: pbrPipelineStateLoader
+        )
+        self.wireframePipelineStateLoader = WireframePipelineStateLoader(
+            device: device,
+            library: library,
+            config: pipelineStateConfig
+        )
+        self.wireframeMeshLoader = WireframeMeshLoader(
+            pipelineStateLoader: wireframePipelineStateLoader
         )
 
         // Create a depth stencil descriptor
@@ -121,13 +138,10 @@ public class GLTFRenderer {
         )
     }
 
-    public func load(from asset: MDLAsset) throws {
-        self.meshes = try meshLoader.loadMeshes(from: asset, using: commandQueue.device)
-    }
+    // MARK: - Rendering
 
     func render(
         using renderEncoder: MTLRenderCommandEncoder,
-        type: DisplayType,
         view: MTLBuffer,
         projection: MTLBuffer,
         pbrScene: MTLBuffer,
@@ -173,6 +187,28 @@ public class GLTFRenderer {
                 )
             }
         }
+    }
+
+    // MARK: - Update states
+
+    public func load(from asset: MDLAsset) throws {
+        self.asset = asset
+
+        switch type {
+        case .pbr:
+            self.meshes = try pbrMeshLoader.loadMeshes(from: asset, using: commandQueue.device)
+        case .wireframe:
+            self.meshes = try wireframeMeshLoader.loadMeshes(from: asset, using: commandQueue.device)
+        }
+    }
+
+    public func reload(with type: RenderingType) throws {
+        guard let asset = self.asset else {
+            throw NSError(domain: "GLTFRenderer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Asset not loaded"])
+        }
+
+        self.type = type
+        try load(from: asset)
     }
 
     // MARK: - Helper

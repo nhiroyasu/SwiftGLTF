@@ -21,6 +21,6 @@ vertex VertexOut_Wireframe wireframe_vertex_shader(VertexIn_Wireframe in [[stage
     return out;
 }
 
-fragment float4 wireframe_fragment_shader(VertexOut_Wireframe in [[stage_in]]) {
+fragment float4 wireframe_shader(VertexOut_Wireframe in [[stage_in]]) {
     return float4(0.945, 0.552, 0.216, 1.0);
 }

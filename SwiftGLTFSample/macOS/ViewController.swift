@@ -18,7 +18,7 @@ class ViewController: NSViewController {
         Task {
             device = MTLCreateSystemDefaultDevice()!
             commandQueue = device.makeCommandQueue()!
-            
+
             do {
                 let url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
                 let asset = try makeMDLAsset(from: url, options: options)
@@ -31,7 +31,7 @@ class ViewController: NSViewController {
 
     func setup(asset: MDLAsset) async throws {
         renderer = try await GLTFRenderer()
-        try await renderer.load(from: asset)
+        try renderer.load(from: asset)
 
         draggableView = DraggableView(frame: view.bounds) { [weak self] url in
             guard let self else { return }
@@ -63,6 +63,15 @@ class ViewController: NSViewController {
             openButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             openButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
         ])
+
+        let segmentedControl = NSSegmentedControl(labels: ["PBR", "Wireframe"], trackingMode: .selectOne, target: self, action: #selector(renderingModeChanged(_:)))
+        segmentedControl.selectedSegment = 0
+        segmentedControl.translatesAutoresizingMaskIntoConstraints = false
+        self.view.addSubview(segmentedControl)
+        NSLayoutConstraint.activate([
+            segmentedControl.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            segmentedControl.bottomAnchor.constraint(equalTo: openButton.topAnchor, constant: -12)
+        ])
     }
 
     @objc func openGLTFFile() {
@@ -79,9 +88,24 @@ class ViewController: NSViewController {
     func showGLTF(url: URL) async {
         do {
             let asset = try makeMDLAsset(from: url, options: options)
-            try await renderer.load(from: asset)
+            try renderer.load(from: asset)
         } catch {
             os_log("Error loading GLTF file: %@", type: .error, error.localizedDescription)
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    @objc func renderingModeChanged(_ sender: NSSegmentedControl) {
+        do {
+            switch sender.selectedSegment {
+            case 0:
+                try renderer.reload(with: .pbr)
+            case 1:
+                try renderer.reload(with: .wireframe)
+            default:
+                break
+            }
+        } catch {
             NSAlert(error: error).runModal()
         }
     }

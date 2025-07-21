@@ -2,7 +2,7 @@ import SwiftGLTF
 import MetalKit
 import Img2Cubemap
 
-public enum DisplayType {
+public enum RenderingType {
     case pbr
     case wireframe
 }
@@ -14,8 +14,6 @@ public class MDLAssetPBRMTKView: MTKView {
     private let viewBuffer: FrameInFlightBuffer
     private let projectionBuffer: FrameInFlightBuffer
     private let skyboxVPMatrixBuffer: FrameInFlightBuffer
-
-    private var displayType: DisplayType = .pbr
 
     private var rotationX: Float32 = -.pi / 2
     private var rotationY: Float32 = .pi / 2
@@ -94,10 +92,6 @@ public class MDLAssetPBRMTKView: MTKView {
         upSign = 1
         distance = 5
         targetOffset = .zero
-    }
-
-    func setDisplayType(_ type: DisplayType) {
-        displayType = type
     }
 
     // MARK: - Buffer Management
@@ -210,7 +204,6 @@ public class MDLAssetPBRMTKView: MTKView {
         // Rendering
         renderer.render(
             using: renderEncoder,
-            type: displayType,
             view: viewBuffer.buffer(currentBuffer),
             projection: projectionBuffer.buffer(currentBuffer),
             pbrScene: pbrSceneUniformsBuffer.buffer(currentBuffer),

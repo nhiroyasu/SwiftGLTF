@@ -4,17 +4,12 @@ import SwiftGLTF
 import SwiftGLTFRenderer
 
 class ViewController: UIViewController {
-    var device: MTLDevice!
-    var commandQueue: MTLCommandQueue!
     var renderer: GLTFRenderer!
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
         Task {
-            device = MTLCreateSystemDefaultDevice()!
-            commandQueue = device.makeCommandQueue()!
-
             do {
                 let url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
                 let asset = try makeMDLAsset(from: url)
@@ -42,12 +37,22 @@ class ViewController: UIViewController {
                 openButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
                 openButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16)
             ])
+
+            let segmentedControl = UISegmentedControl(items: ["PBR", "Wireframe"])
+            segmentedControl.selectedSegmentIndex = 0
+            segmentedControl.addTarget(self, action: #selector(self.renderingModeChanged(_:)), for: .valueChanged)
+            segmentedControl.translatesAutoresizingMaskIntoConstraints = false
+            self.view.addSubview(segmentedControl)
+            NSLayoutConstraint.activate([
+                segmentedControl.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                segmentedControl.bottomAnchor.constraint(equalTo: openButton.topAnchor, constant: -12)
+            ])
         }
     }
 
     func setupMTLView(asset: MDLAsset) async throws {
         renderer = try await GLTFRenderer()
-        try await renderer.load(from: asset)
+        try renderer.load(from: asset)
 
         let mtlView = MDLAssetPBRMTKView(frame: view.frame, renderer: renderer)
         mtlView.translatesAutoresizingMaskIntoConstraints = false
@@ -67,6 +72,26 @@ class ViewController: UIViewController {
         present(documentPicker, animated: true, completion: nil)
     }
 
+    @objc func renderingModeChanged(_ sender: UISegmentedControl) {
+        do {
+            switch sender.selectedSegmentIndex {
+            case 0:
+                try renderer.reload(with: .pbr)
+            case 1:
+                try renderer.reload(with: .wireframe)
+            default:
+                break
+            }
+        } catch {
+            let alert = UIAlertController(
+                title: "Error",
+                message: "Failed to change rendering mode: \(error.localizedDescription)",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+            present(alert, animated: true, completion: nil)
+        }
+    }
 }
 
 extension ViewController: UIDocumentPickerDelegate {
@@ -79,7 +104,7 @@ extension ViewController: UIDocumentPickerDelegate {
             defer { url.stopAccessingSecurityScopedResource() }
 
             let asset = try makeMDLAsset(from: url)
-            Task { try await setupMTLView(asset: asset) }
+            try renderer.load(from: asset)
         } catch {
             let alert = UIAlertController(
                 title: "Error",
