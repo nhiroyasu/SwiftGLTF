@@ -3,9 +3,10 @@
 
 A project that enables using glTF files in Swift.
 
-![preview1](./Screenshots/preview1.png)  
-![preview2](./Screenshots/preview2.png)  
-![preview3](./Screenshots/preview3.png)  
+<div>
+    <img width="580" alt="preview1" src="https://github.com/user-attachments/assets/8ce3e789-caf7-4a4b-ae42-38e99aaa330e" />
+    <img width="200" alt="preview2" src="https://github.com/user-attachments/assets/bb2c9ec4-66b3-4c34-baa7-ae36f04624d1" />
+</div>
 
 ## Features
 - Decodes glTF and GLB files and makes them available as `MDLAsset` in Swift
