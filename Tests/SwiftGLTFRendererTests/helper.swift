@@ -3,6 +3,12 @@ import MetalKit
 import UniformTypeIdentifiers
 import Testing
 
+// If you want to export golden images, manually set this flag to true and run the test.
+let EXPORT_GOLDEN_IMAGES_FLAG = false
+
+// If you want to export the texture output from the texture comparison test, manually set the flag to true.
+let EXPORT_OUTPUT_IMAGES_FLAG = false
+
 func isCI() -> Bool {
     return ProcessInfo.processInfo.environment["CI"] == "true"
 }

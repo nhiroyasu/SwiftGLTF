@@ -128,13 +128,11 @@ final class WireframeRenderTests {
         "Fox"
     ]
 
-    let switchExportGoldenImages = false
-
     // Export baseline textures
     // These should be run manually to generate expected textures
     @Test
     func ExportGoldenImages() async throws {
-        guard switchExportGoldenImages, !isCI() else { return }
+        guard EXPORT_GOLDEN_IMAGES_FLAG, !isCI() else { return }
 
         for meshName in meshNames {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
@@ -146,8 +144,6 @@ final class WireframeRenderTests {
 
     // MARK: - Tests
 
-    let switchExportResults = false
-
     @Test
     func testMeshRenderingMatchesGolden() async throws {
         for meshName in meshNames {
@@ -157,7 +153,7 @@ final class WireframeRenderTests {
 
             assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
 
-            if switchExportResults, !isCI() {
+            if EXPORT_OUTPUT_IMAGES_FLAG, !isCI() {
                 try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName).png")
             }
         }
