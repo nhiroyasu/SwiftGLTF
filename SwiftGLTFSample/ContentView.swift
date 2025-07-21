@@ -29,7 +29,7 @@ struct ContentView: View {
                 Button {
                     viewModel.onTapOpenFile()
                 } label: {
-                    Text("Open File")
+                    Text(viewModel.openBuffonTitle)
                 }
             }
             ToolbarItem(placement: renderingPickerPlacement) {

@@ -19,6 +19,12 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     let allowedContentTypes: [UTType] = [.gltf, .glb, .vrm]
     #endif
 
+    #if os(iOS)
+    let openBuffonTitle = "Open .glb file"
+    #elseif os(macOS)
+    let openBuffonTitle = "Open .gltf or .glb file"
+    #endif
+
     func loadDefaultAsset() async {
         do {
             let url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
