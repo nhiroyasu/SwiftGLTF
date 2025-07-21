@@ -377,20 +377,20 @@ fragment float4 normal_display_shader(PBRVertexOut in [[stage_in]],
 }
 
 fragment float4 ndotv_display_shader(PBRVertexOut in [[stage_in]],
-                                      constant PBRSceneUniforms &uniforms [[buffer(0)]],
-                                      texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                                      texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                                      texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                                      texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                                      sampler baseColorSampler [[ sampler(0) ]],
-                                      texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                      sampler normalSampler [[ sampler(1) ]],
-                                      texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                      sampler metallicRoughnessSampler [[ sampler(2) ]],
-                                      texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                      sampler emissiveSampler [[ sampler(3) ]],
-                                      texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                                      sampler occlusionSampler [[ sampler(4) ]]) {
+                                     constant PBRSceneUniforms &uniforms [[buffer(0)]],
+                                     texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
+                                     texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
+                                     texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
+                                     texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
+                                     sampler baseColorSampler [[ sampler(0) ]],
+                                     texture2d<float, access::sample> normalTexture [[ texture(4) ]],
+                                     sampler normalSampler [[ sampler(1) ]],
+                                     texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
+                                     sampler metallicRoughnessSampler [[ sampler(2) ]],
+                                     texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
+                                     sampler emissiveSampler [[ sampler(3) ]],
+                                     texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
+                                     sampler occlusionSampler [[ sampler(4) ]]) {
     float3 N = normalize(in.normal);
     float3x3 TBN = in.tangentAvailable ? make_tbn(N, in.tangent.xyz, in.tangent.w) : make_tbn(N);
 
@@ -401,5 +401,32 @@ fragment float4 ndotv_display_shader(PBRVertexOut in [[stage_in]],
     float ndotv = max(dot(normal, V), 0.0);
 
     return float4(ndotv, ndotv, ndotv, 1.0); // Grayscale output
+}
+
+fragment float4 ndotl_display_shader(PBRVertexOut in [[stage_in]],
+                                     constant PBRSceneUniforms &uniforms [[buffer(0)]],
+                                     texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
+                                     texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
+                                     texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
+                                     texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
+                                     sampler baseColorSampler [[ sampler(0) ]],
+                                     texture2d<float, access::sample> normalTexture [[ texture(4) ]],
+                                     sampler normalSampler [[ sampler(1) ]],
+                                     texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
+                                     sampler metallicRoughnessSampler [[ sampler(2) ]],
+                                     texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
+                                     sampler emissiveSampler [[ sampler(3) ]],
+                                     texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
+                                     sampler occlusionSampler [[ sampler(4) ]]) {
+    float3 N = normalize(in.normal);
+    float3x3 TBN = in.tangentAvailable ? make_tbn(N, in.tangent.xyz, in.tangent.w) : make_tbn(N);
+
+    float3 normalTexValue = normalTexture.sample(normalSampler, in.uv).rgb * 2.0 - 1.0;
+    float3 normal = normalize(TBN * normalTexValue);
+
+    float3 L = normalize(uniforms.lightPosition - in.worldPosition);
+    float ndotl = max(dot(normal, L), 0.0);
+
+    return float4(ndotl, ndotl, ndotl, 1.0); // Grayscale output
 }
 

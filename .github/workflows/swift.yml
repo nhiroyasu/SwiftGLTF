@@ -46,6 +46,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Extract branch name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+
       - name: Set up Git config
         run: |
           git config user.name "github-actions[bot]"
@@ -74,8 +79,8 @@ jobs:
             It updates the `.metallib` files in the repository.
             Do not edit this PR manually.
           commit-message: "[bot] Update `.metallib` files"
-          branch: bot/make-metallib
-          base: main
+          branch: bot/make-metalli
+          base: ${{ steps.extract_branch.outputs.branch }}
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           delete-branch: true
