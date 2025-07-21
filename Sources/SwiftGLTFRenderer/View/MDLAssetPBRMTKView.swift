@@ -2,24 +2,20 @@ import SwiftGLTF
 import MetalKit
 import Img2Cubemap
 
-public class MDLAssetPBRMTKView: MTKView {
-    private var meshes: [PBRMesh]
+public enum DisplayType {
+    case pbr
+    case wireframe
+}
 
-    private let commandQueue: MTLCommandQueue
-    private let dso: MTLDepthStencilState
+public class MDLAssetPBRMTKView: MTKView {
+    private let renderer: GLTFRenderer
+
     private let pbrSceneUniformsBuffer: FrameInFlightBuffer
     private let viewBuffer: FrameInFlightBuffer
     private let projectionBuffer: FrameInFlightBuffer
+    private let skyboxVPMatrixBuffer: FrameInFlightBuffer
 
-    private let specularCubeMapTexture: MTLTexture
-    private let irradianceCubeMapTexture: MTLTexture
-    private let brdfLUT: MTLTexture
-
-    let skyboxCubeVertexBuffer: MTLBuffer
-    let skyboxCubeIndexBuffer: MTLBuffer
-    let skyboxVPMatrixBuffer: FrameInFlightBuffer
-    let skyboxPSO: MTLRenderPipelineState
-    let skyboxDSO: MTLDepthStencilState
+    private var displayType: DisplayType = .pbr
 
     private var rotationX: Float32 = -.pi / 2
     private var rotationY: Float32 = .pi / 2
@@ -29,12 +25,6 @@ public class MDLAssetPBRMTKView: MTKView {
 
     private var ambientLightColor: SIMD3<Float> = SIMD3<Float>(1, 1, 1) * 5
     private var lightPosition: SIMD3<Float> = SIMD3<Float>(0, 5, -5)
-
-    private let SAMPLING_COUNT = 4
-    private let IRRADIANCE_SIZE = 128
-
-    private let loaderConfig: MDLAssetLoaderPipelineStateConfig
-    private let shaderConnection: ShaderConnection
 
     private let maxFramesInFlight = 2
     private var currentBuffer = 0
@@ -48,70 +38,12 @@ public class MDLAssetPBRMTKView: MTKView {
         )
     }
 
-    public init(
-        frame: CGRect,
-        device: MTLDevice,
-        commandQueue: MTLCommandQueue,
-        asset: MDLAsset
-    ) async throws {
-        self.commandQueue = commandQueue
+    public init(frame: CGRect, renderer: GLTFRenderer) {
+        self.renderer = renderer
+        self.frameSemaphores = DispatchSemaphore(value: maxFramesInFlight)
 
-        let library = try device.makePackageLibrary()
+        let device = renderer.device
 
-        self.shaderConnection = ShaderConnection(
-            device: device,
-            library: library,
-            commandQueue: commandQueue
-        )
-
-        // Load environment textures
-        guard let envMapUrl = Bundle.main.url(forResource: "env_map", withExtension: "exr") else {
-            throw NSError(domain: "MDLAssetMTKView", code: 0, userInfo: [NSLocalizedDescriptionKey: "Environment map not found"])
-        }
-        self.specularCubeMapTexture = try await generateCubeTexture(device: device, exr: envMapUrl)
-        self.irradianceCubeMapTexture = generateIrradianceTexture(
-            commandQueue: commandQueue,
-            library: library,
-            envMap: specularCubeMapTexture,
-            size: IRRADIANCE_SIZE
-        )
-        self.brdfLUT = generateBRDFLUT(
-            commandQueue: commandQueue,
-            library: library,
-            width: specularCubeMapTexture.width,
-            height: specularCubeMapTexture.height
-        )
-
-        // Load meshes from the MDLAsset
-
-        loaderConfig = MDLAssetLoaderPipelineStateConfig(
-            pntucVertexShader: library.makeFunction(name: "pntuc_vertex_shader")!,
-            pntuVertexShader: library.makeFunction(name: "pntu_vertex_shader")!,
-            pntcVertexShader: library.makeFunction(name: "pntc_vertex_shader")!,
-            pntVertexShader: library.makeFunction(name: "pnt_vertex_shader")!,
-            pncVertexShader: library.makeFunction(name: "pnc_vertex_shader")!,
-            pnVertexShader: library.makeFunction(name: "pn_vertex_shader")!,
-            pbrFragmentShader: library.makeFunction(name: "pbr_shader")!,
-            sampleCount: SAMPLING_COUNT
-        )
-
-        let loader = PBRMeshLoader(
-            asset: asset,
-            shaderConnection: shaderConnection,
-            pipelineStateConfig: loaderConfig
-        )
-        self.meshes = try loader.loadMeshes(device: device)
-
-        // Create a depth stencil descriptor
-        let depthStencilDescriptor = MTLDepthStencilDescriptor()
-        depthStencilDescriptor.depthCompareFunction = .less
-        depthStencilDescriptor.isDepthWriteEnabled = true
-        guard let depthStencilState = device.makeDepthStencilState(descriptor: depthStencilDescriptor) else {
-            throw NSError(domain: "MDLAssetMTKView", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create depth stencil state"])
-        }
-        self.dso = depthStencilState
-
-        // Create buffers
         self.pbrSceneUniformsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
                 length: MemoryLayout<PBRSceneUniforms>.size,
@@ -130,34 +62,6 @@ public class MDLAssetPBRMTKView: MTKView {
                 options: []
             )!
         }
-
-        // Create skybox buffers and pipeline state
-        let skyboxPsoDescriptor = MTLRenderPipelineDescriptor()
-        skyboxPsoDescriptor.label = "Skybox Pipeline"
-        skyboxPsoDescriptor.vertexFunction = library.makeFunction(name: "skybox_vertex_shader")
-        skyboxPsoDescriptor.fragmentFunction = library.makeFunction(name: "skybox_fragment_shader")
-        skyboxPsoDescriptor.colorAttachments[0].pixelFormat = .rgba16Float
-        skyboxPsoDescriptor.depthAttachmentPixelFormat = .depth32Float
-        skyboxPsoDescriptor.rasterSampleCount = SAMPLING_COUNT
-        self.skyboxPSO = try await device.makeRenderPipelineState(descriptor: skyboxPsoDescriptor)
-
-        let skyboxDSODescriptor = MTLDepthStencilDescriptor()
-        skyboxDSODescriptor.depthCompareFunction = .always
-        skyboxDSODescriptor.isDepthWriteEnabled = false
-        skyboxDSODescriptor.label = "Skybox depth stencil"
-        self.skyboxDSO = device.makeDepthStencilState(descriptor: skyboxDSODescriptor)!
-
-        let skyboxCube = Cube(size: 1)
-        self.skyboxCubeVertexBuffer = device.makeBuffer(
-            bytes: skyboxCube.vertices,
-            length: MemoryLayout<Float>.size * skyboxCube.vertices.count,
-            options: .storageModeShared
-        )!
-        self.skyboxCubeIndexBuffer = device.makeBuffer(
-            bytes: skyboxCube.indices,
-            length: MemoryLayout<UInt16>.size * skyboxCube.indices.count,
-            options: .storageModeShared
-        )!
         self.skyboxVPMatrixBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
                 length: MemoryLayout<simd_float4x4>.size,
@@ -165,14 +69,12 @@ public class MDLAssetPBRMTKView: MTKView {
             )!
         }
 
-        frameSemaphores = DispatchSemaphore(value: maxFramesInFlight)
-
         super.init(frame: frame, device: device)
 
-        self.colorPixelFormat = .rgba16Float
-        self.depthStencilPixelFormat = .depth32Float
-        self.clearColor = MTLClearColor(red: srgbToLinear(0.1), green: srgbToLinear(0.1), blue: srgbToLinear(0.1), alpha: 1.0)
-        self.sampleCount = SAMPLING_COUNT
+        self.colorPixelFormat = renderer.colorPixelFormat
+        self.depthStencilPixelFormat = renderer.depthPixelFormat
+        self.sampleCount = renderer.sampleCount
+        self.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1.0)
 
         #if os(iOS)
         setupUIForIOS()
@@ -186,26 +88,16 @@ public class MDLAssetPBRMTKView: MTKView {
 
     // MARK: - State Management
 
-    public func setAsset(_ asset: MDLAsset) throws {
-        guard let device = self.device else {
-            throw NSError(domain: "MDLAssetMTKView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to set asset"])
-        }
-
-        let loader = PBRMeshLoader(
-            asset: asset,
-            shaderConnection: shaderConnection,
-            pipelineStateConfig: loaderConfig
-        )
-        self.meshes = try loader.loadMeshes(device: device)
-        resetCamera()
-    }
-
     func resetCamera() {
         rotationX = -.pi / 2
         rotationY = .pi / 2
         upSign = 1
         distance = 5
         targetOffset = .zero
+    }
+
+    func setDisplayType(_ type: DisplayType) {
+        displayType = type
     }
 
     // MARK: - Buffer Management
@@ -282,25 +174,12 @@ public class MDLAssetPBRMTKView: MTKView {
         )
     }
 
-    private func updateMeshBuffer(
-        toMesh mesh: PBRMesh,
-        targetOffset: SIMD3<Float>
-    ) {
-        let modelTransform = mesh.transform
-        let offsetTranslation = translationMatrix(targetOffset.x, targetOffset.y, targetOffset.z)
-        var model = offsetTranslation * modelTransform
-        mesh.modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
-
-        var normalMatrix = float3x3(model).transpose.inverse
-        mesh.normalMatrixBuffer.contents().copyMemory(from: &normalMatrix, byteCount: MemoryLayout<float3x3>.size)
-    }
-
     // MARK: - Rendering
 
     public override func draw(_ rect: CGRect) {
         guard let drawable = currentDrawable,
               let descriptor = currentRenderPassDescriptor,
-              let commandBuffer = commandQueue.makeCommandBuffer(),
+              let commandBuffer = renderer.commandQueue.makeCommandBuffer(),
               let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
             return
         }
@@ -309,7 +188,7 @@ public class MDLAssetPBRMTKView: MTKView {
         frameSemaphores.wait()
         currentBuffer = (currentBuffer + 1) % maxFramesInFlight
 
-        // Draw Skybox
+        // Update buffers
         updateSkyboxBuffer(
             toVPMatrixBuffer: skyboxVPMatrixBuffer.buffer(currentBuffer),
             rotationX: rotationX,
@@ -317,19 +196,6 @@ public class MDLAssetPBRMTKView: MTKView {
             upSign: upSign,
             drawableSize: drawableSize
         )
-        drawSkybox(
-            renderEncoder: renderEncoder,
-            pso: skyboxPSO,
-            dso: skyboxDSO,
-            vertexBuffer: skyboxCubeVertexBuffer,
-            indexBuffer: skyboxCubeIndexBuffer,
-            indexCount: skyboxCubeIndexBuffer.length / MemoryLayout<UInt16>.size,
-            indexType: .uint16,
-            vpMatrixBuffer: skyboxVPMatrixBuffer.buffer(currentBuffer),
-            specularCubeMapTexture: specularCubeMapTexture
-        )
-
-        // Draw meshes
         updateSceneBuffer(
             toViewBuffer: viewBuffer.buffer(currentBuffer),
             toProjectionBuffer: projectionBuffer.buffer(currentBuffer),
@@ -340,20 +206,17 @@ public class MDLAssetPBRMTKView: MTKView {
             upSign: upSign,
             drawableSize: drawableSize
         )
-        for mesh in meshes {
-            updateMeshBuffer(toMesh: mesh, targetOffset: targetOffset)
-            drawMesh(
-                renderEncoder: renderEncoder,
-                mesh: mesh,
-                dso: dso,
-                viewBuffer: viewBuffer.buffer(currentBuffer),
-                projectionBuffer: projectionBuffer.buffer(currentBuffer),
-                pbrSceneUniformsBuffer: pbrSceneUniformsBuffer.buffer(currentBuffer),
-                specularCubeMapTexture: specularCubeMapTexture,
-                irradianceCubeMapTexture: irradianceCubeMapTexture,
-                brdfLUT: brdfLUT
-            )
-        }
+
+        // Rendering
+        renderer.render(
+            using: renderEncoder,
+            type: displayType,
+            view: viewBuffer.buffer(currentBuffer),
+            projection: projectionBuffer.buffer(currentBuffer),
+            pbrScene: pbrSceneUniformsBuffer.buffer(currentBuffer),
+            skyboxVP: skyboxVPMatrixBuffer.buffer(currentBuffer),
+            offset: targetOffset
+        )
 
         // Finalize rendering
 

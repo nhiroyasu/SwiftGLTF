@@ -16,7 +16,9 @@ vertex SkyboxOut skybox_vertex_shader(uint vertexID [[vertex_id]],
     out.position = vpMatrix * vertices[vertexID];
     out.texcoord = vertices[vertexID].xyz;
 
-    out.position.z = 0;
+    // skybox z coordinate is set to w for perspective correction
+    // so that it is not affected by the camera's position
+    out.position.z = out.position.w;
 
     return out;
 }

@@ -11,7 +11,8 @@ final class RenderTests {
     let library: MTLLibrary
     let commandQueue: MTLCommandQueue
     let shaderConnection: ShaderConnection
-    let loaderConfig: MDLAssetLoaderPipelineStateConfig
+    let pipelineStateLoader: PBRPipelineStateLoader
+
 
     let TEX_SIZE = 256
 
@@ -25,16 +26,14 @@ final class RenderTests {
             library: library,
             commandQueue: commandQueue
         )
-        self.loaderConfig = MDLAssetLoaderPipelineStateConfig(
-            pntucVertexShader: library.makeFunction(name: "pntuc_vertex_shader")!,
-            pntuVertexShader: library.makeFunction(name: "pntu_vertex_shader")!,
-            pntcVertexShader: library.makeFunction(name: "pntc_vertex_shader")!,
-            pntVertexShader: library.makeFunction(name: "pnt_vertex_shader")!,
-            pncVertexShader: library.makeFunction(name: "pnc_vertex_shader")!,
-            pnVertexShader: library.makeFunction(name: "pn_vertex_shader")!,
-            pbrFragmentShader: library.makeFunction(name: "pbr_shader")!,
-            sampleCount: 1,
-            colorPixelFormat: .rgba8Unorm_srgb
+        self.pipelineStateLoader = PBRPipelineStateLoader(
+            device: device,
+            library: library,
+            config: .init(
+                sampleCount: 1,
+                colorPixelFormat: .rgba8Unorm_srgb,
+                depthPixelFormat: .depth32Float
+            )
         )
     }
 
@@ -231,11 +230,10 @@ final class RenderTests {
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL)
         let loader = PBRMeshLoader(
-            asset: asset,
             shaderConnection: shaderConnection,
-            pipelineStateConfig: loaderConfig
+            pipelineStateLoader: pipelineStateLoader
         )
-        let meshes = try loader.loadMeshes(device: device)
+        let meshes = try loader.loadMeshes(from: asset, using: device)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
@@ -248,7 +246,7 @@ final class RenderTests {
             var normalMatrix = float3x3(model).transpose.inverse
             mesh.normalMatrixBuffer.contents().copyMemory(from: &normalMatrix, byteCount: MemoryLayout<float3x3>.size)
 
-            drawMesh(
+            drawPBR(
                 renderEncoder: encoder,
                 mesh: mesh,
                 dso: dso,

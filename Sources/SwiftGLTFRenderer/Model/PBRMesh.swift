@@ -3,11 +3,11 @@ import MetalKit
 struct PBRMesh {
     let vertexBuffer: MTLBuffer
     let submeshes: [Submesh]
-    let pso: MTLRenderPipelineState
     let transform: simd_float4x4
     let modelBuffer: MTLBuffer
     let normalMatrixBuffer: MTLBuffer
-
+    let pso: MTLRenderPipelineState
+    
     struct Submesh {
         let primitiveType: MTLPrimitiveType
         let indexCount: Int

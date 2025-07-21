@@ -6,7 +6,7 @@ import SwiftGLTFRenderer
 class ViewController: UIViewController {
     var device: MTLDevice!
     var commandQueue: MTLCommandQueue!
-    var mtlView: MDLAssetPBRMTKView!
+    var renderer: GLTFRenderer!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -46,12 +46,10 @@ class ViewController: UIViewController {
     }
 
     func setupMTLView(asset: MDLAsset) async throws {
-        mtlView = try await MDLAssetPBRMTKView(
-            frame: view.frame,
-            device: device,
-            commandQueue: commandQueue,
-            asset: asset
-        )
+        renderer = try await GLTFRenderer()
+        try await renderer.load(from: asset)
+
+        let mtlView = MDLAssetPBRMTKView(frame: view.frame, renderer: renderer)
         mtlView.translatesAutoresizingMaskIntoConstraints = false
         self.view.addSubview(mtlView)
         NSLayoutConstraint.activate([
@@ -81,7 +79,7 @@ extension ViewController: UIDocumentPickerDelegate {
             defer { url.stopAccessingSecurityScopedResource() }
 
             let asset = try makeMDLAsset(from: url)
-            try mtlView.setAsset(asset)
+            Task { try await setupMTLView(asset: asset) }
         } catch {
             let alert = UIAlertController(
                 title: "Error",

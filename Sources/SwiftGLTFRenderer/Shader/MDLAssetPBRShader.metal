@@ -129,10 +129,10 @@ struct VertexIn_PN {
 };
 
 vertex PBRVertexOut pn_vertex_shader(VertexIn_PN in [[stage_in]],
-                                   constant float4x4 &model [[buffer(1)]],
-                                   constant float4x4 &view [[buffer(2)]],
-                                   constant float4x4 &projection [[buffer(3)]],
-                                   constant float3x3 &normalMatrix [[buffer(4)]]) {
+                                     constant float4x4 &model [[buffer(1)]],
+                                     constant float4x4 &view [[buffer(2)]],
+                                     constant float4x4 &projection [[buffer(3)]],
+                                     constant float3x3 &normalMatrix [[buffer(4)]]) {
     PBRVertexOut out;
 
     float4x4 mvpMatrix = projection * view * model;
@@ -156,10 +156,10 @@ struct VertexIn_PNC {
 };
 
 vertex PBRVertexOut pnc_vertex_shader(VertexIn_PNC in [[stage_in]],
-                                   constant float4x4 &model [[buffer(1)]],
-                                   constant float4x4 &view [[buffer(2)]],
-                                   constant float4x4 &projection [[buffer(3)]],
-                                   constant float3x3 &normalMatrix [[buffer(4)]]) {
+                                      constant float4x4 &model [[buffer(1)]],
+                                      constant float4x4 &view [[buffer(2)]],
+                                      constant float4x4 &projection [[buffer(3)]],
+                                      constant float3x3 &normalMatrix [[buffer(4)]]) {
     PBRVertexOut out;
 
     float4x4 mvpMatrix = projection * view * model;
@@ -183,10 +183,10 @@ struct VertexIn_PNT {
 };
 
 vertex PBRVertexOut pnt_vertex_shader(VertexIn_PNT in [[stage_in]],
-                                   constant float4x4 &model [[buffer(1)]],
-                                   constant float4x4 &view [[buffer(2)]],
-                                   constant float4x4 &projection [[buffer(3)]],
-                                   constant float3x3 &normalMatrix [[buffer(4)]]) {
+                                      constant float4x4 &model [[buffer(1)]],
+                                      constant float4x4 &view [[buffer(2)]],
+                                      constant float4x4 &projection [[buffer(3)]],
+                                      constant float3x3 &normalMatrix [[buffer(4)]]) {
     PBRVertexOut out;
 
     float4x4 mvpMatrix = projection * view * model;
@@ -211,10 +211,10 @@ struct VertexIn_PNTU {
 };
 
 vertex PBRVertexOut pntu_vertex_shader(VertexIn_PNTU in [[stage_in]],
-                                             constant float4x4 &model [[buffer(1)]],
-                                             constant float4x4 &view [[buffer(2)]],
-                                             constant float4x4 &projection [[buffer(3)]],
-                                             constant float3x3 &normalMatrix [[buffer(4)]]) {
+                                       constant float4x4 &model [[buffer(1)]],
+                                       constant float4x4 &view [[buffer(2)]],
+                                       constant float4x4 &projection [[buffer(3)]],
+                                       constant float3x3 &normalMatrix [[buffer(4)]]) {
     PBRVertexOut out;
 
     float4x4 mvpMatrix = projection * view * model;
@@ -239,10 +239,10 @@ struct VertexIn_PNTC {
 };
 
 vertex PBRVertexOut pntc_vertex_shader(VertexIn_PNTC in [[stage_in]],
-                                               constant float4x4 &model [[buffer(1)]],
-                                               constant float4x4 &view [[buffer(2)]],
-                                               constant float4x4 &projection [[buffer(3)]],
-                                               constant float3x3 &normalMatrix [[buffer(4)]]) {
+                                       constant float4x4 &model [[buffer(1)]],
+                                       constant float4x4 &view [[buffer(2)]],
+                                       constant float4x4 &projection [[buffer(3)]],
+                                       constant float3x3 &normalMatrix [[buffer(4)]]) {
     PBRVertexOut out;
 
     float4x4 mvpMatrix = projection * view * model;
@@ -268,10 +268,10 @@ struct VertexIn_PNTUC {
 };
 
 vertex PBRVertexOut pntuc_vertex_shader(VertexIn_PNTUC in [[stage_in]],
-                                               constant float4x4 &model [[buffer(1)]],
-                                               constant float4x4 &view [[buffer(2)]],
-                                               constant float4x4 &projection [[buffer(3)]],
-                                               constant float3x3 &normalMatrix [[buffer(4)]]) {
+                                        constant float4x4 &model [[buffer(1)]],
+                                        constant float4x4 &view [[buffer(2)]],
+                                        constant float4x4 &projection [[buffer(3)]],
+                                        constant float3x3 &normalMatrix [[buffer(4)]]) {
     PBRVertexOut out;
 
     float4x4 mvpMatrix = projection * view * model;

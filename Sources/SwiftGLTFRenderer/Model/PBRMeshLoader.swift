@@ -2,61 +2,21 @@ import MetalKit
 import Accelerate
 import SwiftGLTF
 
-struct MDLAssetLoaderPipelineStateConfig {
-    let pntucVertexShader: MTLFunction
-    let pntuVertexShader: MTLFunction
-    let pntcVertexShader: MTLFunction
-    let pntVertexShader: MTLFunction
-    let pncVertexShader: MTLFunction
-    let pnVertexShader: MTLFunction
-    let pbrFragmentShader: MTLFunction
-    let sampleCount: Int
-    let colorPixelFormat: MTLPixelFormat
-    let depthPixelFormat: MTLPixelFormat
-
-    init(
-        pntucVertexShader: MTLFunction,
-        pntuVertexShader: MTLFunction,
-        pntcVertexShader: MTLFunction,
-        pntVertexShader: MTLFunction,
-        pncVertexShader: MTLFunction,
-        pnVertexShader: MTLFunction,
-        pbrFragmentShader: MTLFunction,
-        sampleCount: Int,
-        colorPixelFormat: MTLPixelFormat = .rgba16Float,
-        depthPixelFormat: MTLPixelFormat = .depth32Float
-    ) {
-        self.pntucVertexShader = pntucVertexShader
-        self.pntuVertexShader = pntuVertexShader
-        self.pntcVertexShader = pntcVertexShader
-        self.pntVertexShader = pntVertexShader
-        self.pncVertexShader = pncVertexShader
-        self.pnVertexShader = pnVertexShader
-        self.pbrFragmentShader = pbrFragmentShader
-        self.sampleCount = sampleCount
-        self.colorPixelFormat = colorPixelFormat
-        self.depthPixelFormat = depthPixelFormat
-    }
-}
-
 class PBRMeshLoader {
-    let asset: MDLAsset
     let shaderConnection: ShaderConnection
-    let pipelineStateConfig: MDLAssetLoaderPipelineStateConfig
+    let pipelineStateLoader: PBRPipelineStateLoader
 
     private var texturesCache: [String: MTLTexture] = [:]
 
     init(
-        asset: MDLAsset,
         shaderConnection: ShaderConnection,
-        pipelineStateConfig: MDLAssetLoaderPipelineStateConfig
+        pipelineStateLoader: PBRPipelineStateLoader
     ) {
-        self.asset = asset
         self.shaderConnection = shaderConnection
-        self.pipelineStateConfig = pipelineStateConfig
+        self.pipelineStateLoader = pipelineStateLoader
     }
 
-    func loadMeshes(device: MTLDevice) throws -> [PBRMesh] {
+    func loadMeshes(from asset: MDLAsset, using device: MTLDevice) throws -> [PBRMesh] {
         var pbrMeshes: [PBRMesh] = []
 
         for i in 0..<asset.count {
@@ -64,7 +24,6 @@ class PBRMeshLoader {
             let meshes = try loadRecursiveMeshes(
                 device: device,
                 obj: rootObj,
-                psoConfig: pipelineStateConfig,
                 parentTransform: simd_float4x4(1)
             )
             pbrMeshes.append(contentsOf: meshes)
@@ -116,7 +75,6 @@ class PBRMeshLoader {
     private func loadRecursiveMeshes(
         device: MTLDevice,
         obj: MDLObject,
-        psoConfig: MDLAssetLoaderPipelineStateConfig,
         parentTransform: simd_float4x4
     ) throws -> [PBRMesh] {
         var pbrMeshes: [PBRMesh] = []
@@ -162,21 +120,9 @@ class PBRMeshLoader {
                 submeshes.append(submeshData)
             }
 
-            let vertexShader = try decideVertexShader(from: mtkMesh.vertexDescriptor)
-
-            let psoDescriptor = MTLRenderPipelineDescriptor()
-            psoDescriptor.vertexFunction = vertexShader
-            psoDescriptor.fragmentFunction = psoConfig.pbrFragmentShader
-            psoDescriptor.colorAttachments[0].pixelFormat = psoConfig.colorPixelFormat
-            psoDescriptor.depthAttachmentPixelFormat = psoConfig.depthPixelFormat
-            psoDescriptor.rasterSampleCount = psoConfig.sampleCount
-            psoDescriptor.vertexDescriptor = MTKMetalVertexDescriptorFromModelIO(mtkMesh.vertexDescriptor)
-            let pso = try device.makeRenderPipelineState(descriptor: psoDescriptor)
-
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
                 submeshes: submeshes,
-                pso: pso,
                 transform: transform,
                 modelBuffer: device.makeBuffer(
                     length: MemoryLayout<float4x4>.size,
@@ -185,7 +131,8 @@ class PBRMeshLoader {
                 normalMatrixBuffer: device.makeBuffer(
                     length: MemoryLayout<float3x3>.size,
                     options: []
-                )!
+                )!,
+                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor)
             )
             pbrMeshes.append(pbrMesh)
         }
@@ -194,74 +141,12 @@ class PBRMeshLoader {
             let childMeshes = try loadRecursiveMeshes(
                 device: device,
                 obj: childObj,
-                psoConfig: psoConfig,
                 parentTransform: transform
             )
             pbrMeshes.append(contentsOf: childMeshes)
         }
 
         return pbrMeshes
-    }
-
-    private func decideVertexShader(from vertexDescriptor: MDLVertexDescriptor) throws -> MTLFunction {
-        var existingPosition: Bool = false
-        var existingNormal: Bool = false
-        var existingTangent: Bool = false
-        var existingModulationColor: Bool = false
-        var existingTextureCoordinate: Bool = false
-
-        for attr in vertexDescriptor.attributes {
-            if let attr = attr as? MDLVertexAttribute {
-                if attr.name == MDLVertexAttributePosition {
-                    existingPosition = true
-                }
-                if attr.name == MDLVertexAttributeNormal {
-                    existingNormal = true
-                }
-                if attr.name == MDLVertexAttributeTangent {
-                    existingTangent = true
-                }
-                if attr.name == MDLVertexAttributeColor {
-                    existingModulationColor = true
-                }
-                if attr.name == MDLVertexAttributeTextureCoordinate {
-                    existingTextureCoordinate = true
-                }
-            }
-        }
-
-        if existingPosition && existingNormal && existingTangent && existingModulationColor && existingTextureCoordinate {
-            os_log("Using PNTUC shaders")
-            return pipelineStateConfig.pntucVertexShader
-        } else if existingPosition && existingNormal && existingTangent && existingTextureCoordinate {
-            os_log("Using PNTU shaders")
-            return pipelineStateConfig.pntuVertexShader
-        } else if existingPosition && existingNormal && existingTangent && existingModulationColor {
-            os_log("Using PNTC shaders")
-            return pipelineStateConfig.pntcVertexShader
-        } else if existingPosition && existingNormal && existingTangent {
-            os_log("Using PNT shaders")
-            return pipelineStateConfig.pntVertexShader
-        } else if existingPosition && existingNormal && existingModulationColor {
-            os_log("Using PNC shaders")
-            return pipelineStateConfig.pncVertexShader
-        } else if existingPosition && existingNormal {
-            os_log("Using PN shaders")
-            return pipelineStateConfig.pnVertexShader
-        } else {
-            throw NSError(
-                domain: "MDLAssetLoader",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: """
-                Unsupported vertex descriptor.
-                Make sure that the vertex descriptor contains at least the position, normal, and tangent coordinate attributes.
-                ---
-                existingPosition: \(existingPosition),
-                existingNormal: \(existingNormal),
-                existingTangent: \(existingTangent)
-                """]
-            )
-        }
     }
 
     private func convertTextureWithCache(

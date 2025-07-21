@@ -26,7 +26,7 @@ func drawSkybox(
     )
 }
 
-func drawMesh(
+func drawPBR(
     renderEncoder: MTLRenderCommandEncoder,
     mesh: PBRMesh,
     dso: MTLDepthStencilState,
@@ -72,3 +72,31 @@ func drawMesh(
         )
     }
 }
+
+func drawWireframe(
+    renderEncoder: MTLRenderCommandEncoder,
+    mesh: PBRMesh,
+    dso: MTLDepthStencilState,
+    viewBuffer: MTLBuffer,
+    projectionBuffer: MTLBuffer
+) {
+    renderEncoder.setRenderPipelineState(mesh.pso)
+    renderEncoder.setDepthStencilState(dso)
+
+    renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
+    renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
+    renderEncoder.setVertexBuffer(viewBuffer, offset: 0, index: 2)
+    renderEncoder.setVertexBuffer(projectionBuffer, offset: 0, index: 3)
+
+    for submesh in mesh.submeshes {
+        renderEncoder.drawIndexedPrimitives(
+            type: submesh.primitiveType,
+            indexCount: submesh.indexCount,
+            indexType: submesh.indexType,
+            indexBuffer: submesh.indexBuffer.buffer,
+            indexBufferOffset: submesh.indexBuffer.offset
+        )
+        renderEncoder.setTriangleFillMode(.lines)
+    }
+}
+

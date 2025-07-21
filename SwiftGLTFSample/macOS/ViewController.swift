@@ -8,7 +8,7 @@ class ViewController: NSViewController {
     var device: MTLDevice!
     var commandQueue: MTLCommandQueue!
     var draggableView: DraggableView!
-    var mtlView: MDLAssetPBRMTKView!
+    var renderer: GLTFRenderer!
 
     let options: GLTFDecodeOptions = .default
 
@@ -30,9 +30,12 @@ class ViewController: NSViewController {
     }
 
     func setup(asset: MDLAsset) async throws {
+        renderer = try await GLTFRenderer()
+        try await renderer.load(from: asset)
+
         draggableView = DraggableView(frame: view.bounds) { [weak self] url in
             guard let self else { return }
-            showGLTF(url: url)
+            await showGLTF(url: url)
         }
         draggableView.translatesAutoresizingMaskIntoConstraints = false
         self.view.addSubview(draggableView)
@@ -42,13 +45,7 @@ class ViewController: NSViewController {
             draggableView.topAnchor.constraint(equalTo: view.topAnchor),
             draggableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-
-        mtlView = try await MDLAssetPBRMTKView(
-            frame: view.frame,
-            device: device,
-            commandQueue: commandQueue,
-            asset: asset
-        )
+        let mtlView = MDLAssetPBRMTKView(frame: view.frame, renderer: renderer)
         mtlView.translatesAutoresizingMaskIntoConstraints = false
         self.draggableView.addSubview(mtlView)
         NSLayoutConstraint.activate([
@@ -73,18 +70,19 @@ class ViewController: NSViewController {
         openPanel.allowedContentTypes = [.gltf, .glb, .vrm]
         openPanel.begin { [weak self] result in
             guard let self, result == .OK, let url = openPanel.url else { return }
-            showGLTF(url: url)
+            Task { [weak self] in
+                await self?.showGLTF(url: url)
+            }
         }
     }
 
-    func showGLTF(url: URL) {
+    func showGLTF(url: URL) async {
         do {
             let asset = try makeMDLAsset(from: url, options: options)
-            try mtlView.setAsset(asset)
+            try await renderer.load(from: asset)
         } catch {
             os_log("Error loading GLTF file: %@", type: .error, error.localizedDescription)
             NSAlert(error: error).runModal()
         }
     }
-
 }
