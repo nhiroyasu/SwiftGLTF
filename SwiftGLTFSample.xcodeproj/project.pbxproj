@@ -35,29 +35,24 @@
 		4F2030602E1189100047CAE8 /* Exceptions for "SwiftGLTFSample" folder in "SwiftGLTFSample_macOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"/Localized: macOS/Main.storyboard",
-				macOS/AppDelegate.swift,
+				ContentView.swift,
+				GLTFViewModel.swift,
 				macOS/Assets.xcassets,
-				macOS/DraggableView.swift,
-				macOS/ViewController.swift,
 				Resources/env_map.exr,
 				"Resources/sphere-with-color.bin",
 				"Resources/sphere-with-color.gltf",
 				Resources/sphere.bin,
 				Resources/sphere.gltf,
+				SampleApp.swift,
 			);
 			target = 4F2EC0C12DEBEFF0004C76AC /* SwiftGLTFSample_macOS */;
 		};
 		4F2030772E11897F0047CAE8 /* Exceptions for "SwiftGLTFSample" folder in "SwiftGLTFSample_iOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"/Localized: macOS/Main.storyboard",
 				iOS/Info.plist,
-				macOS/AppDelegate.swift,
 				macOS/Assets.xcassets,
-				macOS/DraggableView.swift,
 				macOS/Info.plist,
-				macOS/ViewController.swift,
 			);
 			target = 4F2EC0542DEBDD26004C76AC /* SwiftGLTFSample_iOS */;
 		};
@@ -257,9 +252,9 @@
 				DEVELOPMENT_TEAM = 2CMV7D36JC;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SwiftGLTFSample/iOS/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -285,9 +280,9 @@
 				DEVELOPMENT_TEAM = 2CMV7D36JC;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SwiftGLTFSample/iOS/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -436,7 +431,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SwiftGLTFSample/macOS/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMainStoryboardFile = Main;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -466,7 +460,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SwiftGLTFSample/macOS/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMainStoryboardFile = Main;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

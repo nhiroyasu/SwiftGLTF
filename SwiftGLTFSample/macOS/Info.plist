@@ -22,14 +22,14 @@
 			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>org.khronos.glb</string>
-			<key>UTTypeDescription</key>
-			<string>Binary glTF</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
 			</array>
+			<key>UTTypeDescription</key>
+			<string>Binary glTF</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.khronos.glb</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -40,25 +40,25 @@
 				<string>model/gltf-binary</string>
 			</dict>
 		</dict>
-        <dict>
-            <key>UTTypeIdentifier</key>
-            <string>org.khronos.vrm</string>
-            <key>UTTypeDescription</key>
-            <string>Binary glTF(VRM)</string>
-            <key>UTTypeConformsTo</key>
-            <array>
-                <string>public.data</string>
-            </array>
-            <key>UTTypeTagSpecification</key>
-            <dict>
-                <key>public.filename-extension</key>
-                <array>
-                    <string>vrm</string>
-                </array>
-                <key>public.mime-type</key>
-                <string>model/gltf-binary</string>
-            </dict>
-        </dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Binary glTF(VRM)</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.khronos.vrm</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>vrm</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>model/gltf-binary</string>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>

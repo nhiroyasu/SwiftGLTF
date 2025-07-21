@@ -7,7 +7,7 @@ public enum RenderingType {
     case wireframe
 }
 
-public class MDLAssetPBRMTKView: MTKView {
+public class GLTFView: MTKView {
     private let renderer: GLTFRenderer
 
     private let pbrSceneUniformsBuffer: FrameInFlightBuffer

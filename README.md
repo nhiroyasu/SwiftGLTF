@@ -33,24 +33,39 @@ dependencies: [
 ```
 
 ### Sample Code
+#### UIKit
 ```swift
-import MetalKit
 import SwiftGLTF
 import SwiftGLTFRenderer
 
 // ...
 
+let renderer = try await GLTFRenderer()
+let gltfView = GLTFView(frame: view.frame, renderer: renderer)
+view.addSubview(gltfView)
+
 let gltfUrl = // URL to your glTF or GLB file
 let asset = try makeMDLAsset(from: gltfUrl)
+renderer.load(from: asset)
+```
 
-let device = MTLCreateSystemDefaultDevice()!
-let mtlView = try await MDLAssetPBRMTKView(
-    frame: view.frame,
-    device: device,
-    commandQueue: device.makeCommandQueue()!,
-    asset: asset
-)
-view.addSubview(mtlView)
+#### SwiftUI
+```swift
+import SwiftGLTF
+import SwiftGLTFRenderer
+
+let renderer = try await GLTFRenderer()
+
+// ...
+
+var body: some View {
+    GLTFMetalView(renderer: renderer)
+        .task {
+            let gltfUrl = // URL to your glTF or GLB file
+            let asset = try! makeMDLAsset(from: gltfUrl)
+            try! renderer.load(from: asset)
+        }
+}
 ```
 
 ## Supported glTF Features
