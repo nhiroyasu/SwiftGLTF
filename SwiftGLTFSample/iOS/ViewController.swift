@@ -75,6 +75,11 @@ extension ViewController: UIDocumentPickerDelegate {
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { return }
         do {
+            guard url.startAccessingSecurityScopedResource() else {
+                throw NSError(domain: "SwiftGLTFSample", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to access the file."])
+            }
+            defer { url.stopAccessingSecurityScopedResource() }
+
             let asset = try makeMDLAsset(from: url)
             try mtlView.setAsset(asset)
         } catch {
