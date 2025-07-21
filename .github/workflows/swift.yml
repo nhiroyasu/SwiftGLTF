@@ -46,6 +46,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
       - name: Extract branch name
         shell: bash
         run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
