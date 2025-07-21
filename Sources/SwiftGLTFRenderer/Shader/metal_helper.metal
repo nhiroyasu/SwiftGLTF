@@ -139,7 +139,7 @@ float3x3 makeNormalMatrix(float4x4 mvp) {
     return inverse(transpose(_float3x3(mvp)));
 }
 
-float toolMultiplier(float value) {
+float swapToonShading(float value) {
     const float t1 = 0.6;
     const float t2 = 0.3;
 
