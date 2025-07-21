@@ -8,7 +8,7 @@ public class WireframePipelineStateLoader {
 
     private let vertexFunction: MTLFunction
     private let fragmentFunction: MTLFunction
-    private var cachedPipelineState: MTLRenderPipelineState?
+    private var cachedPipelineStates: [MDLVertexDescriptor: MTLRenderPipelineState] = [:]
 
     public init(
         device: MTLDevice,
@@ -26,8 +26,8 @@ public class WireframePipelineStateLoader {
         for vertexDescriptor: MDLVertexDescriptor,
         useCache: Bool = true
     ) throws -> MTLRenderPipelineState {
-        if useCache, let cachedPipelineState {
-            return cachedPipelineState
+        if useCache, let cachedState = cachedPipelineStates[vertexDescriptor] {
+            return cachedState
         }
 
         // Validate the vertex descriptor
@@ -42,7 +42,7 @@ public class WireframePipelineStateLoader {
         desc.vertexDescriptor = MTKMetalVertexDescriptorFromModelIO(vertexDescriptor)
 
         let pso = try device.makeRenderPipelineState(descriptor: desc)
-        cachedPipelineState = pso
+        cachedPipelineStates[vertexDescriptor] = pso
         return pso
     }
 
