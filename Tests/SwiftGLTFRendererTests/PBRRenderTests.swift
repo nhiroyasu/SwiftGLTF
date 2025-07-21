@@ -6,7 +6,7 @@ import Img2Cubemap
 import SwiftGLTF
 @testable import SwiftGLTFRenderer
 
-final class RenderTests {
+final class PBRRenderTests {
     let device: MTLDevice
     let library: MTLLibrary
     let commandQueue: MTLCommandQueue
@@ -37,10 +37,6 @@ final class RenderTests {
         )
     }
 
-    func isCI() -> Bool {
-        return ProcessInfo.processInfo.environment["CI"] == "true"
-    }
-
     // Helper to create a render target texture
     func makeRenderTarget(width: Int, height: Int) -> MTLTexture {
         let desc = MTLTextureDescriptor.texture2DDescriptor(
@@ -50,58 +46,6 @@ final class RenderTests {
             mipmapped: false)
         desc.usage = [.renderTarget, .shaderRead]
         return device.makeTexture(descriptor: desc)!
-    }
-
-    // Convert MTLTexture to CGImage
-    func cgImage(from texture: MTLTexture) -> CGImage? {
-        let width = texture.width
-        let height = texture.height
-        let bytesPerPixel = 4
-        let bytesPerRow = bytesPerPixel * width
-        let count = bytesPerRow * height
-        var raw = [UInt8](repeating: 0, count: count)
-        let region = MTLRegionMake2D(0, 0, width, height)
-        texture.getBytes(&raw, bytesPerRow: bytesPerRow, from: region, mipmapLevel: 0)
-        let cfdata = CFDataCreate(nil, raw, count)!
-        let provider = CGDataProvider(data: cfdata)!
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-        return CGImage(
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bitsPerPixel: 32,
-            bytesPerRow: bytesPerRow,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo,
-            provider: provider,
-            decode: nil,
-            shouldInterpolate: false,
-            intent: .defaultIntent
-        )
-    }
-
-    func loadCGImage(from url: URL) -> CGImage? {
-        guard let data = try? Data(contentsOf: url),
-              let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
-            return nil
-        }
-        return image
-    }
-
-    // Export texture as PNG to given URL
-    func export(texture: MTLTexture, name: String) throws {
-        guard let image = cgImage(from: texture) else {
-            throw NSError(domain: "RenderTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert texture to CGImage"])
-        }
-        let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!.appendingPathComponent(name)
-        let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
-        CGImageDestinationAddImage(dest, image, nil)
-        if !CGImageDestinationFinalize(dest) {
-            throw NSError(domain: "RenderTests", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to finalize image destination"])
-        }
-        print("Exported texture to \(url.path)") // <- Copy this file to Resources/expected_{name}.png
     }
 
     // Core rendering for skybox
@@ -264,53 +208,10 @@ final class RenderTests {
         cmdBuf.waitUntilCompleted()
     }
 
-    func assertEqual(output: MTLTexture, goldenName: String) {
-        let tolerance: UInt8 = 3
-
-        var outputBytes = [UInt8](repeating: 0, count: output.width * output.height * 4)
-        output.getBytes(&outputBytes, bytesPerRow: output.width * 4, from: MTLRegionMake2D(0, 0, output.width, output.height), mipmapLevel: 0)
-
-        let goldenURL = Bundle.module.url(forResource: goldenName, withExtension: "png")!
-        let data = try! Data(contentsOf: goldenURL)
-        let source = CGImageSourceCreateWithData(data as CFData, nil)!
-        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)!
-
-        let goldenWidth = image.width
-        let goldenHeight = image.height
-        let goldenContext = CGContext(
-            data: nil,
-            width: goldenWidth,
-            height: goldenHeight,
-            bitsPerComponent: 8,
-            bytesPerRow: goldenWidth * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        )!
-        goldenContext.draw(image, in: CGRect(x: 0, y: 0, width: goldenWidth, height: goldenHeight))
-        let goldenRaw = goldenContext.data!.assumingMemoryBound(to: UInt8.self)
-
-        let byteCount = goldenWidth * goldenHeight * 4
-
-        #expect(output.width == goldenWidth)
-        #expect(output.height == goldenHeight)
-
-        var mismatchCount = 0
-        for i in 0..<byteCount {
-            let diff = abs(Int(outputBytes[i]) - Int(goldenRaw[i]))
-            if diff > tolerance {
-                mismatchCount += 1
-            }
-        }
-        let maxAllowedMismatchedPixels = Int(Double(byteCount) * 0.01) // 1% tolerance
-
-        #expect(
-            mismatchCount <= maxAllowedMismatchedPixels,
-            "Output differs from golden image \(goldenName).png with \(mismatchCount) mismatched bytes (tolerance=\(tolerance))"
-        )
-    }
-
     // MARK: - Export golden images
 
+    let goldenFilePrefix = "golden_pbr_mesh_"
+    let outputFilePrefix = "wireframe_mesh_"
     let meshNames: [String] = [
         "BoxTextured",
         "BoxTextured",
@@ -341,7 +242,7 @@ final class RenderTests {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
             let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
             try await renderMesh(to: meshTarget, meshURL: meshURL)
-            try export(texture: meshTarget, name: "golden_mesh_\(meshName).png")
+            try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName).png")
         }
     }
 
@@ -368,10 +269,10 @@ final class RenderTests {
             let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
             try await renderMesh(to: meshTarget, meshURL: meshURL)
 
-            assertEqual(output: meshTarget, goldenName: "golden_mesh_\(meshName)")
+            assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
 
             if switchExportResults, !isCI() {
-                try export(texture: meshTarget, name: "mesh_output_\(meshName).png")
+                try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName).png")
             }
         }
     }

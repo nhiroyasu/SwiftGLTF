@@ -1,0 +1,165 @@
+import Testing
+import MetalKit
+import CoreGraphics
+import UniformTypeIdentifiers
+import Img2Cubemap
+import SwiftGLTF
+@testable import SwiftGLTFRenderer
+
+final class WireframeRenderTests {
+    let device: MTLDevice
+    let library: MTLLibrary
+    let commandQueue: MTLCommandQueue
+    let shaderConnection: ShaderConnection
+    let pipelineStateLoader: WireframePipelineStateLoader
+
+    let TEX_SIZE = 256
+
+    init() {
+        self.device = MTLCreateSystemDefaultDevice()!
+        self.library = try! device.makePackageLibrary()
+        self.commandQueue = device.makeCommandQueue()!
+
+        self.shaderConnection = ShaderConnection(
+            device: device,
+            library: library,
+            commandQueue: commandQueue
+        )
+        self.pipelineStateLoader = WireframePipelineStateLoader(
+            device: device,
+            library: library,
+            config: .init(
+                sampleCount: 1,
+                colorPixelFormat: .rgba8Unorm_srgb,
+                depthPixelFormat: .depth32Float
+            )
+        )
+    }
+
+    // Helper to create a render target texture
+    func makeRenderTarget(width: Int, height: Int) -> MTLTexture {
+        let desc = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba8Unorm_srgb,
+            width: width,
+            height: height,
+            mipmapped: false)
+        desc.usage = [.renderTarget, .shaderRead]
+        return device.makeTexture(descriptor: desc)!
+    }
+
+    func renderMesh(to output: MTLTexture, meshURL: URL) async throws {
+        // Create view-projection matrix buffer
+        let eye = SIMD3<Float>(-2.83, 2.83, -2.83)
+        var vMatrix = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
+        let vMatrixBuf = device.makeBuffer(bytes: &vMatrix, length: MemoryLayout.size(ofValue: vMatrix))!
+        var pMatrix = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
+        let pMatrixBuf = device.makeBuffer(bytes: &pMatrix, length: MemoryLayout.size(ofValue: pMatrix))!
+
+        // Create depth stencil state and texture
+        let dsd = MTLDepthStencilDescriptor()
+        dsd.depthCompareFunction = .less
+        dsd.isDepthWriteEnabled = true
+        let dso = device.makeDepthStencilState(descriptor: dsd)!
+
+        let depthTextureDesc = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .depth32Float,
+            width: output.width,
+            height: output.height,
+            mipmapped: false
+        )
+        depthTextureDesc.usage = [.renderTarget, .shaderRead]
+        depthTextureDesc.storageMode = .private
+        let depthTexture = device.makeTexture(descriptor: depthTextureDesc)!
+
+        // Set up render pass descriptor
+        let passDesc = MTLRenderPassDescriptor()
+        passDesc.colorAttachments[0].texture = output
+        passDesc.colorAttachments[0].loadAction = .clear
+        passDesc.colorAttachments[0].storeAction = .store
+        passDesc.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
+        passDesc.depthAttachment.texture = depthTexture
+        passDesc.depthAttachment.loadAction = .clear
+        passDesc.depthAttachment.storeAction = .store
+        passDesc.depthAttachment.clearDepth = 1.0
+
+        // Load a sample mesh
+        let asset = try makeMDLAsset(from: meshURL)
+        let loader = WireframeMeshLoader(
+            pipelineStateLoader: pipelineStateLoader
+        )
+        let meshes = try loader.loadMeshes(from: asset, using: device)
+
+        // Create command buffer and render encoder
+        let cmdBuf = commandQueue.makeCommandBuffer()!
+        let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc)!
+
+        // Draw the mesh
+        for mesh in meshes {
+            var model = mesh.transform
+            mesh.modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
+            var normalMatrix = float3x3(model).transpose.inverse
+            mesh.normalMatrixBuffer.contents().copyMemory(from: &normalMatrix, byteCount: MemoryLayout<float3x3>.size)
+
+            drawWireframe(
+                renderEncoder: encoder,
+                mesh: mesh,
+                dso: dso,
+                viewBuffer: vMatrixBuf,
+                projectionBuffer: pMatrixBuf
+            )
+        }
+
+        encoder.endEncoding()
+        cmdBuf.commit()
+        cmdBuf.waitUntilCompleted()
+    }
+
+    // MARK: - Export golden images
+
+    let goldenFilePrefix = "golden_wireframe_mesh_"
+    let outputFilePrefix = "wireframe_mesh_"
+    let meshNames: [String] = [
+        "BoxTextured",
+        "BoxTextured",
+        "CompareBaseColor",
+        "OrientationTest",
+        "TextureCoordinateTest",
+        "VertexColorTest",
+        "Fox"
+    ]
+
+    let switchExportGoldenImages = false
+
+    // Export baseline textures
+    // These should be run manually to generate expected textures
+    @Test
+    func ExportGoldenImages() async throws {
+        guard switchExportGoldenImages, !isCI() else { return }
+
+        for meshName in meshNames {
+            let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
+            let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
+            try await renderMesh(to: meshTarget, meshURL: meshURL)
+            try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName).png")
+        }
+    }
+
+    // MARK: - Tests
+
+    let switchExportResults = false
+
+    @Test
+    func testMeshRenderingMatchesGolden() async throws {
+        for meshName in meshNames {
+            let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
+            let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
+            try await renderMesh(to: meshTarget, meshURL: meshURL)
+
+            assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
+
+            if switchExportResults, !isCI() {
+                try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName).png")
+            }
+        }
+    }
+}
