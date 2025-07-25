@@ -236,8 +236,14 @@ public func makeMDLMesh(
             descriptor: vertexDescriptor,
             submeshes: [submesh]
         )
-        mesh.setValue(texcoordVertex != nil, forKey: "hasUV")
-        mesh.setValue(modulationColorVertex != nil, forKey: "hasModulationColor")
+        mesh.setValue(
+            texcoordVertex != nil,
+            forKey: MeshUserPropertyKey.hasUV.rawValue
+        )
+        mesh.setValue(
+            modulationColorVertex != nil,
+            forKey: MeshUserPropertyKey.hasModulationColor.rawValue
+        )
         mdlMeshes.append(mesh)
     }
     return mdlMeshes

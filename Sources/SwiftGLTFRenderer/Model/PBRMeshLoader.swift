@@ -120,8 +120,8 @@ class PBRMeshLoader {
                 submeshes.append(submeshData)
             }
 
-            let hasUV = mdlMesh.value(forKey: "hasUV") as? Bool ?? false
-            let hasModulationColor = mdlMesh.value(forKey: "hasModulationColor") as? Bool ?? false
+            let hasUV = mdlMesh.value(forKey: MeshUserPropertyKey.hasUV.rawValue) as? Bool ?? false
+            let hasModulationColor = mdlMesh.value(forKey: MeshUserPropertyKey.hasModulationColor.rawValue) as? Bool ?? false
             var flags = VertexAttributeFlags(hasUV: hasUV, hasModulationColor: hasModulationColor)
 
             let pbrMesh = PBRMesh(
