@@ -7,6 +7,7 @@ struct PBRMesh {
     let modelBuffer: MTLBuffer
     let normalMatrixBuffer: MTLBuffer
     let pso: MTLRenderPipelineState
+    let attributeFlagsBuffer: MTLBuffer
     
     struct Submesh {
         let primitiveType: MTLPrimitiveType

@@ -121,145 +121,7 @@ struct PBRVertexOut {
     float4 modulationColor;
 };
 
-// MARK: - Vertex shader for PN(Position, Normal)
-
-struct VertexIn_PN {
-    float3 position [[attribute(0)]];
-    float3 normal [[attribute(1)]];
-};
-
-vertex PBRVertexOut pn_vertex_shader(VertexIn_PN in [[stage_in]],
-                                     constant float4x4 &model [[buffer(1)]],
-                                     constant float4x4 &view [[buffer(2)]],
-                                     constant float4x4 &projection [[buffer(3)]],
-                                     constant float3x3 &normalMatrix [[buffer(4)]]) {
-    PBRVertexOut out;
-
-    float4x4 mvpMatrix = projection * view * model;
-
-    out.position = mvpMatrix * float4(in.position, 1.0);
-    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
-    out.normal = normalize(normalMatrix * in.normal);
-    out.tangentAvailable = false; // No tangent available
-    out.tangent = float4(0.0); // Default tangent
-    out.uv = float2(0.0); // Default UV
-    out.modulationColor = float4(1.0); // Default modulation color
-    return out;
-}
-
-// MARK: - Vertex shader for PNC(Position, Normal, Color)
-
-struct VertexIn_PNC {
-    float3 position [[attribute(0)]];
-    float3 normal [[attribute(1)]];
-    float4 modulationColor [[attribute(2)]];
-};
-
-vertex PBRVertexOut pnc_vertex_shader(VertexIn_PNC in [[stage_in]],
-                                      constant float4x4 &model [[buffer(1)]],
-                                      constant float4x4 &view [[buffer(2)]],
-                                      constant float4x4 &projection [[buffer(3)]],
-                                      constant float3x3 &normalMatrix [[buffer(4)]]) {
-    PBRVertexOut out;
-
-    float4x4 mvpMatrix = projection * view * model;
-
-    out.position = mvpMatrix * float4(in.position, 1.0);
-    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
-    out.normal = normalize(normalMatrix * in.normal);
-    out.tangentAvailable = false; // No tangent available
-    out.tangent = float4(0.0); // Default tangent
-    out.uv = float2(0.0); // Default UV
-    out.modulationColor = in.modulationColor;
-    return out;
-}
-
-// MARK: - Shaders for PNT(Position, Normal, Tangent)
-
-struct VertexIn_PNT {
-    float3 position [[attribute(0)]];
-    float3 normal [[attribute(1)]];
-    float4 tangent [[attribute(2)]];
-};
-
-vertex PBRVertexOut pnt_vertex_shader(VertexIn_PNT in [[stage_in]],
-                                      constant float4x4 &model [[buffer(1)]],
-                                      constant float4x4 &view [[buffer(2)]],
-                                      constant float4x4 &projection [[buffer(3)]],
-                                      constant float3x3 &normalMatrix [[buffer(4)]]) {
-    PBRVertexOut out;
-
-    float4x4 mvpMatrix = projection * view * model;
-
-    out.position = mvpMatrix * float4(in.position, 1.0);
-    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
-    out.normal = normalize(normalMatrix * in.normal);
-    out.tangentAvailable = true;
-    out.tangent = normalize(float4(normalMatrix * in.tangent.xyz, in.tangent.w));
-    out.uv = float2(0.0); // Default UV
-    out.modulationColor = float4(1.0); // Default modulation color
-    return out;
-}
-
-// MARK: - Shaders for PNTU(Position, Normal, Tangent, UV)
-
-struct VertexIn_PNTU {
-    float3 position [[attribute(0)]];
-    float3 normal [[attribute(1)]];
-    float4 tangent [[attribute(2)]];
-    float2 uv [[attribute(3)]];
-};
-
-vertex PBRVertexOut pntu_vertex_shader(VertexIn_PNTU in [[stage_in]],
-                                       constant float4x4 &model [[buffer(1)]],
-                                       constant float4x4 &view [[buffer(2)]],
-                                       constant float4x4 &projection [[buffer(3)]],
-                                       constant float3x3 &normalMatrix [[buffer(4)]]) {
-    PBRVertexOut out;
-
-    float4x4 mvpMatrix = projection * view * model;
-
-    out.position = mvpMatrix * float4(in.position, 1.0);
-    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
-    out.normal = normalize(normalMatrix * in.normal);
-    out.tangentAvailable = true;
-    out.tangent = normalize(float4(normalMatrix * in.tangent.xyz, in.tangent.w));
-    out.uv = in.uv;
-    out.modulationColor = float4(1.0); // Default modulation color
-    return out;
-}
-
-// MARK: - Vertex shader for PNTC
-
-struct VertexIn_PNTC {
-    float3 position [[attribute(0)]];
-    float3 normal [[attribute(1)]];
-    float4 tangent [[attribute(2)]];
-    float4 modulationColor [[attribute(4)]];
-};
-
-vertex PBRVertexOut pntc_vertex_shader(VertexIn_PNTC in [[stage_in]],
-                                       constant float4x4 &model [[buffer(1)]],
-                                       constant float4x4 &view [[buffer(2)]],
-                                       constant float4x4 &projection [[buffer(3)]],
-                                       constant float3x3 &normalMatrix [[buffer(4)]]) {
-    PBRVertexOut out;
-
-    float4x4 mvpMatrix = projection * view * model;
-
-    out.position = mvpMatrix * float4(in.position, 1.0);
-    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
-    out.normal = normalize(normalMatrix * in.normal);
-    out.tangentAvailable = true;
-    out.tangent = normalize(float4(normalMatrix * in.tangent.xyz, in.tangent.w));
-    out.uv = float2(0.0); // Default UV
-    out.modulationColor = in.modulationColor;
-    return out;
-}
-
-// MARK: - Shaders for PNTUC(Position, Normal, Tangent, UV, Modulation-Color)
-
-struct VertexIn_PNTUC {
+struct VertexIn {
     float3 position [[attribute(0)]];
     float3 normal [[attribute(1)]];
     float4 tangent [[attribute(2)]];
@@ -267,11 +129,12 @@ struct VertexIn_PNTUC {
     float4 modulationColor [[attribute(4)]];
 };
 
-vertex PBRVertexOut pntuc_vertex_shader(VertexIn_PNTUC in [[stage_in]],
-                                        constant float4x4 &model [[buffer(1)]],
-                                        constant float4x4 &view [[buffer(2)]],
-                                        constant float4x4 &projection [[buffer(3)]],
-                                        constant float3x3 &normalMatrix [[buffer(4)]]) {
+vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
+                                      constant float4x4 &model [[buffer(1)]],
+                                      constant float4x4 &view [[buffer(2)]],
+                                      constant float4x4 &projection [[buffer(3)]],
+                                      constant float3x3 &normalMatrix [[buffer(4)]],
+                                      constant VertexAttributeFlags &flags [[buffer(5)]]) {
     PBRVertexOut out;
 
     float4x4 mvpMatrix = projection * view * model;
@@ -279,9 +142,10 @@ vertex PBRVertexOut pntuc_vertex_shader(VertexIn_PNTUC in [[stage_in]],
     out.position = mvpMatrix * float4(in.position, 1.0);
     out.worldPosition = (model * float4(in.position, 1.0)).xyz;
     out.normal = normalize(normalMatrix * in.normal);
+    out.tangentAvailable = true;
     out.tangent = normalize(float4(normalMatrix * in.tangent.xyz, in.tangent.w));
-    out.uv = in.uv;
-    out.modulationColor = in.modulationColor;
+    out.uv = flags.hasUV ? in.uv : float2(0.0);
+    out.modulationColor = flags.hasModulationColor ? in.modulationColor : float4(1.0);
     return out;
 }
 

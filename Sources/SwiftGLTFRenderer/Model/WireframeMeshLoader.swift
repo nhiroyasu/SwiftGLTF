@@ -70,7 +70,11 @@ class WireframeMeshLoader {
                     length: MemoryLayout<float3x3>.size,
                     options: []
                 )!,
-                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor)
+                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
+                attributeFlagsBuffer: {
+                    var flags = VertexAttributeFlags(hasUV: false, hasModulationColor: false)
+                    return device.makeBuffer(bytes: &flags, length: MemoryLayout<VertexAttributeFlags>.size, options: [])!
+                }()
             )
             pbrMeshes.append(pbrMesh)
         }

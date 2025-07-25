@@ -120,6 +120,10 @@ class PBRMeshLoader {
                 submeshes.append(submeshData)
             }
 
+            let hasUV = mdlMesh.value(forKey: "hasUV") as? Bool ?? false
+            let hasModulationColor = mdlMesh.value(forKey: "hasModulationColor") as? Bool ?? false
+            var flags = VertexAttributeFlags(hasUV: hasUV, hasModulationColor: hasModulationColor)
+
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
                 submeshes: submeshes,
@@ -132,7 +136,8 @@ class PBRMeshLoader {
                     length: MemoryLayout<float3x3>.size,
                     options: []
                 )!,
-                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor)
+                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
+                attributeFlagsBuffer: device.makeBuffer(bytes: &flags, length: MemoryLayout<VertexAttributeFlags>.size, options: [])!
             )
             pbrMeshes.append(pbrMesh)
         }

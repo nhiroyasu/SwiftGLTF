@@ -17,3 +17,8 @@ struct PBRSceneUniforms {
     let viewPosition: SIMD3<Float> // Position of the camera/viewer
     let ambientLightColor: SIMD3<Float> // Ambient light color
 }
+
+struct VertexAttributeFlags {
+    let hasUV: Bool
+    let hasModulationColor: Bool
+}

@@ -45,6 +45,7 @@ func drawPBR(
     renderEncoder.setVertexBuffer(viewBuffer, offset: 0, index: 2)
     renderEncoder.setVertexBuffer(projectionBuffer, offset: 0, index: 3)
     renderEncoder.setVertexBuffer(mesh.normalMatrixBuffer, offset: 0, index: 4)
+    renderEncoder.setVertexBuffer(mesh.attributeFlagsBuffer, offset: 0, index: 5)
     renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer, offset: 0, index: 0)
     renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
     renderEncoder.setFragmentTexture(irradianceCubeMapTexture, index: 1)

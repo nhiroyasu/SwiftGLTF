@@ -9,4 +9,9 @@ typedef struct {
     vector_float3 ambientLightColor; // Ambient light color
 } PBRSceneUniforms;
 
+typedef struct {
+    bool hasUV;
+    bool hasModulationColor;
+} VertexAttributeFlags;
+
 #endif /* PBR_h */
