@@ -4,9 +4,14 @@ import SwiftGLTF
 
 class WireframeMeshLoader {
     let pipelineStateLoader: WireframePipelineStateLoader
+    let depthStencilStateLoader: DepthStencilStateLoader
 
-    init(pipelineStateLoader: WireframePipelineStateLoader) {
+    init(
+        pipelineStateLoader: WireframePipelineStateLoader,
+        depthStencilStateLoader: DepthStencilStateLoader
+    ) {
         self.pipelineStateLoader = pipelineStateLoader
+        self.depthStencilStateLoader = depthStencilStateLoader
     }
 
     func loadMeshes(from asset: MDLAsset, using device: MTLDevice) throws -> [PBRMesh] {
@@ -58,8 +63,16 @@ class WireframeMeshLoader {
                 submeshes.append(submeshData)
             }
 
+            var vertexUniforms = PBRVertexUniforms(
+                hasTangent: false, hasUV: false, hasModulationColor: false
+            )
+
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
+                vertexUniformsBuffer: device.makeBuffer(
+                    bytes: &vertexUniforms,
+                    length: MemoryLayout<PBRVertexUniforms>.size,
+                )!,
                 submeshes: submeshes,
                 transform: transform,
                 modelBuffer: device.makeBuffer(
@@ -70,7 +83,8 @@ class WireframeMeshLoader {
                     length: MemoryLayout<float3x3>.size,
                     options: []
                 )!,
-                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor)
+                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
+                dso: try depthStencilStateLoader.load(for: .lessThan)
             )
             pbrMeshes.append(pbrMesh)
         }

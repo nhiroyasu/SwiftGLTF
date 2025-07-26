@@ -21,9 +21,9 @@ struct TangentCubeTests {
         let expectedPositionData = originalData.subdata(in: start..<(start + length))
 
         var actualPositionData = Data(capacity: length)
-        let stride = 48 // 4 * float3 + 4 * float3 + 4 * float4 + 4 * float2 = 32 bytes (pos + normal + tangent + texcoord)
+        let stride = VertexAttributeStride.stride
         let readSize = 16 // tangent is float4 (4 * 4 bytes)
-        var offset = 24 // position + normal offset
+        var offset = VertexAttributeOffset.tangent
         while offset + readSize <= stride * accessor.count {
             let value = vertexData.subdata(in: offset..<offset + readSize)
             actualPositionData.append(value)
@@ -43,12 +43,26 @@ struct TangentCubeTests {
         let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
         let asset = try makeMDLAsset(
             from: gltfContainer,
-            options: .init(
-                convertToLeftHanded: false,
-                generateNormalVertexIfNeeded: false,
-                generateTangentVertexIfNeeded: false
-            )
+            options: .init(convertToLeftHanded: false)
         )
         return (gltfContainer.gltf, asset)
+    }
+
+    enum VertexAttributeStride {
+        static let stride = 48
+    }
+
+    enum VertexAttributeSize {
+        static let position = 12 // float3
+        static let normal = 12 // float3
+        static let tangent = 16 // float4
+        static let texcoord = 8 // float2
+    }
+
+    enum VertexAttributeOffset {
+        static let position = 0
+        static let normal = 12
+        static let tangent = 24
+        static let texcoord = 40
     }
 }

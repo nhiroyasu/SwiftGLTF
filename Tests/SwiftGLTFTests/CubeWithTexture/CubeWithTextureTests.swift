@@ -21,9 +21,9 @@ struct CubeWithTextureTests {
         let expectedTexCoordData = originalData.subdata(in: start..<(start + length))
 
         var actualTexCoordData = Data(capacity: length)
-        let stride = 32 // 4 * float3 + 4 * float3 + 4 * float2 = 32 bytes (pos + normal + texcoord)
+        let stride = VertexAttributeStride.stride
         let readSize = 8 // TexCoord is float3 (3 * 4 bytes)
-        var offset = 24
+        var offset = VertexAttributeOffset.texcoord
         while offset + readSize <= stride * accessor.count {
             let value = vertexData.subdata(in: offset..<offset + readSize)
             actualTexCoordData.append(value)
@@ -117,13 +117,7 @@ struct CubeWithTextureTests {
         }
         let data = try Data(contentsOf: gltfURL)
         let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try makeMDLAsset(
-            from: gltfContainer,
-            options: .init(
-                generateNormalVertexIfNeeded: false,
-                generateTangentVertexIfNeeded: false
-            )
-        )
+        let asset = try makeMDLAsset(from: gltfContainer)
         return (gltfContainer.gltf, asset)
     }
 
@@ -145,5 +139,23 @@ struct CubeWithTextureTests {
         case .repeatWrap:
             return .repeat
         }
+    }
+
+    enum VertexAttributeStride {
+        static let stride = 48
+    }
+
+    enum VertexAttributeSize {
+        static let position = 12 // float3
+        static let normal = 12 // float3
+        static let tangent = 16 // float4
+        static let texcoord = 8 // float2
+    }
+
+    enum VertexAttributeOffset {
+        static let position = 0
+        static let normal = 12
+        static let tangent = 24
+        static let texcoord = 40
     }
 }

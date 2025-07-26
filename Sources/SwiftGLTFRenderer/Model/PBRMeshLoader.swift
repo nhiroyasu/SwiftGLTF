@@ -5,15 +5,18 @@ import SwiftGLTF
 class PBRMeshLoader {
     let shaderConnection: ShaderConnection
     let pipelineStateLoader: PBRPipelineStateLoader
+    let depthStencilStateLoader: DepthStencilStateLoader
 
     private var texturesCache: [String: MTLTexture] = [:]
 
     init(
         shaderConnection: ShaderConnection,
-        pipelineStateLoader: PBRPipelineStateLoader
+        pipelineStateLoader: PBRPipelineStateLoader,
+        depthStencilStateLoader: DepthStencilStateLoader
     ) {
         self.shaderConnection = shaderConnection
         self.pipelineStateLoader = pipelineStateLoader
+        self.depthStencilStateLoader = depthStencilStateLoader
     }
 
     func loadMeshes(from asset: MDLAsset, using device: MTLDevice) throws -> [PBRMesh] {
@@ -122,6 +125,10 @@ class PBRMeshLoader {
 
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
+                vertexUniformsBuffer: try makeVertexUniformsBuffer(
+                    mdlMesh.vertexDescriptor,
+                    device: device
+                ),
                 submeshes: submeshes,
                 transform: transform,
                 modelBuffer: device.makeBuffer(
@@ -132,7 +139,8 @@ class PBRMeshLoader {
                     length: MemoryLayout<float3x3>.size,
                     options: []
                 )!,
-                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor)
+                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
+                dso: try depthStencilStateLoader.load(for: .lessThan)
             )
             pbrMeshes.append(pbrMesh)
         }
@@ -403,6 +411,32 @@ class PBRMeshLoader {
             return try shaderConnection.convertSrgb2Linear(texture: texture)
         } else {
             return texture
+        }
+    }
+
+    // MARK: - Vertex Uniforms Buffer
+
+    private func makeVertexUniformsBuffer(
+        _ vertexDescriptor: MDLVertexDescriptor,
+        device: MTLDevice
+    ) throws -> MTLBuffer {
+        var vertexUniforms = PBRVertexUniforms(
+            hasTangent: vertexDescriptor.validTangentVertex,
+            hasUV: vertexDescriptor.validTexcoordVertex,
+            hasModulationColor: vertexDescriptor.validColorVertex
+        )
+
+        if let buffer = device.makeBuffer(
+            bytes: &vertexUniforms,
+            length: MemoryLayout<PBRVertexUniforms>.size
+        ) {
+            return buffer
+        } else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create vertex uniforms buffer"]
+            )
         }
     }
 }

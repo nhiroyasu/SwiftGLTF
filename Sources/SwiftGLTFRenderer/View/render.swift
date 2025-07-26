@@ -29,7 +29,6 @@ func drawSkybox(
 func drawPBR(
     renderEncoder: MTLRenderCommandEncoder,
     mesh: PBRMesh,
-    dso: MTLDepthStencilState,
     viewBuffer: MTLBuffer,
     projectionBuffer: MTLBuffer,
     pbrSceneUniformsBuffer: MTLBuffer,
@@ -38,14 +37,15 @@ func drawPBR(
     brdfLUT: MTLTexture
 ) {
     renderEncoder.setRenderPipelineState(mesh.pso)
-    renderEncoder.setDepthStencilState(dso)
+    renderEncoder.setDepthStencilState(mesh.dso)
 
     renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
     renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
     renderEncoder.setVertexBuffer(viewBuffer, offset: 0, index: 2)
     renderEncoder.setVertexBuffer(projectionBuffer, offset: 0, index: 3)
     renderEncoder.setVertexBuffer(mesh.normalMatrixBuffer, offset: 0, index: 4)
-    renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer, offset: 0, index: 0)
+    renderEncoder.setFragmentBuffer(mesh.vertexUniformsBuffer, offset: 0, index: 0)
+    renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer, offset: 0, index: 1)
     renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
     renderEncoder.setFragmentTexture(irradianceCubeMapTexture, index: 1)
     renderEncoder.setFragmentTexture(brdfLUT, index: 2)
@@ -76,12 +76,11 @@ func drawPBR(
 func drawWireframe(
     renderEncoder: MTLRenderCommandEncoder,
     mesh: PBRMesh,
-    dso: MTLDepthStencilState,
     viewBuffer: MTLBuffer,
     projectionBuffer: MTLBuffer
 ) {
     renderEncoder.setRenderPipelineState(mesh.pso)
-    renderEncoder.setDepthStencilState(dso)
+    renderEncoder.setDepthStencilState(mesh.dso)
 
     renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
     renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)

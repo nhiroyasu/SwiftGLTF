@@ -12,6 +12,7 @@ final class PBRRenderTests {
     let commandQueue: MTLCommandQueue
     let shaderConnection: ShaderConnection
     let pipelineStateLoader: PBRPipelineStateLoader
+    let depthStencilStateLoader: DepthStencilStateLoader
 
     let TEX_SIZE = 256
 
@@ -34,6 +35,7 @@ final class PBRRenderTests {
                 depthPixelFormat: .depth32Float
             )
         )
+        self.depthStencilStateLoader = DepthStencilStateLoader(device: device)
     }
 
     // Helper to create a render target texture
@@ -84,12 +86,6 @@ final class PBRRenderTests {
             height: envMap.height
         )
 
-        // Create depth stencil state and texture
-        let dsd = MTLDepthStencilDescriptor()
-        dsd.depthCompareFunction = .less
-        dsd.isDepthWriteEnabled = true
-        let dso = device.makeDepthStencilState(descriptor: dsd)!
-
         let depthTextureDesc = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .depth32Float,
             width: output.width,
@@ -115,7 +111,8 @@ final class PBRRenderTests {
         let asset = try makeMDLAsset(from: meshURL)
         let loader = PBRMeshLoader(
             shaderConnection: shaderConnection,
-            pipelineStateLoader: pipelineStateLoader
+            pipelineStateLoader: pipelineStateLoader,
+            depthStencilStateLoader: depthStencilStateLoader
         )
         let meshes = try loader.loadMeshes(from: asset, using: device)
 
@@ -133,7 +130,6 @@ final class PBRRenderTests {
             drawPBR(
                 renderEncoder: encoder,
                 mesh: mesh,
-                dso: dso,
                 viewBuffer: vMatrixBuf,
                 projectionBuffer: pMatrixBuf,
                 pbrSceneUniformsBuffer: sceneUniformsBuffer,

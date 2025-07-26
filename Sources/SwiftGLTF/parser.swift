@@ -4,11 +4,11 @@ import SwiftGLTFCore
 import OSLog
 
 public enum GLTFVertexAttributeIndex {
-    static let POSITION = 0
-    static let NORMAL = 1
-    static let TANGENT = 2
-    static let TEXCOORD_0 = 3
-    static let COLOR_0 = 4
+    public static let POSITION = 0
+    public static let NORMAL = 1
+    public static let TANGENT = 2
+    public static let TEXCOORD_0 = 3
+    public static let COLOR_0 = 4
 }
 
 public struct GLTFDecodeOptions: Sendable {
@@ -16,30 +16,15 @@ public struct GLTFDecodeOptions: Sendable {
     public let convertToLeftHanded: Bool
     /// Automatically scales the model based on the maximum position value.
     public let autoScale: Bool
-    /// If “NORMAL” is not defined in the glTF, normal data is created based on “POSITION”.
-    public let generateNormalVertexIfNeeded: Bool
-    /// If “TANGENT” is not defined in the glTF, the tangent data is created based on the MikkTSpace algorithm.
-    ///
-    /// "NORMAL" and "TEXCOORD_0" must be defined in the glTF.
-    public let generateTangentVertexIfNeeded: Bool
 
-    public static let `default` = GLTFDecodeOptions(
-        convertToLeftHanded: true,
-        autoScale: true,
-        generateNormalVertexIfNeeded: true,
-        generateTangentVertexIfNeeded: true
-    )
+    public static let `default` = GLTFDecodeOptions()
 
     public init(
         convertToLeftHanded: Bool = true,
-        autoScale: Bool = true,
-        generateNormalVertexIfNeeded: Bool = true,
-        generateTangentVertexIfNeeded: Bool = true
+        autoScale: Bool = true
     ) {
         self.convertToLeftHanded = convertToLeftHanded
         self.autoScale = autoScale
-        self.generateNormalVertexIfNeeded = generateNormalVertexIfNeeded
-        self.generateTangentVertexIfNeeded = generateTangentVertexIfNeeded
     }
 }
 
@@ -178,18 +163,14 @@ public func makeMDLMesh(
         let texcoordVertex = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
         let modulationColorVertex = try makeModulationColorVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
 
-        if options.generateNormalVertexIfNeeded,
-           normalVertex == nil,
+        if normalVertex == nil,
            (primitive.mode == .triangles || primitive.mode == .none) {
             os_log("Generating normals for primitives[%d]", log: .default, type: .info, index)
             normalVertex = try generateNormalVertex(positionVertex: positionVertex, indexInfo: indexInfo)
         }
 
         var isGeneratedTangents = false
-        if options.generateTangentVertexIfNeeded, tangentVertex == nil,
-           let normalVertex,
-           let texcoordVertex,
-           (primitive.mode == .triangles || primitive.mode == .none) {
+        if tangentVertex == nil, let normalVertex, let texcoordVertex, (primitive.mode == .triangles || primitive.mode == .none) {
             os_log("Generating tangents for primitive[%d]", log: .default, type: .info, index)
             tangentVertex = try generateTangents(positionVertex, normalVertex, texcoordVertex, indexInfo, vertexCount: vertexCount, options: options)
             isGeneratedTangents = true
@@ -585,14 +566,16 @@ private func makeVertexDescriptor(
         offset += texcoordVertex.componentSize
     }
 
-    if let modulationColorVertex {
+    if modulationColorVertex != nil {
+        // Although the glTF specification allows both VEC3 and VEC4 formats for color attributes,
+        // this project standardizes on VEC4. Therefore, the size is fixed to 16 bytes.
         descriptor.attributes[GLTFVertexAttributeIndex.COLOR_0] = MDLVertexAttribute(
             name: MDLVertexAttributeColor,
-            format: modulationColorVertex.componentFormat,
+            format: .float4,
             offset: offset,
             bufferIndex: 0
         )
-        offset += modulationColorVertex.componentSize
+        offset += 16
     }
 
     descriptor.layouts[0] = MDLVertexBufferLayout(stride: offset)
@@ -613,48 +596,37 @@ private func makeVertexData(
     var vertexData = Data()
     for i in 0..<vertexCount {
         // Position
-        if positionVertex.componentFormat == .float3 {
-            let stride = positionVertex.componentSize
-            let base = i * stride
-            let slice = positionVertex.data[base..<base+stride]
-            let floatArray = slice.withUnsafeBytes {
-                Array($0.bindMemory(to: Float.self))
-            }
-            var vector = SIMD3<Float>(floatArray[0], floatArray[1], floatArray[2])
-            if options.convertToLeftHanded {
-                vector.z = -vector.z
-            }
-            vertexData.append(Data(bytes: &vector, count: stride))
+        let posStride = positionVertex.componentSize
+        let posBase = i * posStride
+        let posSlice = positionVertex.data[posBase..<posBase+posStride]
+        var posArray = posSlice.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+        if options.convertToLeftHanded {
+            posArray[2] = -posArray[2]
         }
+        vertexData.append(Data(bytes: &posArray, count: posStride))
 
         // Normal
-        if let normalVertex, normalVertex.componentFormat == .float3 {
+        if let normalVertex {
             let stride = normalVertex.componentSize
             let base = i * stride
             let slice = normalVertex.data[base..<base+stride]
-            let floatArray = slice.withUnsafeBytes {
-                Array($0.bindMemory(to: Float.self))
-            }
-            var vector = SIMD3<Float>(floatArray[0], floatArray[1], floatArray[2])
+            var normalArray = slice.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
             if options.convertToLeftHanded {
-                vector.z = -vector.z
+                normalArray[2] = -normalArray[2]
             }
-            vertexData.append(Data(bytes: &vector, count: stride))
+            vertexData.append(Data(bytes: &normalArray, count: stride))
         }
 
         // Tangent
-        if let tangentVertex, tangentVertex.componentFormat == .float4 {
+        if let tangentVertex {
             let stride = tangentVertex.componentSize
             let base = i * stride
             let slice = tangentVertex.data[base..<base+stride]
-            let floatArray = slice.withUnsafeBytes {
-                Array($0.bindMemory(to: Float.self))
-            }
-            var vector = SIMD4<Float>(floatArray[0], floatArray[1], floatArray[2], floatArray[3])
+            var tangentArray = slice.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
             if options.convertToLeftHanded, !isGeneratedTangents {
-                vector.x = -vector.x
+                tangentArray[2] = -tangentArray[2]
             }
-            vertexData.append(Data(bytes: &vector, count: stride))
+            vertexData.append(Data(bytes: &tangentArray, count: stride))
         }
 
         // Texcoord
@@ -670,7 +642,13 @@ private func makeVertexData(
             let stride = modulationColorVertex.componentSize
             let base = i * stride
             let slice = modulationColorVertex.data[base..<base+stride]
-            vertexData.append(slice)
+            if modulationColorVertex.componentFormat == .float3 {
+                let arr = slice.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+                var color = SIMD4<Float>(arr[0], arr[1], arr[2], 1)
+                vertexData.append(Data(bytes: &color, count: MemoryLayout<SIMD4<Float>>.size))
+            } else {
+                vertexData.append(slice)
+            }
         }
     }
 

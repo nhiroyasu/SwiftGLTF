@@ -17,3 +17,9 @@ struct PBRSceneUniforms {
     let viewPosition: SIMD3<Float> // Position of the camera/viewer
     let ambientLightColor: SIMD3<Float> // Ambient light color
 }
+
+struct PBRVertexUniforms {
+    let hasTangent: Bool // Indicates if tangents are present
+    let hasUV: Bool // Indicates if texture coordinates are present
+    let hasModulationColor: Bool // Indicates if vertex colors are present
+}
