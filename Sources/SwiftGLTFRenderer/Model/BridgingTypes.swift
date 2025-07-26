@@ -18,7 +18,8 @@ struct PBRSceneUniforms {
     let ambientLightColor: SIMD3<Float> // Ambient light color
 }
 
-struct VertexAttributeFlags {
-    let hasUV: Bool
-    let hasModulationColor: Bool
+struct PBRVertexUniforms {
+    let hasTangent: Bool // Indicates if tangents are present
+    let hasUV: Bool // Indicates if texture coordinates are present
+    let hasModulationColor: Bool // Indicates if vertex colors are present
 }

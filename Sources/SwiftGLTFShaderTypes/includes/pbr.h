@@ -10,8 +10,9 @@ typedef struct {
 } PBRSceneUniforms;
 
 typedef struct {
+    bool hasTangent;
     bool hasUV;
     bool hasModulationColor;
-} VertexAttributeFlags;
+} PBRVertexUniforms;
 
 #endif /* PBR_h */

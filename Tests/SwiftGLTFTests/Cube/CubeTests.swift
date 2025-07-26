@@ -16,7 +16,7 @@ struct CubeTests {
         let (_, asset) = try loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         #expect(mesh.vertexCount == 24)
-        #expect(mesh.vertexBuffers[0].length == 768) // 24points × (float3 pos + float3 normal + float2 texcoord) = 24 × 32
+        #expect(mesh.vertexBuffers[0].length == 1152) // 24points × VertexAttributeStride.stride = 24 × 48
     }
 
     @Test
@@ -54,23 +54,23 @@ struct CubeTests {
         let position = descriptor.attributes[0] as! MDLVertexAttribute
         #expect(position.name == MDLVertexAttributePosition)
         #expect(position.format == .float3)
-        #expect(position.offset == 0)
+        #expect(position.offset == VertexAttributeOffset.position)
         #expect(position.bufferIndex == 0)
 
         let normal = descriptor.attributes[1] as! MDLVertexAttribute
         #expect(normal.name == MDLVertexAttributeNormal)
         #expect(normal.format == .float3)
-        #expect(normal.offset == 12)
+        #expect(normal.offset == VertexAttributeOffset.normal)
         #expect(normal.bufferIndex == 0)
 
         let texcoord = descriptor.attributes[3] as! MDLVertexAttribute
         #expect(texcoord.name == MDLVertexAttributeTextureCoordinate)
         #expect(texcoord.format == .float2)
-        #expect(texcoord.offset == 24)
+        #expect(texcoord.offset == VertexAttributeOffset.texcoord)
         #expect(texcoord.bufferIndex == 0)
 
         let layout = descriptor.layouts[0] as! MDLVertexBufferLayout
-        #expect(layout.stride == 32)
+        #expect(layout.stride == VertexAttributeStride.stride)
     }
 
     @Test
@@ -111,9 +111,9 @@ struct CubeTests {
         let expectedPositionData = originalData.subdata(in: start..<(start + length))
 
         var actualPositionData = Data(capacity: length)
-        let stride = 32 // 4 * float3 + 4 * float3 + 4 * float2 = 32 bytes (pos + normal + texcoord)
-        let readSize = 12 // position is float3 (3 * 4 bytes)
-        var offset = 0
+        let stride = VertexAttributeStride.stride
+        let readSize = VertexAttributeSize.position
+        var offset = VertexAttributeOffset.position
         while offset + readSize <= stride * accessor.count {
             let value = vertexData.subdata(in: offset..<offset + readSize)
             actualPositionData.append(value)
@@ -140,9 +140,9 @@ struct CubeTests {
         let expectedNormalData = originalData.subdata(in: start..<(start + length))
 
         var actualNormalData = Data(capacity: length)
-        let stride = 32 // 4 * float3 + 4 * float3 + 4 * float2 = 32 bytes (pos + normal + texcoord)
-        let readSize = 12 // Normal is float3 (3 * 4 bytes)
-        var offset = 12
+        let stride = VertexAttributeStride.stride
+        let readSize = VertexAttributeSize.normal
+        var offset = VertexAttributeOffset.normal
         while offset + readSize <= stride * accessor.count {
             let value = vertexData.subdata(in: offset..<offset + readSize)
             actualNormalData.append(value)
@@ -169,9 +169,9 @@ struct CubeTests {
         let expectedTexCoordData = originalData.subdata(in: start..<(start + length))
 
         var actualTexCoordData = Data(capacity: length)
-        let stride = 32 // 4 * float3 + 4 * float3 + 4 * float2 = 32 bytes (pos + normal + texcoord)
-        let readSize = 8 // TexCoord is float3 (3 * 4 bytes)
-        var offset = 24
+        let stride = VertexAttributeStride.stride
+        let readSize = VertexAttributeSize.texcoord
+        var offset = VertexAttributeOffset.texcoord
         while offset + readSize <= stride * accessor.count {
             let value = vertexData.subdata(in: offset..<offset + readSize)
             actualTexCoordData.append(value)
@@ -215,13 +215,26 @@ struct CubeTests {
         let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
         let asset = try makeMDLAsset(
             from: gltfContainer,
-            options: GLTFDecodeOptions(
-                convertToLeftHanded: false,
-                autoScale: false,
-                generateNormalVertexIfNeeded: false,
-                generateTangentVertexIfNeeded: false
-            )
+            options: GLTFDecodeOptions(convertToLeftHanded: false, autoScale: false)
         )
         return (gltfContainer.gltf, asset)
+    }
+
+    enum VertexAttributeStride {
+        static let stride = 48
+    }
+
+    enum VertexAttributeSize {
+        static let position = 12 // float3
+        static let normal = 12 // float3
+        static let tangent = 16 // float4
+        static let texcoord = 8 // float2
+    }
+
+    enum VertexAttributeOffset {
+        static let position = 0
+        static let normal = 12
+        static let tangent = 24
+        static let texcoord = 40
     }
 }

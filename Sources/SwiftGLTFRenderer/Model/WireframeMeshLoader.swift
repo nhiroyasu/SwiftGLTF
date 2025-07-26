@@ -58,8 +58,16 @@ class WireframeMeshLoader {
                 submeshes.append(submeshData)
             }
 
+            var vertexUniforms = PBRVertexUniforms(
+                hasTangent: false, hasUV: false, hasModulationColor: false
+            )
+
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
+                vertexUniformsBuffer: device.makeBuffer(
+                    bytes: &vertexUniforms,
+                    length: MemoryLayout<PBRVertexUniforms>.size,
+                )!,
                 submeshes: submeshes,
                 transform: transform,
                 modelBuffer: device.makeBuffer(
@@ -70,11 +78,7 @@ class WireframeMeshLoader {
                     length: MemoryLayout<float3x3>.size,
                     options: []
                 )!,
-                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
-                attributeFlagsBuffer: {
-                    var flags = VertexAttributeFlags(hasUV: false, hasModulationColor: false)
-                    return device.makeBuffer(bytes: &flags, length: MemoryLayout<VertexAttributeFlags>.size, options: [])!
-                }()
+                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor)
             )
             pbrMeshes.append(pbrMesh)
         }

@@ -29,34 +29,134 @@ public class PBRPipelineStateLoader {
             return cachedState
         }
 
+        // Validate the vertex descriptor
+        try validate(for: vertexDescriptor)
+
         let psoDescriptor = MTLRenderPipelineDescriptor()
-        psoDescriptor.vertexFunction = try decideVertexShader(from: vertexDescriptor)
+        psoDescriptor.vertexFunction = library.makeFunction(name: "pbr_vertex_shader")!
         psoDescriptor.fragmentFunction = fragmentFunction
         psoDescriptor.colorAttachments[0].pixelFormat = config.colorPixelFormat
         psoDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
         psoDescriptor.rasterSampleCount = config.sampleCount
-        psoDescriptor.vertexDescriptor = MTKMetalVertexDescriptorFromModelIO(vertexDescriptor)
+        psoDescriptor.vertexDescriptor = makeMTLVertexDescriptor(from: vertexDescriptor)
 
         let pso = try device.makeRenderPipelineState(descriptor: psoDescriptor)
         cachedPipelineStates[vertexDescriptor] = pso
         return pso
     }
 
-    private func decideVertexShader(from vertexDescriptor: MDLVertexDescriptor) throws -> MTLFunction {
+    private func validate(for vertexDescriptor: MDLVertexDescriptor) throws {
         // Validate that required attributes exist
-        guard
-            vertexDescriptor.attributes[GLTFVertexAttributeIndex.POSITION] as? MDLVertexAttribute != nil,
-            vertexDescriptor.attributes[GLTFVertexAttributeIndex.NORMAL] as? MDLVertexAttribute != nil,
-            vertexDescriptor.attributes[GLTFVertexAttributeIndex.TANGENT] as? MDLVertexAttribute != nil
-        else {
+
+        let existFloat3Position = (vertexDescriptor.attributes[GLTFVertexAttributeIndex.POSITION] as? MDLVertexAttribute)?.format == .float3
+        let existFloat3Normal = (vertexDescriptor.attributes[GLTFVertexAttributeIndex.NORMAL] as? MDLVertexAttribute)?.format == .float3
+        let typeFloat4Tangent = switch (vertexDescriptor.attributes[GLTFVertexAttributeIndex.TANGENT] as? MDLVertexAttribute)?.format {
+        case .float4, .invalid:
+            // invalid format is also acceptable for tangent because it can be optional
+            true
+        default:
+            false
+        }
+        let typeFloat2Texcoord = switch (vertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0] as? MDLVertexAttribute)?.format {
+        case .float2, .invalid:
+            // invalid format is also acceptable for texcoord because it can be optional
+            true
+        default:
+            false
+        }
+        let typeFloat4Color = switch (vertexDescriptor.attributes[GLTFVertexAttributeIndex.COLOR_0] as? MDLVertexAttribute)?.format {
+        case .float4, .invalid:
+            // invalid format is also acceptable for color because it can be optional
+            true
+        default:
+            false
+        }
+
+        if existFloat3Position && existFloat3Normal && typeFloat4Tangent && typeFloat2Texcoord && typeFloat4Color {
+            return
+        } else {
             throw NSError(
                 domain: "MDLAssetLoader",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Required vertex attributes are missing"]
+                userInfo: [NSLocalizedDescriptionKey: """
+                Required vertex attributes are missing
+                - Position (float3)
+                - Normal (float3)
+                - Tangent (float4, optional)
+                - Texcoord (float2, optional)
+                - Color (float4, optional)
+                
+                ---
+                
+                Actual attributes:
+                Position: \(existFloat3Position ? "✓" : "✗")
+                Normal: \(existFloat3Normal ? "✓" : "✗")
+                Tangent: \(typeFloat4Tangent ? "✓" : "✗")
+                Texcoord: \(typeFloat2Texcoord ? "✓" : "✗")
+                Color: \(typeFloat4Color ? "✓" : "✗")
+                Please check your MDLVertexDescriptor configuration.
+                """]
             )
         }
+    }
 
-        os_log("⬇️ Loading unified PBR shader")
-        return library.makeFunction(name: "pbr_vertex_shader")!
+    private func makeMTLVertexDescriptor(from mdlVertexDescriptor: MDLVertexDescriptor) -> MTLVertexDescriptor {
+        let mtlVertexDescriptor = MTLVertexDescriptor()
+
+        var offset = 0
+        // position
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.POSITION].format = .float3
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.POSITION].offset = offset
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.POSITION].bufferIndex = 0
+        offset += 12
+
+        // normal
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.NORMAL].format = .float3
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.NORMAL].offset = offset
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.NORMAL].bufferIndex = 0
+        offset += 12
+
+        // tangent
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TANGENT].format = .float4
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TANGENT].offset = offset
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TANGENT].bufferIndex = 0
+        offset += mdlVertexDescriptor.validTangentVertex ? 16 : 0
+
+        // texcoord
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0].format = .float2
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0].offset = offset
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0].bufferIndex = 0
+        offset += mdlVertexDescriptor.validTexcoordVertex ? 8 : 0
+
+        // color
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.COLOR_0].format = .float4
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.COLOR_0].offset = offset
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.COLOR_0].bufferIndex = 0
+        offset += mdlVertexDescriptor.validColorVertex ? 16 : 0
+
+        // Set the layout stride
+        mtlVertexDescriptor.layouts[0].stride = offset
+        mtlVertexDescriptor.layouts[0].stepFunction = .perVertex
+        mtlVertexDescriptor.layouts[0].stepRate = 1
+
+        os_log("⬇️ Created MTLVertexDescriptor with stride: %{public}d for PBR shader", offset)
+        return mtlVertexDescriptor
+    }
+}
+
+extension MDLVertexDescriptor {
+    var validTangentVertex: Bool {
+        let tangentAttribute = attributes[GLTFVertexAttributeIndex.TANGENT] as? MDLVertexAttribute
+        return tangentAttribute?.format == .float4
+    }
+
+    var validTexcoordVertex: Bool {
+        let texcoordAttribute = attributes[GLTFVertexAttributeIndex.TEXCOORD_0] as? MDLVertexAttribute
+        return texcoordAttribute?.format == .float2
+    }
+
+    var validColorVertex: Bool {
+        let colorAttribute = attributes[GLTFVertexAttributeIndex.COLOR_0] as? MDLVertexAttribute
+        return colorAttribute?.format == .float4
     }
 }

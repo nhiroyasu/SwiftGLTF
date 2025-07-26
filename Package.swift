@@ -38,7 +38,6 @@ let package = Package(
                 .process("Golden/"),
             ]),
 
-
         .target(
             name: "SwiftGLTF",
             dependencies: ["SwiftGLTFCore", "MikkTSpace"]),

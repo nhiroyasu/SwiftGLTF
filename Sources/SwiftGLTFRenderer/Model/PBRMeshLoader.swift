@@ -120,12 +120,12 @@ class PBRMeshLoader {
                 submeshes.append(submeshData)
             }
 
-            let hasUV = mdlMesh.value(forKey: MeshUserPropertyKey.hasUV.rawValue) as? Bool ?? false
-            let hasModulationColor = mdlMesh.value(forKey: MeshUserPropertyKey.hasModulationColor.rawValue) as? Bool ?? false
-            var flags = VertexAttributeFlags(hasUV: hasUV, hasModulationColor: hasModulationColor)
-
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
+                vertexUniformsBuffer: try makeVertexUniformsBuffer(
+                    mdlMesh.vertexDescriptor,
+                    device: device
+                ),
                 submeshes: submeshes,
                 transform: transform,
                 modelBuffer: device.makeBuffer(
@@ -136,8 +136,7 @@ class PBRMeshLoader {
                     length: MemoryLayout<float3x3>.size,
                     options: []
                 )!,
-                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
-                attributeFlagsBuffer: device.makeBuffer(bytes: &flags, length: MemoryLayout<VertexAttributeFlags>.size, options: [])!
+                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor)
             )
             pbrMeshes.append(pbrMesh)
         }
@@ -408,6 +407,32 @@ class PBRMeshLoader {
             return try shaderConnection.convertSrgb2Linear(texture: texture)
         } else {
             return texture
+        }
+    }
+
+    // MARK: - Vertex Uniforms Buffer
+
+    private func makeVertexUniformsBuffer(
+        _ vertexDescriptor: MDLVertexDescriptor,
+        device: MTLDevice
+    ) throws -> MTLBuffer {
+        var vertexUniforms = PBRVertexUniforms(
+            hasTangent: vertexDescriptor.validTangentVertex,
+            hasUV: vertexDescriptor.validTexcoordVertex,
+            hasModulationColor: vertexDescriptor.validColorVertex
+        )
+
+        if let buffer = device.makeBuffer(
+            bytes: &vertexUniforms,
+            length: MemoryLayout<PBRVertexUniforms>.size
+        ) {
+            return buffer
+        } else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create vertex uniforms buffer"]
+            )
         }
     }
 }
