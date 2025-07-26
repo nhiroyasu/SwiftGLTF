@@ -136,12 +136,15 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
                                       constant float3x3 &normalMatrix [[buffer(5)]]) {
     PBRVertexOut out;
 
-    float4x4 mvpMatrix = projection * view * model * offsetMatrix;
+    float4x4 modelTransform = model * offsetMatrix;
+    float4x4 mvpTransform = projection * view * modelTransform;
 
-    out.position = mvpMatrix * float4(in.position, 1.0);
-    out.worldPosition = (model * float4(in.position, 1.0)).xyz;
-    out.normal = normalize(normalMatrix * in.normal);
-    out.tangent = normalize(float4(normalMatrix * in.tangent.xyz, in.tangent.w));
+    float3x3 normalTransform = transpose(inverse(_float3x3(modelTransform)));
+
+    out.position = mvpTransform * float4(in.position, 1.0);
+    out.worldPosition = (modelTransform * float4(in.position, 1.0)).xyz;
+    out.normal = normalize(normalTransform * in.normal);
+    out.tangent = normalize(float4(normalTransform * in.tangent.xyz, in.tangent.w));
     out.uv = in.uv;
     out.modulationColor = in.modulationColor;
     return out;
