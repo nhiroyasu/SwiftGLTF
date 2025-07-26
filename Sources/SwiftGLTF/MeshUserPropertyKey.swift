@@ -1,7 +1,7 @@
 import Foundation
 
 /// MDLMesh に保持するカスタムプロパティのキー
-enum MeshUserPropertyKey: String {
+public enum MeshUserPropertyKey: String {
     case hasUV
     case hasModulationColor
 }

@@ -1,5 +1,6 @@
 import MetalKit
 import OSLog
+import SwiftGLTF
 
 public class PBRPipelineStateLoader {
     private let device: MTLDevice
@@ -44,9 +45,9 @@ public class PBRPipelineStateLoader {
     private func decideVertexShader(from vertexDescriptor: MDLVertexDescriptor) throws -> MTLFunction {
         // Validate that required attributes exist
         guard
-            vertexDescriptor.attributes[GLTFVertexAttributeIndex.POSITION] != nil,
-            vertexDescriptor.attributes[GLTFVertexAttributeIndex.NORMAL] != nil,
-            vertexDescriptor.attributes[GLTFVertexAttributeIndex.TANGENT] != nil
+            vertexDescriptor.attributes[GLTFVertexAttributeIndex.POSITION] as? MDLVertexAttribute != nil,
+            vertexDescriptor.attributes[GLTFVertexAttributeIndex.NORMAL] as? MDLVertexAttribute != nil,
+            vertexDescriptor.attributes[GLTFVertexAttributeIndex.TANGENT] as? MDLVertexAttribute != nil
         else {
             throw NSError(
                 domain: "MDLAssetLoader",

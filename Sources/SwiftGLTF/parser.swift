@@ -4,11 +4,11 @@ import SwiftGLTFCore
 import OSLog
 
 public enum GLTFVertexAttributeIndex {
-    static let POSITION = 0
-    static let NORMAL = 1
-    static let TANGENT = 2
-    static let TEXCOORD_0 = 3
-    static let COLOR_0 = 4
+    public static let POSITION = 0
+    public static let NORMAL = 1
+    public static let TANGENT = 2
+    public static let TEXCOORD_0 = 3
+    public static let COLOR_0 = 4
 }
 
 public struct GLTFDecodeOptions: Sendable {
