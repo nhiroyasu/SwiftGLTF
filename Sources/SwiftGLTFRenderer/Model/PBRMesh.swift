@@ -5,7 +5,6 @@ struct PBRMesh {
     let vertexUniformsBuffer: MTLBuffer
     let submeshes: [Submesh]
     let modelBuffer: MTLBuffer
-    let normalMatrixBuffer: MTLBuffer
     let pso: MTLRenderPipelineState
     let dso: MTLDepthStencilState
 

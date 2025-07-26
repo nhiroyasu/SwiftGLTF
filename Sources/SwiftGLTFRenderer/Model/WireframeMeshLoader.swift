@@ -68,7 +68,6 @@ class WireframeMeshLoader {
             )
 
             var model = transform
-            var normalMatrix = float3x3(model).transpose.inverse
 
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
@@ -80,10 +79,6 @@ class WireframeMeshLoader {
                 modelBuffer: device.makeBuffer(
                     bytes: &model,
                     length: MemoryLayout<float4x4>.size
-                )!,
-                normalMatrixBuffer: device.makeBuffer(
-                    bytes: &normalMatrix,
-                    length: MemoryLayout<float3x3>.size
                 )!,
                 pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
                 dso: try depthStencilStateLoader.load(for: .lessThan)
