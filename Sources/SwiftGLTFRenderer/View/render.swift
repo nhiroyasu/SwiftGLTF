@@ -42,6 +42,7 @@ func drawPBR(
     renderEncoder.setVertexBuffer(externalTransform, offset: 0, index: 4)
     renderEncoder.setFragmentBuffer(mesh.vertexUniformsBuffer, offset: 0, index: 0)
     renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer, offset: 0, index: 1)
+    // texcoord indices buffer will be set per submesh at index 2
     renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
     renderEncoder.setFragmentTexture(irradianceCubeMapTexture, index: 1)
     renderEncoder.setFragmentTexture(brdfLUT, index: 2)
@@ -58,6 +59,7 @@ func drawPBR(
         renderEncoder.setFragmentSamplerState(submesh.emissiveSampler, index: 3)
         renderEncoder.setFragmentTexture(submesh.occlusionTexture, index: 7)
         renderEncoder.setFragmentSamplerState(submesh.occlusionSampler, index: 4)
+        renderEncoder.setFragmentBuffer(submesh.texcoordIndicesBuffer, offset: 0, index: 2)
 
         renderEncoder.drawIndexedPrimitives(
             type: submesh.primitiveType,

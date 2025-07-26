@@ -20,6 +20,15 @@ struct PBRSceneUniforms {
 
 struct PBRVertexUniforms {
     let hasTangent: Bool // Indicates if tangents are present
-    let hasUV: Bool // Indicates if texture coordinates are present
+    let hasUV0: Bool // Indicates if TEXCOORD_0 is present
+    let hasUV1: Bool // Indicates if TEXCOORD_1 is present
     let hasModulationColor: Bool // Indicates if vertex colors are present
+}
+
+struct PBRTexcoordIndices {
+    let baseColor: UInt32
+    let normal: UInt32
+    let metallicRoughness: UInt32
+    let emissive: UInt32
+    let occlusion: UInt32
 }

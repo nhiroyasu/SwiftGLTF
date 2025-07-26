@@ -57,9 +57,14 @@ public class PBRPipelineStateLoader {
         default:
             false
         }
-        let typeFloat2Texcoord = switch (vertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0] as? MDLVertexAttribute)?.format {
+        let typeFloat2Texcoord0 = switch (vertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0] as? MDLVertexAttribute)?.format {
         case .float2, .invalid:
-            // invalid format is also acceptable for texcoord because it can be optional
+            true
+        default:
+            false
+        }
+        let typeFloat2Texcoord1 = switch (vertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_1] as? MDLVertexAttribute)?.format {
+        case .float2, .invalid:
             true
         default:
             false
@@ -72,7 +77,7 @@ public class PBRPipelineStateLoader {
             false
         }
 
-        if existFloat3Position && existFloat3Normal && typeFloat4Tangent && typeFloat2Texcoord && typeFloat4Color {
+        if existFloat3Position && existFloat3Normal && typeFloat4Tangent && typeFloat2Texcoord0 && typeFloat4Color {
             return
         } else {
             throw NSError(
@@ -83,7 +88,8 @@ public class PBRPipelineStateLoader {
                 - Position (float3)
                 - Normal (float3)
                 - Tangent (float4, optional)
-                - Texcoord (float2, optional)
+                - Texcoord0 (float2, optional)
+                - Texcoord1 (float2, optional)
                 - Color (float4, optional)
                 
                 ---
@@ -92,7 +98,8 @@ public class PBRPipelineStateLoader {
                 Position: \(existFloat3Position ? "✓" : "✗")
                 Normal: \(existFloat3Normal ? "✓" : "✗")
                 Tangent: \(typeFloat4Tangent ? "✓" : "✗")
-                Texcoord: \(typeFloat2Texcoord ? "✓" : "✗")
+                Texcoord0: \(typeFloat2Texcoord0 ? "✓" : "✗")
+                Texcoord1: \(typeFloat2Texcoord1 ? "✓" : "✗")
                 Color: \(typeFloat4Color ? "✓" : "✗")
                 Please check your MDLVertexDescriptor configuration.
                 """]
@@ -122,11 +129,17 @@ public class PBRPipelineStateLoader {
         mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TANGENT].bufferIndex = 0
         offset += mdlVertexDescriptor.validTangentVertex ? 16 : 0
 
-        // texcoord
+        // texcoord0
         mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0].format = .float2
         mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0].offset = offset
         mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0].bufferIndex = 0
-        offset += mdlVertexDescriptor.validTexcoordVertex ? 8 : 0
+        offset += mdlVertexDescriptor.validTexcoord0Vertex ? 8 : 0
+
+        // texcoord1
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_1].format = .float2
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_1].offset = offset
+        mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_1].bufferIndex = 0
+        offset += mdlVertexDescriptor.validTexcoord1Vertex ? 8 : 0
 
         // color
         mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.COLOR_0].format = .float4
@@ -150,8 +163,13 @@ extension MDLVertexDescriptor {
         return tangentAttribute?.format == .float4
     }
 
-    var validTexcoordVertex: Bool {
+    var validTexcoord0Vertex: Bool {
         let texcoordAttribute = attributes[GLTFVertexAttributeIndex.TEXCOORD_0] as? MDLVertexAttribute
+        return texcoordAttribute?.format == .float2
+    }
+
+    var validTexcoord1Vertex: Bool {
+        let texcoordAttribute = attributes[GLTFVertexAttributeIndex.TEXCOORD_1] as? MDLVertexAttribute
         return texcoordAttribute?.format == .float2
     }
 
