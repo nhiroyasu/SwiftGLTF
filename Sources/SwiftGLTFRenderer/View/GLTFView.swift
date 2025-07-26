@@ -13,6 +13,7 @@ public class GLTFView: MTKView {
     private let pbrSceneUniformsBuffer: FrameInFlightBuffer
     private let viewBuffer: FrameInFlightBuffer
     private let projectionBuffer: FrameInFlightBuffer
+    private let offsetBuffer: FrameInFlightBuffer
     private let skyboxVPMatrixBuffer: FrameInFlightBuffer
 
     private var rotationX: Float32 = -.pi / 2
@@ -58,6 +59,12 @@ public class GLTFView: MTKView {
             device.makeBuffer(
                 length: MemoryLayout<float4x4>.size,
                 options: []
+            )!
+        }
+        self.offsetBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+            device.makeBuffer(
+                length: MemoryLayout<float4x4>.size,
+                options: .storageModeShared
             )!
         }
         self.skyboxVPMatrixBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
@@ -130,6 +137,7 @@ public class GLTFView: MTKView {
     private func updateSceneBuffer(
         toViewBuffer: MTLBuffer,
         toProjectionBuffer: MTLBuffer,
+        toOffsetBuffer: MTLBuffer,
         toPBRSceneUniformsBuffer: MTLBuffer,
         eye: SIMD3<Float>,
         lightPosition: SIMD3<Float>,
@@ -155,6 +163,12 @@ public class GLTFView: MTKView {
         )
         toProjectionBuffer.contents().copyMemory(
             from: &projection,
+            byteCount: MemoryLayout<float4x4>.size
+        )
+
+        var offset = translationMatrix(targetOffset.x, targetOffset.y, targetOffset.z)
+        toOffsetBuffer.contents().copyMemory(
+            from: &offset,
             byteCount: MemoryLayout<float4x4>.size
         )
 
@@ -194,6 +208,7 @@ public class GLTFView: MTKView {
         updateSceneBuffer(
             toViewBuffer: viewBuffer.buffer(currentBuffer),
             toProjectionBuffer: projectionBuffer.buffer(currentBuffer),
+            toOffsetBuffer: offsetBuffer.buffer(currentBuffer),
             toPBRSceneUniformsBuffer: pbrSceneUniformsBuffer.buffer(currentBuffer),
             eye: eye,
             lightPosition: lightPosition,
@@ -207,9 +222,9 @@ public class GLTFView: MTKView {
             using: renderEncoder,
             view: viewBuffer.buffer(currentBuffer),
             projection: projectionBuffer.buffer(currentBuffer),
+            offset: offsetBuffer.buffer(currentBuffer),
             pbrScene: pbrSceneUniformsBuffer.buffer(currentBuffer),
-            skyboxVP: skyboxVPMatrixBuffer.buffer(currentBuffer),
-            offset: targetOffset
+            skyboxVP: skyboxVPMatrixBuffer.buffer(currentBuffer)
         )
 
         // Finalize rendering

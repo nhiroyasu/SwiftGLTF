@@ -67,6 +67,9 @@ class WireframeMeshLoader {
                 hasTangent: false, hasUV: false, hasModulationColor: false
             )
 
+            var model = transform
+            var normalMatrix = float3x3(model).transpose.inverse
+
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
                 vertexUniformsBuffer: device.makeBuffer(
@@ -74,14 +77,13 @@ class WireframeMeshLoader {
                     length: MemoryLayout<PBRVertexUniforms>.size,
                 )!,
                 submeshes: submeshes,
-                transform: transform,
                 modelBuffer: device.makeBuffer(
-                    length: MemoryLayout<float4x4>.size,
-                    options: []
+                    bytes: &model,
+                    length: MemoryLayout<float4x4>.size
                 )!,
                 normalMatrixBuffer: device.makeBuffer(
-                    length: MemoryLayout<float3x3>.size,
-                    options: []
+                    bytes: &normalMatrix,
+                    length: MemoryLayout<float3x3>.size
                 )!,
                 pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
                 dso: try depthStencilStateLoader.load(for: .lessThan)

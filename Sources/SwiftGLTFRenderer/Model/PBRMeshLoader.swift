@@ -7,6 +7,7 @@ class PBRMeshLoader {
     let pipelineStateLoader: PBRPipelineStateLoader
     let depthStencilStateLoader: DepthStencilStateLoader
 
+    // TODO: Consider using a more sophisticated caching mechanism
     private var texturesCache: [String: MTLTexture] = [:]
 
     init(
@@ -20,8 +21,9 @@ class PBRMeshLoader {
     }
 
     func loadMeshes(from asset: MDLAsset, using device: MTLDevice) throws -> [PBRMesh] {
-        var pbrMeshes: [PBRMesh] = []
+        texturesCache = [:]
 
+        var pbrMeshes: [PBRMesh] = []
         for i in 0..<asset.count {
             let rootObj = asset.object(at: i)
             let meshes = try loadRecursiveMeshes(
@@ -123,6 +125,9 @@ class PBRMeshLoader {
                 submeshes.append(submeshData)
             }
 
+            var model = transform
+            var normalMatrix = float3x3(model).transpose.inverse
+
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
                 vertexUniformsBuffer: try makeVertexUniformsBuffer(
@@ -130,14 +135,13 @@ class PBRMeshLoader {
                     device: device
                 ),
                 submeshes: submeshes,
-                transform: transform,
                 modelBuffer: device.makeBuffer(
-                    length: MemoryLayout<float4x4>.size,
-                    options: []
+                    bytes: &model,
+                    length: MemoryLayout<float4x4>.size
                 )!,
                 normalMatrixBuffer: device.makeBuffer(
-                    length: MemoryLayout<float3x3>.size,
-                    options: []
+                    bytes: &normalMatrix,
+                    length: MemoryLayout<float3x3>.size
                 )!,
                 pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
                 dso: try depthStencilStateLoader.load(for: .lessThan)

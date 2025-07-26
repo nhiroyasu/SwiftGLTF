@@ -90,18 +90,17 @@ final class WireframeRenderTests {
         let cmdBuf = commandQueue.makeCommandBuffer()!
         let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc)!
 
+        var offset: simd_float4x4 = simd_float4x4(1)
+        let offsetBuf = device.makeBuffer(bytes: &offset, length: MemoryLayout<simd_float4x4>.size)!
+
         // Draw the mesh
         for mesh in meshes {
-            var model = mesh.transform
-            mesh.modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
-            var normalMatrix = float3x3(model).transpose.inverse
-            mesh.normalMatrixBuffer.contents().copyMemory(from: &normalMatrix, byteCount: MemoryLayout<float3x3>.size)
-
             drawWireframe(
                 renderEncoder: encoder,
                 mesh: mesh,
                 viewBuffer: vMatrixBuf,
-                projectionBuffer: pMatrixBuf
+                projectionBuffer: pMatrixBuf,
+                offsetBuffer: offsetBuf
             )
         }
 

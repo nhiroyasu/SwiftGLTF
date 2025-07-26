@@ -26,6 +26,7 @@ func drawPBR(
     mesh: PBRMesh,
     viewBuffer: MTLBuffer,
     projectionBuffer: MTLBuffer,
+    offsetBuffer: MTLBuffer,
     pbrSceneUniformsBuffer: MTLBuffer,
     specularCubeMapTexture: MTLTexture,
     irradianceCubeMapTexture: MTLTexture,
@@ -38,7 +39,8 @@ func drawPBR(
     renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
     renderEncoder.setVertexBuffer(viewBuffer, offset: 0, index: 2)
     renderEncoder.setVertexBuffer(projectionBuffer, offset: 0, index: 3)
-    renderEncoder.setVertexBuffer(mesh.normalMatrixBuffer, offset: 0, index: 4)
+    renderEncoder.setVertexBuffer(offsetBuffer, offset: 0, index: 4)
+    renderEncoder.setVertexBuffer(mesh.normalMatrixBuffer, offset: 0, index: 5)
     renderEncoder.setFragmentBuffer(mesh.vertexUniformsBuffer, offset: 0, index: 0)
     renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer, offset: 0, index: 1)
     renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
@@ -72,7 +74,8 @@ func drawWireframe(
     renderEncoder: MTLRenderCommandEncoder,
     mesh: PBRMesh,
     viewBuffer: MTLBuffer,
-    projectionBuffer: MTLBuffer
+    projectionBuffer: MTLBuffer,
+    offsetBuffer: MTLBuffer
 ) {
     renderEncoder.setRenderPipelineState(mesh.pso)
     renderEncoder.setDepthStencilState(mesh.dso)
@@ -81,6 +84,7 @@ func drawWireframe(
     renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
     renderEncoder.setVertexBuffer(viewBuffer, offset: 0, index: 2)
     renderEncoder.setVertexBuffer(projectionBuffer, offset: 0, index: 3)
+    renderEncoder.setVertexBuffer(offsetBuffer, offset: 0, index: 4)
     renderEncoder.setTriangleFillMode(.lines)
 
     for submesh in mesh.submeshes {
