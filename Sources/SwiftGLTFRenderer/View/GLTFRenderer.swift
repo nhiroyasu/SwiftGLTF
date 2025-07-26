@@ -116,7 +116,7 @@ public class GLTFRenderer {
         using renderEncoder: MTLRenderCommandEncoder,
         view: MTLBuffer,
         projection: MTLBuffer,
-        offset: MTLBuffer,
+        externalTransform: MTLBuffer,
         pbrScene: MTLBuffer,
         skyboxVP: MTLBuffer
     ) {
@@ -134,9 +134,9 @@ public class GLTFRenderer {
                 drawPBR(
                     renderEncoder: renderEncoder,
                     mesh: mesh,
-                    viewBuffer: view,
-                    projectionBuffer: projection,
-                    offsetBuffer: offset,
+                    view: view,
+                    projection: projection,
+                    externalTransform: externalTransform,
                     pbrSceneUniformsBuffer: pbrScene,
                     specularCubeMapTexture: specularCubeMapTexture,
                     irradianceCubeMapTexture: irradianceCubeMapTexture,
@@ -146,9 +146,9 @@ public class GLTFRenderer {
                 drawWireframe(
                     renderEncoder: renderEncoder,
                     mesh: mesh,
-                    viewBuffer: view,
-                    projectionBuffer: projection,
-                    offsetBuffer: offset
+                    view: view,
+                    projection: projection,
+                    externalTransform: externalTransform
                 )
             }
         }

@@ -24,9 +24,9 @@ func drawSkybox(
 func drawPBR(
     renderEncoder: MTLRenderCommandEncoder,
     mesh: PBRMesh,
-    viewBuffer: MTLBuffer,
-    projectionBuffer: MTLBuffer,
-    offsetBuffer: MTLBuffer,
+    view: MTLBuffer,
+    projection: MTLBuffer,
+    externalTransform: MTLBuffer,
     pbrSceneUniformsBuffer: MTLBuffer,
     specularCubeMapTexture: MTLTexture,
     irradianceCubeMapTexture: MTLTexture,
@@ -37,9 +37,9 @@ func drawPBR(
 
     renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
     renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
-    renderEncoder.setVertexBuffer(viewBuffer, offset: 0, index: 2)
-    renderEncoder.setVertexBuffer(projectionBuffer, offset: 0, index: 3)
-    renderEncoder.setVertexBuffer(offsetBuffer, offset: 0, index: 4)
+    renderEncoder.setVertexBuffer(view, offset: 0, index: 2)
+    renderEncoder.setVertexBuffer(projection, offset: 0, index: 3)
+    renderEncoder.setVertexBuffer(externalTransform, offset: 0, index: 4)
     renderEncoder.setFragmentBuffer(mesh.vertexUniformsBuffer, offset: 0, index: 0)
     renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer, offset: 0, index: 1)
     renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
@@ -72,18 +72,18 @@ func drawPBR(
 func drawWireframe(
     renderEncoder: MTLRenderCommandEncoder,
     mesh: PBRMesh,
-    viewBuffer: MTLBuffer,
-    projectionBuffer: MTLBuffer,
-    offsetBuffer: MTLBuffer
+    view: MTLBuffer,
+    projection: MTLBuffer,
+    externalTransform: MTLBuffer
 ) {
     renderEncoder.setRenderPipelineState(mesh.pso)
     renderEncoder.setDepthStencilState(mesh.dso)
 
     renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
     renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
-    renderEncoder.setVertexBuffer(viewBuffer, offset: 0, index: 2)
-    renderEncoder.setVertexBuffer(projectionBuffer, offset: 0, index: 3)
-    renderEncoder.setVertexBuffer(offsetBuffer, offset: 0, index: 4)
+    renderEncoder.setVertexBuffer(view, offset: 0, index: 2)
+    renderEncoder.setVertexBuffer(projection, offset: 0, index: 3)
+    renderEncoder.setVertexBuffer(externalTransform, offset: 0, index: 4)
     renderEncoder.setTriangleFillMode(.lines)
 
     for submesh in mesh.submeshes {

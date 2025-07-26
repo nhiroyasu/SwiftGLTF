@@ -90,17 +90,17 @@ final class WireframeRenderTests {
         let cmdBuf = commandQueue.makeCommandBuffer()!
         let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc)!
 
-        var offset: simd_float4x4 = simd_float4x4(1)
-        let offsetBuf = device.makeBuffer(bytes: &offset, length: MemoryLayout<simd_float4x4>.size)!
+        var externalTransform: simd_float4x4 = simd_float4x4(1)
+        let externalTransformBuf = device.makeBuffer(bytes: &externalTransform, length: MemoryLayout<simd_float4x4>.size)!
 
         // Draw the mesh
         for mesh in meshes {
             drawWireframe(
                 renderEncoder: encoder,
                 mesh: mesh,
-                viewBuffer: vMatrixBuf,
-                projectionBuffer: pMatrixBuf,
-                offsetBuffer: offsetBuf
+                view: vMatrixBuf,
+                projection: pMatrixBuf,
+                externalTransform: externalTransformBuf
             )
         }
 

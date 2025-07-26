@@ -222,7 +222,7 @@ public class GLTFView: MTKView {
             using: renderEncoder,
             view: viewBuffer.buffer(currentBuffer),
             projection: projectionBuffer.buffer(currentBuffer),
-            offset: offsetBuffer.buffer(currentBuffer),
+            externalTransform: offsetBuffer.buffer(currentBuffer),
             pbrScene: pbrSceneUniformsBuffer.buffer(currentBuffer),
             skyboxVP: skyboxVPMatrixBuffer.buffer(currentBuffer)
         )
