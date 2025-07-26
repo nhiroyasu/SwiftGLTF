@@ -661,7 +661,13 @@ private func makeVertexData(
             let stride = modulationColorVertex.componentSize
             let base = i * stride
             let slice = modulationColorVertex.data[base..<base+stride]
-            vertexData.append(slice)
+            if modulationColorVertex.componentFormat == .float3 {
+                let arr = slice.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+                var color = SIMD4<Float>(arr[0], arr[1], arr[2], 1)
+                vertexData.append(Data(bytes: &color, count: MemoryLayout<SIMD4<Float>>.size))
+            } else {
+                vertexData.append(slice)
+            }
         } else {
             var one = SIMD4<Float>(1,1,1,1)
             vertexData.append(Data(bytes: &one, count: MemoryLayout<SIMD4<Float>>.size))
