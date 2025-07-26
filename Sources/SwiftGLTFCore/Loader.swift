@@ -303,8 +303,7 @@ public class GLTFBinaryLoader {
         let baseOffset = (accessor.byteOffset ?? 0) + (bv.byteOffset ?? 0)
         let accessorStride = accessor.type.components * accessor.componentType.size
         let bufferStride = bv.byteStride ?? accessorStride
-        let totalLength = accessor.count * bufferStride
-        let endOffset = baseOffset + totalLength
+        let endOffset = (bv.byteOffset ?? 0) + bv.byteLength
         guard endOffset <= bufferData.count else {
             throw NSError(domain: "GLTFContainer", code: -1,
                           userInfo: [NSLocalizedDescriptionKey: "Buffer overrun in accessor data"])
