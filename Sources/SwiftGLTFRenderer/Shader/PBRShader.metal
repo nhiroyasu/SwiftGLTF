@@ -104,8 +104,9 @@ struct VertexIn {
     float3 position [[attribute(0)]];
     float3 normal [[attribute(1)]];
     float4 tangent [[attribute(2)]];
-    float2 uv [[attribute(3)]];
-    float4 modulationColor [[attribute(4)]];
+    float2 uv0 [[attribute(3)]];
+    float2 uv1 [[attribute(4)]];
+    float4 modulationColor [[attribute(5)]];
 };
 
 struct PBRVertexOut {
@@ -113,7 +114,8 @@ struct PBRVertexOut {
     float3 worldPosition;
     float3 normal;
     float4 tangent;
-    float2 uv;
+    float2 uv0;
+    float2 uv1;
     float4 modulationColor;
 };
 
@@ -135,7 +137,8 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
     out.worldPosition = (modelTransform * float4(in.position, 1.0)).xyz;
     out.normal = normalize(normalTransform * in.normal);
     out.tangent = normalize(float4(normalTransform * in.tangent.xyz, in.tangent.w));
-    out.uv = in.uv;
+    out.uv0 = in.uv0;
+    out.uv1 = in.uv1;
     out.modulationColor = in.modulationColor;
     return out;
 }
@@ -143,6 +146,7 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
 fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                     constant PBRVertexUniforms &vUni [[buffer(0)]],
                                     constant PBRSceneUniforms &sUni [[buffer(1)]],
+                                    constant PBRTexcoordIndices &tIdx [[buffer(2)]],
                                     texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
                                     texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
                                     texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
@@ -156,18 +160,24 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                     sampler emissiveSampler [[ sampler(3) ]],
                                     texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
                                     sampler occlusionSampler [[ sampler(4) ]]) {
-    float2 uv = vUni.hasUV ? in.uv : float2(0.0, 0.0);
+    float2 uv0 = vUni.hasUV0 ? in.uv0 : float2(0.0, 0.0);
+    float2 uv1 = vUni.hasUV1 ? in.uv1 : float2(0.0, 0.0);
+    float2 uvBase = tIdx.baseColor == 1 ? uv1 : uv0;
+    float2 uvNormal = tIdx.normal == 1 ? uv1 : uv0;
+    float2 uvMR = tIdx.metallicRoughness == 1 ? uv1 : uv0;
+    float2 uvEmissive = tIdx.emissive == 1 ? uv1 : uv0;
+    float2 uvOcclusion = tIdx.occlusion == 1 ? uv1 : uv0;
     float4 modulationColor = vUni.hasModulationColor ? in.modulationColor : float4(1.0, 1.0, 1.0, 1.0);
 
-    float3 albedo = baseColorTexture.sample(baseColorSampler, uv).rgb * modulationColor.rgb;
-    float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).b;
-    float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).g;
-    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, uv).r;
+    float3 albedo = baseColorTexture.sample(baseColorSampler, uvBase).rgb * modulationColor.rgb;
+    float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, uvMR).b;
+    float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, uvMR).g;
+    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, uvOcclusion).r;
 
     float3 N = normalize(in.normal);
     float3x3 TBN = vUni.hasTangent ? make_tbn(N, in.tangent.xyz, in.tangent.w) : make_tbn(N);
 
-    float3 normalTexValue = normalTexture.sample(normalSampler, uv).rgb * 2.0 - 1.0;
+    float3 normalTexValue = normalTexture.sample(normalSampler, uvNormal).rgb * 2.0 - 1.0;
     float3 normal = normalize(TBN * normalTexValue);
 
     float3 worldPosition = in.worldPosition;
@@ -196,7 +206,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                         brdfLUT);
 
     // Emissive lighting
-    float3 emissive = emissiveTexture.sample(emissiveSampler, uv).rgb;
+    float3 emissive = emissiveTexture.sample(emissiveSampler, uvEmissive).rgb;
 
     // Final color
     float3 color = directLighting + indirectLighting + emissive;
@@ -210,7 +220,7 @@ fragment float4 normal_display_shader(PBRVertexOut in [[stage_in]],
                                       constant PBRVertexUniforms &vUni [[buffer(0)]],
                                       texture2d<float, access::sample> normalTexture [[ texture(4) ]],
                                       sampler normalSampler [[ sampler(1) ]]) {
-    float2 uv = vUni.hasUV ? in.uv : float2(0.0, 0.0);
+    float2 uv = vUni.hasUV0 ? in.uv0 : float2(0.0, 0.0);
 
     float3 N = normalize(in.normal);
     float3x3 TBN = vUni.hasTangent ? make_tbn(N, in.tangent.xyz, in.tangent.w) : make_tbn(N);

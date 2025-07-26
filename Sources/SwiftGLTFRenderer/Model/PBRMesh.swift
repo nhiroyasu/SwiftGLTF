@@ -23,5 +23,6 @@ struct PBRMesh {
         let emissiveSampler: MTLSamplerState?
         let occlusionTexture: MTLTexture?
         let occlusionSampler: MTLSamplerState?
+        let texcoordIndicesBuffer: MTLBuffer
     }
 }

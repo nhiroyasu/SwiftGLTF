@@ -106,6 +106,8 @@ class PBRMeshLoader {
                 // Occlusion texture and sampler
                 let (occlusionTexture, occlusionSamplerState) = try makeOcclusionTextureAndSampler(device: device, material: mdlSubmesh.material)
 
+                let texcoordIndicesBuffer = try makeTexcoordIndicesBuffer(material: mdlSubmesh.material, device: device)
+
                 let submeshData = PBRMesh.Submesh(
                     primitiveType: mtkSubmesh.primitiveType,
                     indexCount: mtkSubmesh.indexCount,
@@ -120,7 +122,8 @@ class PBRMeshLoader {
                     emissiveTexture: emissiveTexture,
                     emissiveSampler: emissiveSamplerState,
                     occlusionTexture: occlusionTexture,
-                    occlusionSampler: occlusionSamplerState
+                    occlusionSampler: occlusionSamplerState,
+                    texcoordIndicesBuffer: texcoordIndicesBuffer
                 )
                 submeshes.append(submeshData)
             }
@@ -421,7 +424,8 @@ class PBRMeshLoader {
     ) throws -> MTLBuffer {
         var vertexUniforms = PBRVertexUniforms(
             hasTangent: vertexDescriptor.validTangentVertex,
-            hasUV: vertexDescriptor.validTexcoordVertex,
+            hasUV0: vertexDescriptor.validTexcoord0Vertex,
+            hasUV1: vertexDescriptor.validTexcoord1Vertex,
             hasModulationColor: vertexDescriptor.validColorVertex
         )
 
@@ -437,6 +441,23 @@ class PBRMeshLoader {
                 userInfo: [NSLocalizedDescriptionKey: "Failed to create vertex uniforms buffer"]
             )
         }
+    }
+
+    private func makeTexcoordIndicesBuffer(
+        material: MDLMaterial?,
+        device: MTLDevice
+    ) throws -> MTLBuffer {
+        var indices = PBRTexcoordIndices(
+            baseColor: UInt32(material?.propertyNamed(.baseColorTexcoord)?.floatValue ?? 0),
+            normal: UInt32(material?.propertyNamed(.normalTexcoord)?.floatValue ?? 0),
+            metallicRoughness: UInt32(material?.propertyNamed(.metallicRoughnessTexcoord)?.floatValue ?? 0),
+            emissive: UInt32(material?.propertyNamed(.emissiveTexcoord)?.floatValue ?? 0),
+            occlusion: UInt32(material?.propertyNamed(.occlusionTexcoord)?.floatValue ?? 0)
+        )
+        guard let buffer = device.makeBuffer(bytes: &indices, length: MemoryLayout<PBRTexcoordIndices>.size) else {
+            throw NSError(domain: "MDLAssetLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create texcoord indices buffer"])
+        }
+        return buffer
     }
 }
 

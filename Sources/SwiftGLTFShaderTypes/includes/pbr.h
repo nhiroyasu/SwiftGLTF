@@ -11,8 +11,17 @@ typedef struct {
 
 typedef struct {
     bool hasTangent;
-    bool hasUV;
+    bool hasUV0;
+    bool hasUV1;
     bool hasModulationColor;
 } PBRVertexUniforms;
+
+typedef struct {
+    uint baseColor;
+    uint normal;
+    uint metallicRoughness;
+    uint emissive;
+    uint occlusion;
+} PBRTexcoordIndices;
 
 #endif /* PBR_h */
