@@ -59,15 +59,14 @@ final class SkyboxRenderTests {
         let dso = device.makeDepthStencilState(descriptor: dsd)!
 
         // Create vertex and index buffers for a cube
-        let skyboxCube = Cube(size: 1)
         let vbuf = device.makeBuffer(
-            bytes: skyboxCube.vertices,
-            length: MemoryLayout<Float>.size * skyboxCube.vertices.count,
+            bytes: skyboxVertices,
+            length: MemoryLayout<Float>.size * skyboxVertices.count,
             options: .storageModeShared
         )!
         let ibuf = device.makeBuffer(
-            bytes: skyboxCube.indices,
-            length: MemoryLayout<UInt16>.size * skyboxCube.indices.count,
+            bytes: skyboxIndices,
+            length: MemoryLayout<UInt16>.size * skyboxIndices.count,
             options: .storageModeShared
         )!
         let skyboxTarget = SIMD3<Float>(0, 0, 1)

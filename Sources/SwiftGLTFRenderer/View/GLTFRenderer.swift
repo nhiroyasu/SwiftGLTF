@@ -8,9 +8,7 @@ public class GLTFRenderer {
     private var type: RenderingType = .pbr
 
     private let pbrMeshLoader: PBRMeshLoader
-    private let pbrPipelineStateLoader: PBRPipelineStateLoader
     private let wireframeMeshLoader: WireframeMeshLoader
-    private let wireframePipelineStateLoader: WireframePipelineStateLoader
     private let depthStencilStateLoader: DepthStencilStateLoader
     private let shaderConnection: ShaderConnection
 
@@ -60,7 +58,7 @@ public class GLTFRenderer {
             colorPixelFormat: colorPixelFormat,
             depthPixelFormat: depthPixelFormat
         )
-        self.pbrPipelineStateLoader = PBRPipelineStateLoader(
+        let pbrPipelineStateLoader = PBRPipelineStateLoader(
             device: device,
             library: library,
             config: pipelineStateConfig
@@ -70,7 +68,7 @@ public class GLTFRenderer {
             pipelineStateLoader: pbrPipelineStateLoader,
             depthStencilStateLoader: depthStencilStateLoader,
         )
-        self.wireframePipelineStateLoader = WireframePipelineStateLoader(
+        let wireframePipelineStateLoader = WireframePipelineStateLoader(
             device: device,
             library: library,
             config: pipelineStateConfig
@@ -80,42 +78,18 @@ public class GLTFRenderer {
             depthStencilStateLoader: depthStencilStateLoader,
         )
 
-        // Create skybox buffers and pipeline state
-        let skyboxPsoDescriptor = MTLRenderPipelineDescriptor()
-        skyboxPsoDescriptor.label = "Skybox Pipeline"
-        skyboxPsoDescriptor.vertexFunction = library.makeFunction(name: "skybox_vertex_shader")
-        skyboxPsoDescriptor.fragmentFunction = library.makeFunction(name: "skybox_fragment_shader")
-        skyboxPsoDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
-        skyboxPsoDescriptor.depthAttachmentPixelFormat = depthPixelFormat
-        skyboxPsoDescriptor.rasterSampleCount = sampleCount
-        let skyboxPSO = try await device.makeRenderPipelineState(descriptor: skyboxPsoDescriptor)
-
-        let skyboxDSODescriptor = MTLDepthStencilDescriptor()
-        skyboxDSODescriptor.depthCompareFunction = .always
-        skyboxDSODescriptor.isDepthWriteEnabled = false
-        skyboxDSODescriptor.label = "Skybox depth stencil"
-        let skyboxDSO = device.makeDepthStencilState(descriptor: skyboxDSODescriptor)!
-
-        let skyboxCube = Cube(size: 1)
-        let skyboxVertexBuffer = device.makeBuffer(
-            bytes: skyboxCube.vertices,
-            length: MemoryLayout<Float>.size * skyboxCube.vertices.count,
-            options: .storageModeShared
-        )!
-        let skyboxIndexBuffer = device.makeBuffer(
-            bytes: skyboxCube.indices,
-            length: MemoryLayout<UInt16>.size * skyboxCube.indices.count,
-            options: .storageModeShared
-        )!
-        let skyboxIndexCount = skyboxIndexBuffer.length / MemoryLayout<UInt16>.size
-        self.skyboxMesh = SkyboxMesh(
-            vertexBuffer: skyboxVertexBuffer,
-            indexBuffer: skyboxIndexBuffer,
-            indexCount: skyboxIndexCount,
-            indexType: .uint16,
-            pso: skyboxPSO,
-            dso: skyboxDSO
+        // Create skybox mesh via loader
+        let skyboxConfig = SkyboxPipelineConfig(
+            sampleCount: sampleCount,
+            colorPixelFormat: colorPixelFormat,
+            depthPixelFormat: depthPixelFormat
         )
+        let skyboxLoader = try await SkyboxMeshLoader(
+            device: device,
+            library: library,
+            config: skyboxConfig
+        )
+        self.skyboxMesh = skyboxLoader.loadMesh()
 
         // Load environment textures
         guard let envMapUrl = Bundle.main.url(forResource: "env_map", withExtension: "exr") else {
