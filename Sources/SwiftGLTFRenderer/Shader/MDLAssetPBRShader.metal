@@ -221,20 +221,8 @@ fragment float4 pbr_shader(PBRVertexOut in [[stage_in]],
 
 fragment float4 normal_display_shader(PBRVertexOut in [[stage_in]],
                                       constant PBRVertexUniforms &vUni [[buffer(0)]],
-                                      constant PBRSceneUniforms &sUni [[buffer(1)]],
-                                      texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                                      texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                                      texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                                      texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                                      sampler baseColorSampler [[ sampler(0) ]],
                                       texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                      sampler normalSampler [[ sampler(1) ]],
-                                      texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                      sampler metallicRoughnessSampler [[ sampler(2) ]],
-                                      texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                      sampler emissiveSampler [[ sampler(3) ]],
-                                      texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                                      sampler occlusionSampler [[ sampler(4) ]]) {
+                                      sampler normalSampler [[ sampler(1) ]]) {
     float2 uv = vUni.hasUV ? in.uv : float2(0.0, 0.0);
 
     float3 N = normalize(in.normal);
@@ -248,32 +236,13 @@ fragment float4 normal_display_shader(PBRVertexOut in [[stage_in]],
     return float4(normal, 1.0); // Display normal as RGB
 }
 
-fragment float4 ndotv_display_shader(PBRVertexOut in [[stage_in]],
-                                     constant PBRVertexUniforms &vUni [[buffer(0)]],
-                                     constant PBRSceneUniforms &sUni [[buffer(1)]],
-                                     texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                                     texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                                     texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                                     texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                                     sampler baseColorSampler [[ sampler(0) ]],
-                                     texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                     sampler normalSampler [[ sampler(1) ]],
-                                     texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                     sampler metallicRoughnessSampler [[ sampler(2) ]],
-                                     texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                     sampler emissiveSampler [[ sampler(3) ]],
-                                     texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                                     sampler occlusionSampler [[ sampler(4) ]]) {
-    float2 uv = vUni.hasUV ? in.uv : float2(0.0, 0.0);
+fragment float4 tangent_display_shader(PBRVertexOut in [[stage_in]],
+                                      constant PBRVertexUniforms &vUni [[buffer(0)]]) {
 
-    float3 N = normalize(in.normal);
-    float3x3 TBN = vUni.hasTangent ? make_tbn(N, in.tangent.xyz, in.tangent.w) : make_tbn(N);
+    float3 tangent = vUni.hasTangent ? in.tangent.xyz : float3(0.0, 0.0, 0.0);
+    tangent = normalize(tangent);
+    // -1 ~ 1 → 0 ~ 1
+    tangent = (tangent + 1.0) * 0.5;
 
-    float3 normalTexValue = normalTexture.sample(normalSampler, uv).rgb * 2.0 - 1.0;
-    float3 normal = normalize(TBN * normalTexValue);
-
-    float3 V = normalize(sUni.viewPosition - in.worldPosition);
-    float ndotv = max(dot(normal, V), 0.0);
-
-    return float4(ndotv, ndotv, ndotv, 1.0); // Grayscale output
+    return float4(tangent, 1.0); // Display tangent as RGB
 }
