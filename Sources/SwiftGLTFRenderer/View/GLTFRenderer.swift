@@ -18,10 +18,7 @@ public class GLTFRenderer {
     private let irradianceCubeMapTexture: MTLTexture
     private let brdfLUT: MTLTexture
 
-    private let skyboxCubeVertexBuffer: MTLBuffer
-    private let skyboxCubeIndexBuffer: MTLBuffer
-    private let skyboxPSO: MTLRenderPipelineState
-    private let skyboxDSO: MTLDepthStencilState
+    private let skyboxMesh: SkyboxMesh
 
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
@@ -91,25 +88,34 @@ public class GLTFRenderer {
         skyboxPsoDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
         skyboxPsoDescriptor.depthAttachmentPixelFormat = depthPixelFormat
         skyboxPsoDescriptor.rasterSampleCount = sampleCount
-        self.skyboxPSO = try await device.makeRenderPipelineState(descriptor: skyboxPsoDescriptor)
+        let skyboxPSO = try await device.makeRenderPipelineState(descriptor: skyboxPsoDescriptor)
 
         let skyboxDSODescriptor = MTLDepthStencilDescriptor()
         skyboxDSODescriptor.depthCompareFunction = .always
         skyboxDSODescriptor.isDepthWriteEnabled = false
         skyboxDSODescriptor.label = "Skybox depth stencil"
-        self.skyboxDSO = device.makeDepthStencilState(descriptor: skyboxDSODescriptor)!
+        let skyboxDSO = device.makeDepthStencilState(descriptor: skyboxDSODescriptor)!
 
         let skyboxCube = Cube(size: 1)
-        self.skyboxCubeVertexBuffer = device.makeBuffer(
+        let skyboxVertexBuffer = device.makeBuffer(
             bytes: skyboxCube.vertices,
             length: MemoryLayout<Float>.size * skyboxCube.vertices.count,
             options: .storageModeShared
         )!
-        self.skyboxCubeIndexBuffer = device.makeBuffer(
+        let skyboxIndexBuffer = device.makeBuffer(
             bytes: skyboxCube.indices,
             length: MemoryLayout<UInt16>.size * skyboxCube.indices.count,
             options: .storageModeShared
         )!
+        let skyboxIndexCount = skyboxIndexBuffer.length / MemoryLayout<UInt16>.size
+        self.skyboxMesh = SkyboxMesh(
+            vertexBuffer: skyboxVertexBuffer,
+            indexBuffer: skyboxIndexBuffer,
+            indexCount: skyboxIndexCount,
+            indexType: .uint16,
+            pso: skyboxPSO,
+            dso: skyboxDSO
+        )
 
         // Load environment textures
         guard let envMapUrl = Bundle.main.url(forResource: "env_map", withExtension: "exr") else {
@@ -143,12 +149,7 @@ public class GLTFRenderer {
         // Draw Skybox
         drawSkybox(
             renderEncoder: renderEncoder,
-            pso: skyboxPSO,
-            dso: skyboxDSO,
-            vertexBuffer: skyboxCubeVertexBuffer,
-            indexBuffer: skyboxCubeIndexBuffer,
-            indexCount: skyboxCubeIndexBuffer.length / MemoryLayout<UInt16>.size,
-            indexType: .uint16,
+            mesh: skyboxMesh,
             vpMatrixBuffer: skyboxVP,
             specularCubeMapTexture: specularCubeMapTexture
         )

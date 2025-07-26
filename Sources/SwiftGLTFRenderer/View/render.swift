@@ -2,26 +2,21 @@ import MetalKit
 
 func drawSkybox(
     renderEncoder: MTLRenderCommandEncoder,
-    pso: MTLRenderPipelineState,
-    dso: MTLDepthStencilState,
-    vertexBuffer: MTLBuffer,
-    indexBuffer: MTLBuffer,
-    indexCount: Int,
-    indexType: MTLIndexType,
+    mesh: SkyboxMesh,
     vpMatrixBuffer: MTLBuffer,
     specularCubeMapTexture: MTLTexture
 ) {
-    renderEncoder.setRenderPipelineState(pso)
-    renderEncoder.setDepthStencilState(dso)
-    renderEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
+    renderEncoder.setRenderPipelineState(mesh.pso)
+    renderEncoder.setDepthStencilState(mesh.dso)
+    renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
     renderEncoder.setVertexBuffer(vpMatrixBuffer, offset: 0, index: 1)
     renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
 
     renderEncoder.drawIndexedPrimitives(
         type: .triangle,
-        indexCount: indexCount,
-        indexType: indexType,
-        indexBuffer: indexBuffer,
+        indexCount: mesh.indexCount,
+        indexType: mesh.indexType,
+        indexBuffer: mesh.indexBuffer,
         indexBufferOffset: 0
     )
 }

@@ -88,16 +88,20 @@ final class SkyboxRenderTests {
 
         let cmdBuf = commandQueue.makeCommandBuffer()!
         let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc)!
-        drawSkybox(
-            renderEncoder: encoder,
-            pso: pso,
-            dso: dso,
+        let skyboxMesh = SkyboxMesh(
             vertexBuffer: vbuf,
             indexBuffer: ibuf,
             indexCount: ibuf.length / MemoryLayout<UInt16>.size,
             indexType: .uint16,
+            pso: pso,
+            dso: dso
+        )
+        drawSkybox(
+            renderEncoder: encoder,
+            mesh: skyboxMesh,
             vpMatrixBuffer: vpbuf,
-            specularCubeMapTexture: envMap)
+            specularCubeMapTexture: envMap
+        )
         encoder.endEncoding()
         cmdBuf.commit()
         cmdBuf.waitUntilCompleted()
