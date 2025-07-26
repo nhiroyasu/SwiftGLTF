@@ -18,5 +18,7 @@ float3x3 _float3x3(float4x4 m);
 float3x3 inverse(float3x3 m);
 float3x3 makeNormalMatrix(float4x4 mvp);
 float toolMultiplier(float value);
+float3x3 make_tbn(float3 normal);
+float3x3 make_tbn(float3 N, float3 T, float Tw);
 
 #endif /* helper_h */

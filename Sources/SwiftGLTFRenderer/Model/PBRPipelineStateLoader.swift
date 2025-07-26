@@ -18,7 +18,7 @@ public class PBRPipelineStateLoader {
         self.device = device
         self.library = library
         self.config = config
-        self.fragmentFunction = library.makeFunction(name: "pbr_shader")!
+        self.fragmentFunction = library.makeFunction(name: "pbr_fragment_shader")!
     }
 
     func load(

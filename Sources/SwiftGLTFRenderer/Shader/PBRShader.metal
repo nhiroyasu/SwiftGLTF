@@ -98,18 +98,15 @@ float3 compute_indirect_lighting(float3 normal,
     return result;
 }
 
-float3x3 make_tbn(float3 normal) {
-    // Construct a TBN matrix assuming the normal is Z and use a fixed tangent space
-    float3 up = abs(normal.y) < 0.999 ? float3(0, 1, 0) : float3(1, 0, 0);
-    float3 tangent = normalize(cross(up, normal));
-    float3 bitangent = cross(normal, tangent);
-    return float3x3(tangent, bitangent, normal);
-}
+// MARK: - Shader Structures
 
-float3x3 make_tbn(float3 N, float3 T, float Tw) {
-    float3 B = cross(N, T) * Tw;
-    return float3x3(T, B, N);
-}
+struct VertexIn {
+    float3 position [[attribute(0)]];
+    float3 normal [[attribute(1)]];
+    float4 tangent [[attribute(2)]];
+    float2 uv [[attribute(3)]];
+    float4 modulationColor [[attribute(4)]];
+};
 
 struct PBRVertexOut {
     float4 position [[position]];
@@ -120,13 +117,7 @@ struct PBRVertexOut {
     float4 modulationColor;
 };
 
-struct VertexIn {
-    float3 position [[attribute(0)]];
-    float3 normal [[attribute(1)]];
-    float4 tangent [[attribute(2)]];
-    float2 uv [[attribute(3)]];
-    float4 modulationColor [[attribute(4)]];
-};
+// MARK: - PBR Shader
 
 vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
                                       constant float4x4 &model [[buffer(1)]],
@@ -149,26 +140,22 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
     return out;
 }
 
-
-
-// MARK: - PBR Shader
-
-fragment float4 pbr_shader(PBRVertexOut in [[stage_in]],
-                           constant PBRVertexUniforms &vUni [[buffer(0)]],
-                           constant PBRSceneUniforms &sUni [[buffer(1)]],
-                           texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                           texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                           texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                           texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                           sampler baseColorSampler [[ sampler(0) ]],
-                           texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                           sampler normalSampler [[ sampler(1) ]],
-                           texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                           sampler metallicRoughnessSampler [[ sampler(2) ]],
-                           texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                           sampler emissiveSampler [[ sampler(3) ]],
-                           texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                           sampler occlusionSampler [[ sampler(4) ]]) {
+fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
+                                    constant PBRVertexUniforms &vUni [[buffer(0)]],
+                                    constant PBRSceneUniforms &sUni [[buffer(1)]],
+                                    texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
+                                    texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
+                                    texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
+                                    texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
+                                    sampler baseColorSampler [[ sampler(0) ]],
+                                    texture2d<float, access::sample> normalTexture [[ texture(4) ]],
+                                    sampler normalSampler [[ sampler(1) ]],
+                                    texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
+                                    sampler metallicRoughnessSampler [[ sampler(2) ]],
+                                    texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
+                                    sampler emissiveSampler [[ sampler(3) ]],
+                                    texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
+                                    sampler occlusionSampler [[ sampler(4) ]]) {
     float2 uv = vUni.hasUV ? in.uv : float2(0.0, 0.0);
     float4 modulationColor = vUni.hasModulationColor ? in.modulationColor : float4(1.0, 1.0, 1.0, 1.0);
 

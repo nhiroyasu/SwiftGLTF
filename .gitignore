@@ -65,4 +65,4 @@ fastlane/test_output
 
 .codex
 .scripts
-.build
+.derivedData

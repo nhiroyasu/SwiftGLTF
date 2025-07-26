@@ -153,3 +153,16 @@ float swapToonShading(float value) {
     }
     return shadeColor;
 }
+
+float3x3 make_tbn(float3 normal) {
+    // Construct a TBN matrix assuming the normal is Z and use a fixed tangent space
+    float3 up = abs(normal.y) < 0.999 ? float3(0, 1, 0) : float3(1, 0, 0);
+    float3 tangent = normalize(cross(up, normal));
+    float3 bitangent = cross(normal, tangent);
+    return float3x3(tangent, bitangent, normal);
+}
+
+float3x3 make_tbn(float3 N, float3 T, float Tw) {
+    float3 B = cross(N, T) * Tw;
+    return float3x3(T, B, N);
+}
