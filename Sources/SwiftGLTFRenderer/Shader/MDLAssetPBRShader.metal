@@ -242,6 +242,8 @@ fragment float4 normal_display_shader(PBRVertexOut in [[stage_in]],
 
     float3 normalTexValue = normalTexture.sample(normalSampler, uv).rgb * 2.0 - 1.0;
     float3 normal = normalize(TBN * normalTexValue);
+    // -1 ~ 1 → 0 ~ 1
+    normal = (normal + 1.0) * 0.5;
 
     return float4(normal, 1.0); // Display normal as RGB
 }

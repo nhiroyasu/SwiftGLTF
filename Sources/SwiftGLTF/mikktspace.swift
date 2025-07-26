@@ -7,7 +7,6 @@ private class ContextData {
     let floatTexcoords: [Float]
     let indices: [Int]
     let vertexCount: Int
-    let convertToLeftHanded: Bool
     var tangents: [Float]
 
     init(
@@ -16,7 +15,6 @@ private class ContextData {
         floatTexcoords: [Float],
         indices: [Int],
         vertexCount: Int,
-        convertToLeftHanded: Bool,
         tangents: [Float]
     ) {
         self.floatPositions = floatPositions
@@ -24,7 +22,6 @@ private class ContextData {
         self.floatTexcoords = floatTexcoords
         self.indices = indices
         self.vertexCount = vertexCount
-        self.convertToLeftHanded = convertToLeftHanded
         self.tangents = tangents
     }
 }
@@ -34,8 +31,7 @@ func generateTangents(
     _ normalVertex: VertexInfo,
     _ texcoordVertex: VertexInfo,
     _ indexInfo: IndexInfo,
-    vertexCount: Int,
-    options: GLTFDecodeOptions
+    vertexCount: Int
 ) throws -> VertexInfo {
 
     var interface = SMikkTSpaceInterface(
@@ -56,7 +52,7 @@ func generateTangents(
             var copyPosition = [
                 data.floatPositions[baseIndex],
                 data.floatPositions[baseIndex + 1],
-                data.floatPositions[baseIndex + 2] * (data.convertToLeftHanded ? -1 : 1)
+                data.floatPositions[baseIndex + 2]
             ]
             memcpy(pos, &copyPosition, MemoryLayout<Float>.size * 3)
         },
@@ -68,7 +64,7 @@ func generateTangents(
             var copyNormal = [
                 data.floatNormals[baseIndex],
                 data.floatNormals[baseIndex + 1],
-                data.floatNormals[baseIndex + 2] * (data.convertToLeftHanded ? -1 : 1)
+                data.floatNormals[baseIndex + 2]
             ]
             memcpy(normal, &copyNormal, MemoryLayout<Float>.size * 3)
         },
@@ -108,7 +104,6 @@ func generateTangents(
         floatTexcoords: floatTexcoords,
         indices: try indexInfo.getIndices(),
         vertexCount: vertexCount,
-        convertToLeftHanded: options.convertToLeftHanded,
         tangents: Array(repeating: 0, count: vertexCount * 4)
     )
 

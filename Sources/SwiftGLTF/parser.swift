@@ -169,11 +169,9 @@ public func makeMDLMesh(
             normalVertex = try generateNormalVertex(positionVertex: positionVertex, indexInfo: indexInfo)
         }
 
-        var isGeneratedTangents = false
         if tangentVertex == nil, let normalVertex, let texcoordVertex, (primitive.mode == .triangles || primitive.mode == .none) {
             os_log("Generating tangents for primitive[%d]", log: .default, type: .info, index)
-            tangentVertex = try generateTangents(positionVertex, normalVertex, texcoordVertex, indexInfo, vertexCount: vertexCount, options: options)
-            isGeneratedTangents = true
+            tangentVertex = try generateTangents(positionVertex, normalVertex, texcoordVertex, indexInfo, vertexCount: vertexCount)
         }
 
         let vertexDescriptor = makeVertexDescriptor(
@@ -191,8 +189,7 @@ public func makeMDLMesh(
             texcoordVertex,
             modulationColorVertex,
             vertexCount: vertexCount,
-            options: options,
-            isGeneratedTangents: isGeneratedTangents
+            options: options
         )
 
         let vertexBuffer = allocator.newBuffer(with: vertexData, type: .vertex)
@@ -590,8 +587,7 @@ private func makeVertexData(
     _ texcoordVertex: VertexInfo?,
     _ modulationColorVertex: VertexInfo?,
     vertexCount: Int,
-    options: GLTFDecodeOptions,
-    isGeneratedTangents: Bool
+    options: GLTFDecodeOptions
 ) -> Data {
     var vertexData = Data()
     for i in 0..<vertexCount {
@@ -623,7 +619,7 @@ private func makeVertexData(
             let base = i * stride
             let slice = tangentVertex.data[base..<base+stride]
             var tangentArray = slice.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
-            if options.convertToLeftHanded, !isGeneratedTangents {
+            if options.convertToLeftHanded {
                 tangentArray[2] = -tangentArray[2]
             }
             vertexData.append(Data(bytes: &tangentArray, count: stride))
