@@ -29,7 +29,6 @@ func drawSkybox(
 func drawPBR(
     renderEncoder: MTLRenderCommandEncoder,
     mesh: PBRMesh,
-    dso: MTLDepthStencilState,
     viewBuffer: MTLBuffer,
     projectionBuffer: MTLBuffer,
     pbrSceneUniformsBuffer: MTLBuffer,
@@ -38,7 +37,7 @@ func drawPBR(
     brdfLUT: MTLTexture
 ) {
     renderEncoder.setRenderPipelineState(mesh.pso)
-    renderEncoder.setDepthStencilState(dso)
+    renderEncoder.setDepthStencilState(mesh.dso)
 
     renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
     renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
@@ -77,12 +76,11 @@ func drawPBR(
 func drawWireframe(
     renderEncoder: MTLRenderCommandEncoder,
     mesh: PBRMesh,
-    dso: MTLDepthStencilState,
     viewBuffer: MTLBuffer,
     projectionBuffer: MTLBuffer
 ) {
     renderEncoder.setRenderPipelineState(mesh.pso)
-    renderEncoder.setDepthStencilState(dso)
+    renderEncoder.setDepthStencilState(mesh.dso)
 
     renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
     renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)

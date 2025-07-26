@@ -12,6 +12,7 @@ final class WireframeRenderTests {
     let commandQueue: MTLCommandQueue
     let shaderConnection: ShaderConnection
     let pipelineStateLoader: WireframePipelineStateLoader
+    let depthStencilStateLoader: DepthStencilStateLoader
 
     let TEX_SIZE = 256
 
@@ -34,6 +35,7 @@ final class WireframeRenderTests {
                 depthPixelFormat: .depth32Float
             )
         )
+        self.depthStencilStateLoader = DepthStencilStateLoader(device: device)
     }
 
     // Helper to create a render target texture
@@ -54,12 +56,6 @@ final class WireframeRenderTests {
         let vMatrixBuf = device.makeBuffer(bytes: &vMatrix, length: MemoryLayout.size(ofValue: vMatrix))!
         var pMatrix = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
         let pMatrixBuf = device.makeBuffer(bytes: &pMatrix, length: MemoryLayout.size(ofValue: pMatrix))!
-
-        // Create depth stencil state and texture
-        let dsd = MTLDepthStencilDescriptor()
-        dsd.depthCompareFunction = .less
-        dsd.isDepthWriteEnabled = true
-        let dso = device.makeDepthStencilState(descriptor: dsd)!
 
         let depthTextureDesc = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .depth32Float,
@@ -85,7 +81,8 @@ final class WireframeRenderTests {
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL)
         let loader = WireframeMeshLoader(
-            pipelineStateLoader: pipelineStateLoader
+            pipelineStateLoader: pipelineStateLoader,
+            depthStencilStateLoader: depthStencilStateLoader,
         )
         let meshes = try loader.loadMeshes(from: asset, using: device)
 
@@ -103,7 +100,6 @@ final class WireframeRenderTests {
             drawWireframe(
                 renderEncoder: encoder,
                 mesh: mesh,
-                dso: dso,
                 viewBuffer: vMatrixBuf,
                 projectionBuffer: pMatrixBuf
             )

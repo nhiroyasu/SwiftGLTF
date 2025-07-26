@@ -5,15 +5,18 @@ import SwiftGLTF
 class PBRMeshLoader {
     let shaderConnection: ShaderConnection
     let pipelineStateLoader: PBRPipelineStateLoader
+    let depthStencilStateLoader: DepthStencilStateLoader
 
     private var texturesCache: [String: MTLTexture] = [:]
 
     init(
         shaderConnection: ShaderConnection,
-        pipelineStateLoader: PBRPipelineStateLoader
+        pipelineStateLoader: PBRPipelineStateLoader,
+        depthStencilStateLoader: DepthStencilStateLoader
     ) {
         self.shaderConnection = shaderConnection
         self.pipelineStateLoader = pipelineStateLoader
+        self.depthStencilStateLoader = depthStencilStateLoader
     }
 
     func loadMeshes(from asset: MDLAsset, using device: MTLDevice) throws -> [PBRMesh] {
@@ -136,7 +139,8 @@ class PBRMeshLoader {
                     length: MemoryLayout<float3x3>.size,
                     options: []
                 )!,
-                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor)
+                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
+                dso: try depthStencilStateLoader.load(for: .lessThan)
             )
             pbrMeshes.append(pbrMesh)
         }

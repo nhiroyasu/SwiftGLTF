@@ -11,10 +11,8 @@ public class GLTFRenderer {
     private let pbrPipelineStateLoader: PBRPipelineStateLoader
     private let wireframeMeshLoader: WireframeMeshLoader
     private let wireframePipelineStateLoader: WireframePipelineStateLoader
-
+    private let depthStencilStateLoader: DepthStencilStateLoader
     private let shaderConnection: ShaderConnection
-
-    private let dso: MTLDepthStencilState
 
     private let specularCubeMapTexture: MTLTexture
     private let irradianceCubeMapTexture: MTLTexture
@@ -58,6 +56,7 @@ public class GLTFRenderer {
             library: library,
             commandQueue: commandQueue
         )
+        self.depthStencilStateLoader = DepthStencilStateLoader(device: device)
 
         let pipelineStateConfig = PipelineStateLoaderConfig(
             sampleCount: sampleCount,
@@ -71,7 +70,8 @@ public class GLTFRenderer {
         )
         self.pbrMeshLoader = PBRMeshLoader(
             shaderConnection: shaderConnection,
-            pipelineStateLoader: pbrPipelineStateLoader
+            pipelineStateLoader: pbrPipelineStateLoader,
+            depthStencilStateLoader: depthStencilStateLoader,
         )
         self.wireframePipelineStateLoader = WireframePipelineStateLoader(
             device: device,
@@ -79,17 +79,9 @@ public class GLTFRenderer {
             config: pipelineStateConfig
         )
         self.wireframeMeshLoader = WireframeMeshLoader(
-            pipelineStateLoader: wireframePipelineStateLoader
+            pipelineStateLoader: wireframePipelineStateLoader,
+            depthStencilStateLoader: depthStencilStateLoader,
         )
-
-        // Create a depth stencil descriptor
-        let depthStencilDescriptor = MTLDepthStencilDescriptor()
-        depthStencilDescriptor.depthCompareFunction = .less
-        depthStencilDescriptor.isDepthWriteEnabled = true
-        guard let depthStencilState = device.makeDepthStencilState(descriptor: depthStencilDescriptor) else {
-            throw NSError(domain: "MDLAssetMTKView", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create depth stencil state"])
-        }
-        self.dso = depthStencilState
 
         // Create skybox buffers and pipeline state
         let skyboxPsoDescriptor = MTLRenderPipelineDescriptor()
@@ -169,7 +161,6 @@ public class GLTFRenderer {
                 drawPBR(
                     renderEncoder: renderEncoder,
                     mesh: mesh,
-                    dso: dso,
                     viewBuffer: view,
                     projectionBuffer: projection,
                     pbrSceneUniformsBuffer: pbrScene,
@@ -181,7 +172,6 @@ public class GLTFRenderer {
                 drawWireframe(
                     renderEncoder: renderEncoder,
                     mesh: mesh,
-                    dso: dso,
                     viewBuffer: view,
                     projectionBuffer: projection
                 )
