@@ -64,3 +64,5 @@ fastlane/test_output
 # Custom
 
 .codex
+.scripts
+.build
