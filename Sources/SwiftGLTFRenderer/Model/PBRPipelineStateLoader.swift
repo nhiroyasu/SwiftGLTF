@@ -139,7 +139,6 @@ public class PBRPipelineStateLoader {
         mtlVertexDescriptor.layouts[0].stepFunction = .perVertex
         mtlVertexDescriptor.layouts[0].stepRate = 1
 
-        os_log("⬇️ Created MTLVertexDescriptor with stride: %{public}d for PBR shader", offset)
         return mtlVertexDescriptor
     }
 }
