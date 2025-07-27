@@ -55,6 +55,10 @@ class PBRMeshLoader {
 
         var pbrMeshes: [PBRMesh] = []
         for i in 0..<asset.count {
+            os_log("PBRMeshLoader: Loading object %{public}d", log: .default, type: .info, i)
+            defer {
+                os_log("PBRMeshLoader: Finished loading object %{public}d", log: .default, type: .info, i)
+            }
             let rootObj = asset.object(at: i)
             let meshes = try await loadRecursiveMeshes(
                 device: device,
@@ -305,7 +309,7 @@ class PBRMeshLoader {
             texture: mdlTexture,
             options: [
                 .origin: MTKTextureLoader.Origin.bottomLeft,
-                .textureStorageMode: NSNumber(value: MTLStorageMode.private.rawValue),
+                .textureStorageMode: NSNumber(value: MTLStorageMode.shared.rawValue),
                 .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue)
             ]
         )

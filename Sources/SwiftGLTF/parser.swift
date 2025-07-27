@@ -103,14 +103,32 @@ public func makeMDLAsset(
 
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
+    let mdlMeshMapQueue = DispatchQueue(label: "mdlMeshMap.queue")
     var mdlMeshMap: [Int: [MDLMesh]] = [:]
-    for (index, mesh) in (gltf.meshes ?? []).enumerated() {
-        mdlMeshMap[index] = try makeMDLMesh(
-            from: mesh,
-            using: gltf,
-            binaryLoader: binaryLoader,
-            options: options
-        )
+    var iterationError: Error?
+    DispatchQueue.concurrentPerform(iterations: gltf.meshes?.count ?? 0) { iteration in
+        os_log("[makeMDLAsset] Processing mesh[%d]", log: .default, type: .info, iteration)
+        defer {
+            os_log("[makeMDLAsset] Finished processing mesh[%d]", log: .default, type: .info, iteration)
+        }
+        guard let meshes = gltf.meshes else { return }
+        let mesh = meshes[iteration]
+        do {
+            let mesh = try makeMDLMesh(
+                from: mesh,
+                using: gltf,
+                allocator: allocator,
+                binaryLoader: binaryLoader,
+                options: options
+            )
+            mdlMeshMapQueue.sync { mdlMeshMap[iteration] = mesh }
+        } catch {
+            os_log("Error creating MDLMesh for mesh[%d]: %{public}@", log: .default, type: .error, iteration, error.localizedDescription)
+            mdlMeshMapQueue.sync { iterationError = error }
+        }
+    }
+    if let error = iterationError {
+        throw error
     }
 
     // デフォルトシーンを取得
@@ -142,13 +160,14 @@ public func makeMDLAsset(
 public func makeMDLMesh(
     from mesh: Mesh,
     using gltf: GLTF,
+    allocator: MTKMeshBufferAllocator,
     binaryLoader: GLTFBinaryLoader,
     options: GLTFDecodeOptions = .default
 ) throws -> [MDLMesh] {
     let allocator = MTKMeshBufferAllocator(device: MTLCreateSystemDefaultDevice()!) // TODO: Metal device should be passed from outside
 
     var mdlMeshes: [MDLMesh] = []
-    for (index, primitive) in mesh.primitives.enumerated() {
+    for primitive in mesh.primitives {
         let vertexCount = retrieveVertexCount(for: primitive, accessors: gltf.accessors ?? [])
 
         // Make an index buffer
@@ -164,12 +183,10 @@ public func makeMDLMesh(
 
         if normalVertex == nil,
            (primitive.mode == .triangles || primitive.mode == .none) {
-            os_log("Generating normals for primitives[%d]", log: .default, type: .info, index)
             normalVertex = try generateNormalVertex(positionVertex: positionVertex, indexInfo: indexInfo)
         }
 
         if tangentVertex == nil, let normalVertex, let texcoordVertex, (primitive.mode == .triangles || primitive.mode == .none) {
-            os_log("Generating tangents for primitive[%d]", log: .default, type: .info, index)
             tangentVertex = try generateTangents(positionVertex, normalVertex, texcoordVertex, indexInfo, vertexCount: vertexCount)
         }
 
