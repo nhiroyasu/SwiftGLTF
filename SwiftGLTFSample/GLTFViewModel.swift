@@ -12,6 +12,7 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     @Published var errorMessage = ""
     @Published var showFileImporter = false
     @Published var mode: RenderingType = .pbr
+    @Published var isLoading: Bool = false
 
     #if os(iOS)
     let allowedContentTypes: [UTType] = [.glb, .vrm]
@@ -39,6 +40,8 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     }
 
     func load(url: URL) async {
+        isLoading = true
+        defer { isLoading = false }
         guard url.startAccessingSecurityScopedResource() else {
             showError = true
             errorMessage = "Failed to access file at \(url.path)"
@@ -47,8 +50,10 @@ class GLTFViewModel: ObservableObject, DropDelegate {
         defer { url.stopAccessingSecurityScopedResource() }
 
         do {
-            let asset = try makeMDLAsset(from: url)
-            try await renderer?.load(from: asset)
+            try await Task.detached {
+                let asset = try makeMDLAsset(from: url)
+                try await self.renderer?.load(from: asset)
+            }.value
         } catch {
             showError = true
             errorMessage = "Failed to load asset: \(error.localizedDescription)"

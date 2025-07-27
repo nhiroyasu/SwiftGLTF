@@ -17,6 +17,14 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .overlay {
+            if viewModel.isLoading {
+                ProgressView("Loading...")
+                    .progressViewStyle(CircularProgressViewStyle())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black.opacity(0.4))
+            }
+        }
         .toolbar {
             #if os(iOS)
             let openFilePlacement: ToolbarItemPlacement = .bottomBar
