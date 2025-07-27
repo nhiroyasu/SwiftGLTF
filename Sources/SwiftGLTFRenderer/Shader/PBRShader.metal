@@ -143,6 +143,7 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
 fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                     constant PBRVertexUniforms &vUni [[buffer(0)]],
                                     constant PBRSceneUniforms &sUni [[buffer(1)]],
+                                    constant PBRMaterialUniforms &mUni [[buffer(2)]],
                                     texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
                                     texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
                                     texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
@@ -159,10 +160,12 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     float2 uv = vUni.hasUV ? in.uv : float2(0.0, 0.0);
     float4 modulationColor = vUni.hasModulationColor ? in.modulationColor : float4(1.0, 1.0, 1.0, 1.0);
 
-    float3 albedo = baseColorTexture.sample(baseColorSampler, uv).rgb * modulationColor.rgb;
-    float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).b;
-    float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).g;
-    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, uv).r;
+    // Apply base color texture, vertex modulation color, and material base color factor
+    float3 albedo = baseColorTexture.sample(baseColorSampler, uv).rgb * modulationColor.rgb * mUni.baseColorFactor.rgb;
+    // Sample metallic-roughness and occlusion, apply material factors
+    float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).b * mUni.metalRoughnessOcclusion.x;
+    float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).g * mUni.metalRoughnessOcclusion.y;
+    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, uv).r * mUni.metalRoughnessOcclusion.z;
 
     float3 N = normalize(in.normal);
     float3x3 TBN = vUni.hasTangent ? make_tbn(N, in.tangent.xyz, in.tangent.w) : make_tbn(N);
@@ -195,8 +198,8 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                         irradianceMap,
                                                         brdfLUT);
 
-    // Emissive lighting
-    float3 emissive = emissiveTexture.sample(emissiveSampler, uv).rgb;
+    // Emissive lighting: apply material emissive factor
+    float3 emissive = emissiveTexture.sample(emissiveSampler, uv).rgb * mUni.emissiveFactor.rgb;
 
     // Final color
     float3 color = directLighting + indirectLighting + emissive;

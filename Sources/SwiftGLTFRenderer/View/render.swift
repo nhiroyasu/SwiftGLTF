@@ -47,6 +47,8 @@ func drawPBR(
     renderEncoder.setFragmentTexture(brdfLUT, index: 2)
 
     for submesh in mesh.submeshes {
+        // Set per-submesh material factors buffer
+        renderEncoder.setFragmentBuffer(submesh.materialUniformsBuffer, offset: 0, index: 2)
         // Set baseColor, normal, metallic and roughness textures/samplers
         renderEncoder.setFragmentTexture(submesh.baseColorTexture, index: 3)
         renderEncoder.setFragmentSamplerState(submesh.baseColorSampler, index: 0)

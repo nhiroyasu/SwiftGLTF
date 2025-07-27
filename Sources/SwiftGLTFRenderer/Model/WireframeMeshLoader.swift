@@ -47,6 +47,8 @@ class WireframeMeshLoader {
 
             var submeshes: [PBRMesh.Submesh] = []
             for mtkSubmesh in mtkMesh.submeshes {
+                // Create a dummy material uniforms buffer (unused in wireframe rendering)
+                let dummyMaterialUniforms = device.makeBuffer(length: 48, options: [])!
                 let submeshData = PBRMesh.Submesh(
                     primitiveType: mtkSubmesh.primitiveType,
                     indexCount: mtkSubmesh.indexCount,
@@ -61,7 +63,8 @@ class WireframeMeshLoader {
                     emissiveTexture: nil,
                     emissiveSampler: nil,
                     occlusionTexture: nil,
-                    occlusionSampler: nil
+                    occlusionSampler: nil,
+                    materialUniformsBuffer: dummyMaterialUniforms
                 )
                 submeshes.append(submeshData)
             }

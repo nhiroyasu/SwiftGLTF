@@ -23,5 +23,7 @@ struct PBRMesh {
         let emissiveSampler: MTLSamplerState?
         let occlusionTexture: MTLTexture?
         let occlusionSampler: MTLSamplerState?
+        /// Buffer containing material factors (baseColor, metallic, roughness, occlusion, emissive)
+        let materialUniformsBuffer: MTLBuffer
     }
 }

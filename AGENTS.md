@@ -36,6 +36,7 @@
 - `swift test` で XCTest が全て通過すること
 - テスト追加時は `Tests/SwiftGLTFTests` に対応するリソースとテストケースを配置
 - テストデータはリソースディレクトリにまとめる
+- .metalファイルを変更した場合は、 `make` を実行して.metallibを更新する必要があります。
 
 ## 5. ドキュメント更新
 - `README.md` / `README.jp.md` に機能追加や使い方変更を反映

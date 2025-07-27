@@ -81,6 +81,14 @@ class PBRMeshLoader {
 
             var submeshes: [PBRMesh.Submesh] = []
             for (mtkSubmesh, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
+                // Extract material factors to pass to shader
+                let material = mdlSubmesh.material
+                let baseColorFactor = material?.propertyNamed(.baseColorFactor)?.float4Value ?? SIMD4<Float>(1, 1, 1, 1)
+                let metallicFactor = material?.propertyNamed(.metallic)?.floatValue ?? 1.0
+                let roughnessFactor = material?.propertyNamed(.roughness)?.floatValue ?? 1.0
+                let occlusionFactor = material?.propertyNamed(.occlusionStrength)?.floatValue ?? 1.0
+                let emissiveFactor = material?.propertyNamed(.emissiveFactor)?.float3Value ?? SIMD3<Float>(0, 0, 0)
+
                 // Base color texture and sampler
                 async let (baseColorTexture, baseColorSamplerState) = try makeBaseColorTextureAndSampler(device: device, material: mdlSubmesh.material)
 
@@ -96,6 +104,17 @@ class PBRMeshLoader {
                 // Occlusion texture and sampler
                 async let (occlusionTexture, occlusionSamplerState) = try makeOcclusionTextureAndSampler(device: device, material: mdlSubmesh.material)
 
+                // Create material uniforms buffer
+                var materialUniforms = PBRMaterialUniforms(
+                    baseColorFactor: baseColorFactor,
+                    metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
+                    emissiveFactor: SIMD4<Float>(emissiveFactor.x, emissiveFactor.y, emissiveFactor.z, 0)
+                )
+                let materialUniformsBuffer = device.makeBuffer(
+                    bytes: &materialUniforms,
+                    length: MemoryLayout<PBRMaterialUniforms>.size,
+                    options: []
+                )!
                 let submeshData = try await PBRMesh.Submesh(
                     primitiveType: mtkSubmesh.primitiveType,
                     indexCount: mtkSubmesh.indexCount,
@@ -110,7 +129,8 @@ class PBRMeshLoader {
                     emissiveTexture: emissiveTexture,
                     emissiveSampler: emissiveSamplerState,
                     occlusionTexture: occlusionTexture,
-                    occlusionSampler: occlusionSamplerState
+                    occlusionSampler: occlusionSamplerState,
+                    materialUniformsBuffer: materialUniformsBuffer
                 )
                 submeshes.append(submeshData)
             }
@@ -148,30 +168,20 @@ class PBRMeshLoader {
 
     // MARK: - Texture & Sampler Helpers
 
+    /// Load base color texture without applying factor; factor is passed separately in uniforms
     private func makeBaseColorTextureAndSampler(device: MTLDevice, material: MDLMaterial?) async throws -> (MTLTexture, MTLSamplerState) {
         let prop = material?.propertyNamed(.baseColorTexture)
-        let factorProp = material?.propertyNamed(.baseColorFactor)
-
         let sampler: MDLTextureSampler
         if let s = prop?.textureSamplerValue {
             sampler = s
         } else {
             sampler = makeDummySampler(textureValue: Array<Float16>(repeating: 1, count: 4), channelCount: 4, channelEncoding: .float16)
         }
-
         guard let tex = sampler.texture else {
-            throw NSError(
-                domain: "MDLAssetLoader",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Base color texture not found"]
-            )
+            throw NSError(domain: "MDLAssetLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Base color texture not found"])
         }
-        let color = factorProp?.float4Value ?? SIMD4<Float>(1, 1, 1, 1)
-        var texture = try await mdl2mtlTexture(tex, convertLinearColorSpace: true)
-        texture = try shaderConnection.makeBaseColorTexture(baseColorFactor: color, baseColorTexture: texture)
-
+        let texture = try await mdl2mtlTexture(tex, convertLinearColorSpace: true)
         let samplerState = try makeSamplerState(from: sampler, device: device)
-
         return (texture, samplerState)
     }
 
@@ -201,8 +211,6 @@ class PBRMeshLoader {
 
     private func makeMetallicRoughnessTextureAndSampler(device: MTLDevice, material: MDLMaterial?) async throws -> (MTLTexture, MTLSamplerState) {
         let metallicRoughnessTextureProp = material?.propertyNamed(.metallicRoughnessTexture)
-        let metallicFactorProp = material?.propertyNamed(.metallic)
-        let roughnessFactorProp = material?.propertyNamed(.roughness)
 
         let metallicRoughnessMDLSampler = if let mdlSampler = metallicRoughnessTextureProp?.textureSamplerValue {
             mdlSampler
@@ -214,9 +222,9 @@ class PBRMeshLoader {
             )
         }
 
-        let tex: MTLTexture
+        let texture: MTLTexture
         if let mdlTex = metallicRoughnessMDLSampler.texture {
-            tex = try await mdl2mtlTexture(mdlTex)
+            texture = try await mdl2mtlTexture(mdlTex)
         } else {
             throw NSError(
                 domain: "MDLAssetLoader",
@@ -224,14 +232,6 @@ class PBRMeshLoader {
                 userInfo: [NSLocalizedDescriptionKey: "Metallic roughness texture not found"]
             )
         }
-
-        let metallicFactor = metallicFactorProp?.floatValue ?? 1.0
-        let roughnessFactor = roughnessFactorProp?.floatValue ?? 1.0
-        let texture = try shaderConnection.makeMetallicRoughnessTexture(
-            metallicFactor: metallicFactor,
-            roughnessFactor: roughnessFactor,
-            baseMetallicRoughnessTexture: tex
-        )
 
         let samplerState = try makeSamplerState(from: metallicRoughnessMDLSampler, device: device)
 
@@ -256,8 +256,8 @@ class PBRMeshLoader {
                 userInfo: [NSLocalizedDescriptionKey: "Ambient occlusion texture not found"]
             )
         }
-        let factor = material?.propertyNamed(.occlusionStrength)?.floatValue ?? 1.0
-        let texture = try shaderConnection.makeOcclusionTexture(occlusionFactor: factor, occlusionTexture: tex)
+        // Return raw occlusion texture; factor applied in shader via uniforms
+        let texture = tex
 
         let samplerState = try makeSamplerState(from: sampler, device: device)
         return (texture, samplerState)
@@ -265,7 +265,6 @@ class PBRMeshLoader {
 
     private func makeEmissiveTextureAndSampler(_ device: MTLDevice, _ material: MDLMaterial?) async throws -> (MTLTexture, MTLSamplerState) {
         let emissiveTextureProp = material?.propertyNamed(.emissiveTexture)
-        let emissiveFactorProp = material?.propertyNamed(.emissiveFactor)
 
         let emissiveSampler: MDLTextureSampler = if let mdlSampler = emissiveTextureProp?.textureSamplerValue {
             mdlSampler
@@ -287,10 +286,8 @@ class PBRMeshLoader {
                 userInfo: [NSLocalizedDescriptionKey: "Failed to load emissive texture"]
             )
         }
-        let emissiveTexture = try shaderConnection.makeEmissiveTexture(
-            emissiveFactor: emissiveFactorProp?.float3Value ?? SIMD3<Float>(0, 0, 0),
-            emissiveTexture: tex
-        )
+        // Return raw emissive texture; factor applied in shader via uniforms
+        let emissiveTexture = tex
         let emissiveSamplerState = try makeSamplerState(from: emissiveSampler, device: device)
 
         return (emissiveTexture, emissiveSamplerState)
@@ -307,7 +304,9 @@ class PBRMeshLoader {
         var texture = try await textureLoader.newTexture(
             texture: mdlTexture,
             options: [
-                .origin: MTKTextureLoader.Origin.bottomLeft
+                .origin: MTKTextureLoader.Origin.bottomLeft,
+                .textureStorageMode: NSNumber(value: MTLStorageMode.private.rawValue),
+                .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue)
             ]
         )
         if convertLinearColorSpace {

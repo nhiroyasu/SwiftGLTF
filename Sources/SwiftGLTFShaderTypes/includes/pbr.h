@@ -15,4 +15,11 @@ typedef struct {
     bool hasModulationColor;
 } PBRVertexUniforms;
 
+/// Material factors for PBR shading: base color factor, metallic/roughness/occlusion, emissive factor
+typedef struct {
+    vector_float4 baseColorFactor;
+    vector_float4 metalRoughnessOcclusion; // x=metallic, y=roughness, z=occlusion, w=padding
+    vector_float4 emissiveFactor;
+} PBRMaterialUniforms;
+
 #endif /* PBR_h */
