@@ -7,6 +7,7 @@ public class PBRPipelineStateLoader {
     private let library: MTLLibrary
     private let config: PipelineStateLoaderConfig
 
+    private let vertexFunction: MTLFunction
     private let fragmentFunction: MTLFunction
     private var cachedPipelineStates: [MDLVertexDescriptor: MTLRenderPipelineState] = [:]
 
@@ -18,6 +19,7 @@ public class PBRPipelineStateLoader {
         self.device = device
         self.library = library
         self.config = config
+        self.vertexFunction = library.makeFunction(name: "pbr_vertex_shader")!
         self.fragmentFunction = library.makeFunction(name: "pbr_fragment_shader")!
     }
 
@@ -33,7 +35,7 @@ public class PBRPipelineStateLoader {
         try validate(for: vertexDescriptor)
 
         let psoDescriptor = MTLRenderPipelineDescriptor()
-        psoDescriptor.vertexFunction = library.makeFunction(name: "pbr_vertex_shader")!
+        psoDescriptor.vertexFunction = vertexFunction
         psoDescriptor.fragmentFunction = fragmentFunction
         psoDescriptor.colorAttachments[0].pixelFormat = config.colorPixelFormat
         psoDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
