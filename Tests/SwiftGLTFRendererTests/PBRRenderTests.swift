@@ -110,11 +110,12 @@ final class PBRRenderTests {
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL)
         let loader = PBRMeshLoader(
+            device: device,
             shaderConnection: shaderConnection,
             pipelineStateLoader: pipelineStateLoader,
             depthStencilStateLoader: depthStencilStateLoader
         )
-        let meshes = try loader.loadMeshes(from: asset, using: device)
+        let meshes = try await loader.loadMeshes(from: asset)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!

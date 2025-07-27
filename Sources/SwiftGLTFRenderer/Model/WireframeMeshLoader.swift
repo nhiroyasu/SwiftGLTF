@@ -3,18 +3,21 @@ import Accelerate
 import SwiftGLTF
 
 class WireframeMeshLoader {
-    let pipelineStateLoader: WireframePipelineStateLoader
-    let depthStencilStateLoader: DepthStencilStateLoader
+    private let device: MTLDevice
+    private let pipelineStateLoader: WireframePipelineStateLoader
+    private let depthStencilStateLoader: DepthStencilStateLoader
 
     init(
+        device: MTLDevice,
         pipelineStateLoader: WireframePipelineStateLoader,
         depthStencilStateLoader: DepthStencilStateLoader
     ) {
+        self.device = device
         self.pipelineStateLoader = pipelineStateLoader
         self.depthStencilStateLoader = depthStencilStateLoader
     }
 
-    func loadMeshes(from asset: MDLAsset, using device: MTLDevice) throws -> [PBRMesh] {
+    func loadMeshes(from asset: MDLAsset) throws -> [PBRMesh] {
         var pbrMeshes: [PBRMesh] = []
 
         for i in 0..<asset.count {

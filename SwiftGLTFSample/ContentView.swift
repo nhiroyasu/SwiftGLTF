@@ -63,7 +63,9 @@ struct ContentView: View {
             }
         )
         .onChange(of: viewModel.mode, initial: false) { _, mode  in
-            viewModel.updateRenderingMode(mode)
+            Task {
+                await viewModel.updateRenderingMode(mode)
+            }
         }
         .task {
             await viewModel.loadDefaultAsset()

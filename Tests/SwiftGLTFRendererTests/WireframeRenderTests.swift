@@ -81,10 +81,11 @@ final class WireframeRenderTests {
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL)
         let loader = WireframeMeshLoader(
+            device: device,
             pipelineStateLoader: pipelineStateLoader,
             depthStencilStateLoader: depthStencilStateLoader,
         )
-        let meshes = try loader.loadMeshes(from: asset, using: device)
+        let meshes = try loader.loadMeshes(from: asset)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!

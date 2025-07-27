@@ -30,7 +30,7 @@ class GLTFViewModel: ObservableObject, DropDelegate {
             let url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
             let asset = try makeMDLAsset(from: url)
             let newRenderer = try await GLTFRenderer()
-            try newRenderer.load(from: asset)
+            try await newRenderer.load(from: asset)
             renderer = newRenderer
         } catch {
             showError = true
@@ -48,16 +48,16 @@ class GLTFViewModel: ObservableObject, DropDelegate {
 
         do {
             let asset = try makeMDLAsset(from: url)
-            try renderer?.load(from: asset)
+            try await renderer?.load(from: asset)
         } catch {
             showError = true
             errorMessage = "Failed to load asset: \(error.localizedDescription)"
         }
     }
 
-    func updateRenderingMode(_ mode: RenderingType) {
+    func updateRenderingMode(_ mode: RenderingType) async {
         do {
-            try renderer?.reload(with: mode)
+            try await renderer?.reload(with: mode)
         } catch {
             showError = true
             errorMessage = "Failed to update rendering mode: \(error.localizedDescription)"

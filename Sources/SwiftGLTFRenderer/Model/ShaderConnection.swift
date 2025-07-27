@@ -208,7 +208,7 @@ class ShaderConnection {
         return outputTexture
     }
 
-    func convertSrgb2Linear(texture: MTLTexture) throws -> MTLTexture {
+    func convertSrgb2Linear(texture: MTLTexture) async throws -> MTLTexture {
         let outputTextureDescriptor = MTLTextureDescriptor()
         outputTextureDescriptor.pixelFormat = .rgba32Float
         outputTextureDescriptor.width = texture.width
@@ -229,7 +229,7 @@ class ShaderConnection {
                 userInfo: [NSLocalizedDescriptionKey: "Failed to create convert shader"]
             )
         }
-        let pso = try device.makeComputePipelineState(function: convertShader)
+        let pso = try await device.makeComputePipelineState(function: convertShader)
 
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
@@ -244,8 +244,10 @@ class ShaderConnection {
         )
         computeEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
         computeEncoder.endEncoding()
-        commandBuffer.commit()
-        commandBuffer.waitUntilCompleted()
+        await withCheckedContinuation { continuation in
+            commandBuffer.addCompletedHandler { _ in continuation.resume() }
+            commandBuffer.commit()
+        }
         return outputTexture
     }
 }

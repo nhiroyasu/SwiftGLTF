@@ -64,6 +64,7 @@ public class GLTFRenderer {
             config: pipelineStateConfig
         )
         self.pbrMeshLoader = PBRMeshLoader(
+            device: device,
             shaderConnection: shaderConnection,
             pipelineStateLoader: pbrPipelineStateLoader,
             depthStencilStateLoader: depthStencilStateLoader,
@@ -74,6 +75,7 @@ public class GLTFRenderer {
             config: pipelineStateConfig
         )
         self.wireframeMeshLoader = WireframeMeshLoader(
+            device: device,
             pipelineStateLoader: wireframePipelineStateLoader,
             depthStencilStateLoader: depthStencilStateLoader,
         )
@@ -156,23 +158,23 @@ public class GLTFRenderer {
 
     // MARK: - Update states
 
-    public func load(from asset: MDLAsset) throws {
+    public func load(from asset: MDLAsset) async throws {
         self.asset = asset
 
         switch type {
         case .pbr:
-            self.meshes = try pbrMeshLoader.loadMeshes(from: asset, using: commandQueue.device)
+            self.meshes = try await pbrMeshLoader.loadMeshes(from: asset)
         case .wireframe:
-            self.meshes = try wireframeMeshLoader.loadMeshes(from: asset, using: commandQueue.device)
+            self.meshes = try wireframeMeshLoader.loadMeshes(from: asset)
         }
     }
 
-    public func reload(with type: RenderingType) throws {
+    public func reload(with type: RenderingType) async throws {
         guard let asset = self.asset else {
             throw NSError(domain: "GLTFRenderer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Asset not loaded"])
         }
 
         self.type = type
-        try load(from: asset)
+        try await load(from: asset)
     }
 }

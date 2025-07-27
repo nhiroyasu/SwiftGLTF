@@ -87,7 +87,11 @@ public func makeMDLAsset(
     options: GLTFDecodeOptions = .default
 ) throws -> MDLAsset {
     #if DEBUG
-    let now = Date()
+    let startTime = Date()
+    defer {
+        let elapsed = Date().timeIntervalSince(startTime)
+        os_log("⏳ MDLAsset: Loaded in %{public}.2f seconds", log: .default, type: .info, elapsed)
+    }
     #endif
 
     let gltf = gltfContainer.gltf
@@ -131,11 +135,6 @@ public func makeMDLAsset(
         }
         os_log("Scaling asset by factor: %{public}f", log: .default, type: .info, scale)
     }
-
-    #if DEBUG
-    let elapsed = Date().timeIntervalSince(now)
-    os_log("MDLAsset created in %{public}.2f seconds", log: .default, type: .info, elapsed)
-    #endif
 
     return asset
 }

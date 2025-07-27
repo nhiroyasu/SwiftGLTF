@@ -17,9 +17,10 @@ struct BoxTexturedTests {
         let expectedTexture = MDLURLTexture(url: pngURL, name: "CesiumLogoFlat")
 
         // Compare raw pixel data of textures
-        let actualData = actualTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data!
-        let expectedData = expectedTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data!
-        #expect(actualData == expectedData)
+        let actualData = actualTexture.texelDataWithBottomLeftOrigin()!
+        let expectedData = expectedTexture.texelDataWithBottomLeftOrigin()!
+        let assert = actualData == expectedData
+        #expect(assert)
     }
 
     // MARK: - Helper
