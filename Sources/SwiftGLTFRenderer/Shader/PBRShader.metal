@@ -126,7 +126,7 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
                                       constant float4x4 &externalTransform [[buffer(4)]]) {
     PBRVertexOut out;
 
-    float4x4 modelTransform = model * externalTransform;
+    float4x4 modelTransform = externalTransform * model;
     float4x4 mvpTransform = projection * view * modelTransform;
 
     float3x3 normalTransform = transpose(inverse(_float3x3(modelTransform)));
