@@ -67,46 +67,6 @@ class PBRMeshLoader {
         return pbrMeshes
     }
 
-    private func makeSamplerState(from sampler: MDLTextureSampler, device: MTLDevice) throws -> MTLSamplerState {
-        let descriptor = MTLSamplerDescriptor()
-
-        switch sampler.hardwareFilter?.magFilter {
-        case .nearest: descriptor.magFilter = .nearest
-        case .linear: descriptor.magFilter = .linear
-        default: break
-        }
-
-        switch sampler.hardwareFilter?.minFilter {
-        case .nearest: descriptor.minFilter = .nearest
-        case .linear: descriptor.minFilter = .linear
-        default: break
-        }
-
-        switch sampler.hardwareFilter?.sWrapMode {
-        case .clamp: descriptor.sAddressMode = .clampToEdge
-        case .repeat: descriptor.sAddressMode = .repeat
-        case .mirror: descriptor.sAddressMode = .mirrorRepeat
-        default: break
-        }
-
-        switch sampler.hardwareFilter?.tWrapMode {
-        case .clamp: descriptor.tAddressMode = .clampToEdge
-        case .repeat: descriptor.tAddressMode = .repeat
-        case .mirror: descriptor.tAddressMode = .mirrorRepeat
-        default: break
-        }
-
-        if let samplerState = device.makeSamplerState(descriptor: descriptor) {
-            return samplerState
-        } else {
-            throw NSError(
-                domain: "MDLAssetLoader",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to create sampler state"]
-            )
-        }
-    }
-
     private func loadRecursiveMeshes(
         device: MTLDevice,
         obj: MDLObject,
@@ -357,6 +317,47 @@ class PBRMeshLoader {
 
         return texture
     }
+
+    private func makeSamplerState(from sampler: MDLTextureSampler, device: MTLDevice) throws -> MTLSamplerState {
+        let descriptor = MTLSamplerDescriptor()
+
+        switch sampler.hardwareFilter?.magFilter {
+        case .nearest: descriptor.magFilter = .nearest
+        case .linear: descriptor.magFilter = .linear
+        default: break
+        }
+
+        switch sampler.hardwareFilter?.minFilter {
+        case .nearest: descriptor.minFilter = .nearest
+        case .linear: descriptor.minFilter = .linear
+        default: break
+        }
+
+        switch sampler.hardwareFilter?.sWrapMode {
+        case .clamp: descriptor.sAddressMode = .clampToEdge
+        case .repeat: descriptor.sAddressMode = .repeat
+        case .mirror: descriptor.sAddressMode = .mirrorRepeat
+        default: break
+        }
+
+        switch sampler.hardwareFilter?.tWrapMode {
+        case .clamp: descriptor.tAddressMode = .clampToEdge
+        case .repeat: descriptor.tAddressMode = .repeat
+        case .mirror: descriptor.tAddressMode = .mirrorRepeat
+        default: break
+        }
+
+        if let samplerState = device.makeSamplerState(descriptor: descriptor) {
+            return samplerState
+        } else {
+            throw NSError(
+                domain: "MDLAssetLoader",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to create sampler state"]
+            )
+        }
+    }
+
 
     // MARK: - Vertex Uniforms Buffer
 
