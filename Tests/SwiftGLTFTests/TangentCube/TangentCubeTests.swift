@@ -5,8 +5,8 @@ import ModelIO
 
 struct TangentCubeTests {
     @Test
-    func testTangentBufferMatchesOriginalBinary() throws {
-        let (gltf, asset) = try loadGLTFAndAsset()
+    func testTangentBufferMatchesOriginalBinary() async throws {
+        let (gltf, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
@@ -35,13 +35,13 @@ struct TangentCubeTests {
 
     // MARK: - Helper Methods
 
-    private func loadGLTFAndAsset() throws -> (GLTF, MDLAsset) {
+    private func loadGLTFAndAsset() async throws -> (GLTF, MDLAsset) {
         guard let gltfURL = Bundle.module.url(forResource: "tangent_cube", withExtension: "gltf") else {
             throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "tangent_cube.gltf not found"])
         }
         let data = try Data(contentsOf: gltfURL)
         let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try makeMDLAsset(
+        let asset = try await makeMDLAsset(
             from: gltfContainer,
             options: .init(convertToLeftHanded: false)
         )

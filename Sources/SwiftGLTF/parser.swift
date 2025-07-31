@@ -76,16 +76,16 @@ struct IndexInfo {
     }
 }
 
-public func makeMDLAsset(from url: URL, options: GLTFDecodeOptions = .default) throws -> MDLAsset {
+public func makeMDLAsset(from url: URL, options: GLTFDecodeOptions = .default) async throws -> MDLAsset {
     let data = try Data(contentsOf: url)
     let gltfContainer = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-    return try makeMDLAsset(from: gltfContainer, options: options)
+    return try await makeMDLAsset(from: gltfContainer, options: options)
 }
 
 public func makeMDLAsset(
     from gltfContainer: GLTFContainer,
     options: GLTFDecodeOptions = .default
-) throws -> MDLAsset {
+) async throws -> MDLAsset {
     #if DEBUG
     let startTime = Date()
     defer {
@@ -103,35 +103,30 @@ public func makeMDLAsset(
 
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
-    let mdlMeshMapQueue = DispatchQueue(label: "mdlMeshMap.queue")
-    var mdlMeshMap: [Int: [MDLMesh]] = [:]
-    var iterationError: Error?
-    DispatchQueue.concurrentPerform(iterations: gltf.meshes?.count ?? 0) { iteration in
-        os_log("[makeMDLAsset] Processing mesh[%d]", log: .default, type: .info, iteration)
-        defer {
-            os_log("[makeMDLAsset] Finished processing mesh[%d]", log: .default, type: .info, iteration)
+    let mdlMeshMap = try await withThrowingTaskGroup(of: (Int, [MDLMesh]).self) { group in
+        for index in 0..<(gltf.meshes?.count ?? 0) {
+            let mesh = gltf.meshes![index]
+            group.addTask {
+                let meshes = try makeMDLMesh(
+                    from: mesh,
+                    using: gltf,
+                    allocator: allocator,
+                    binaryLoader: binaryLoader,
+                    options: options
+                )
+                return (index, meshes)
+            }
         }
-        guard let meshes = gltf.meshes else { return }
-        let mesh = meshes[iteration]
-        do {
-            let mesh = try makeMDLMesh(
-                from: mesh,
-                using: gltf,
-                allocator: allocator,
-                binaryLoader: binaryLoader,
-                options: options
-            )
-            mdlMeshMapQueue.sync { mdlMeshMap[iteration] = mesh }
-        } catch {
-            os_log("Error creating MDLMesh for mesh[%d]: %{public}@", log: .default, type: .error, iteration, error.localizedDescription)
-            mdlMeshMapQueue.sync { iterationError = error }
+
+        var result: [Int: [MDLMesh]] = [:]
+        for try await (index, meshes) in group {
+            result[index] = meshes
         }
-    }
-    if let error = iterationError {
-        throw error
+        return result
     }
 
     // デフォルトシーンを取得
+    // en: Get the default scene
     let sceneIndex = gltf.scene ?? 0
     guard let scene = gltf.scenes?[sceneIndex] else {
         throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "No valid scene found"])

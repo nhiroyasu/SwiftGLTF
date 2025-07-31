@@ -6,16 +6,16 @@ import ModelIO
 // Tests for loading .glb (binary glTF) files, mirrored from CubeTests
 struct CubeBinaryTests {
     @Test
-    func testGLBStructure() throws {
-        let (gltf, _) = try loadGLBAndAsset()
+    func testGLBStructure() async throws {
+        let (gltf, _) = try await loadGLBAndAsset()
         #expect(gltf.asset.version == "2.0")
         // Generator may differ for .glb export; just ensure non-nil
         #expect(gltf.asset.generator != nil)
     }
 
     @Test
-    func testVertexAndIndexCounts() throws {
-        let (_, asset) = try loadGLBAndAsset()
+    func testVertexAndIndexCounts() async throws {
+        let (_, asset) = try await loadGLBAndAsset()
         // Root object should contain one mesh
         #expect(asset.count == 1)
         let scene = asset.object(at: 0)
@@ -27,16 +27,16 @@ struct CubeBinaryTests {
     }
 
     @Test
-    func testVertexData() throws {
-        let (_, asset) = try loadGLBAndAsset()
+    func testVertexData() async throws {
+        let (_, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         #expect(mesh.vertexCount == 24)
         #expect(mesh.vertexBuffers[0].length == 1152) // 24points × VertexAttributeStride.stride = 24 × 48
     }
 
     @Test
-    func testIndexData() throws {
-        let (_, asset) = try loadGLBAndAsset()
+    func testIndexData() async throws {
+        let (_, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         #expect(submesh.indexCount == 36)
@@ -44,16 +44,16 @@ struct CubeBinaryTests {
     }
 
     @Test
-    func testGeometryType() throws {
-        let (_, asset) = try loadGLBAndAsset()
+    func testGeometryType() async throws {
+        let (_, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         #expect(submesh.geometryType == .triangles)
     }
 
     @Test
-    func testSceneNodeHierarchy() throws {
-        let (gltf, asset) = try loadGLBAndAsset()
+    func testSceneNodeHierarchy() async throws {
+        let (gltf, asset) = try await loadGLBAndAsset()
         #expect(gltf.scenes!.count == 1)
         #expect(gltf.nodes!.count == 1)
         #expect(asset.count == 1)
@@ -61,8 +61,8 @@ struct CubeBinaryTests {
     }
 
     @Test
-    func testVertexDescriptor() throws {
-        let (_, asset) = try loadGLBAndAsset()
+    func testVertexDescriptor() async throws {
+        let (_, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let descriptor = mesh.vertexDescriptor
 
@@ -89,8 +89,8 @@ struct CubeBinaryTests {
     }
 
     @Test
-    func testIndexBufferMatchesOriginalBinary() throws {
-        let (gltf, asset) = try loadGLBAndAsset()
+    func testIndexBufferMatchesOriginalBinary() async throws {
+        let (gltf, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let indicesData = (mesh.submeshes?.firstObject as! MDLSubmesh).indexBuffer.map().bytes.assumingMemoryBound(to: UInt8.self)
 
@@ -110,8 +110,8 @@ struct CubeBinaryTests {
     }
 
     @Test
-    func testPositionBufferMatchesOriginalBinary() throws {
-        let (gltf, asset) = try loadGLBAndAsset()
+    func testPositionBufferMatchesOriginalBinary() async throws {
+        let (gltf, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
@@ -139,8 +139,8 @@ struct CubeBinaryTests {
     }
 
     @Test
-    func testNormalBufferMatchesOriginalBinary() throws {
-        let (gltf, asset) = try loadGLBAndAsset()
+    func testNormalBufferMatchesOriginalBinary() async throws {
+        let (gltf, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
@@ -168,8 +168,8 @@ struct CubeBinaryTests {
     }
 
     @Test
-    func testTexCoordBufferMatchesOriginalBinary() throws {
-        let (gltf, asset) = try loadGLBAndAsset()
+    func testTexCoordBufferMatchesOriginalBinary() async throws {
+        let (gltf, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
@@ -197,8 +197,8 @@ struct CubeBinaryTests {
     }
 
     @Test
-    func testMaterialProperties() throws {
-        let (_, asset) = try loadGLBAndAsset()
+    func testMaterialProperties() async throws {
+        let (_, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
@@ -222,14 +222,14 @@ struct CubeBinaryTests {
 
 
     // Helper to load GLTF and MDLAsset from cube.glb
-    private func loadGLBAndAsset() throws -> (GLTF, MDLAsset) {
+    private func loadGLBAndAsset() async throws -> (GLTF, MDLAsset) {
         guard let url = Bundle.module.url(forResource: "cube", withExtension: "glb") else {
             throw NSError(domain: "CubeBinaryTests", code: -1,
                           userInfo: [NSLocalizedDescriptionKey: "cube.glb not found"])
         }
         let data = try Data(contentsOf: url)
         let gltfContainer = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-        let asset = try makeMDLAsset(
+        let asset = try await makeMDLAsset(
             from: gltfContainer,
             options: GLTFDecodeOptions(convertToLeftHanded: false, autoScale: false)
         )

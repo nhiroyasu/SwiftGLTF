@@ -5,23 +5,23 @@ import ModelIO
 
 struct CubeTests {
     @Test
-    func testGLTFStructure() throws {
-        let (gltf, _) = try loadGLTFAndAsset()
+    func testGLTFStructure() async throws {
+        let (gltf, _) = try await loadGLTFAndAsset()
         #expect(gltf.asset.version == "2.0")
         #expect(gltf.asset.generator == "Khronos glTF Blender I/O v4.4.55")
     }
 
     @Test
-    func testVertexData() throws {
-        let (_, asset) = try loadGLTFAndAsset()
+    func testVertexData() async throws {
+        let (_, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         #expect(mesh.vertexCount == 24)
         #expect(mesh.vertexBuffers[0].length == 1152) // 24points × VertexAttributeStride.stride = 24 × 48
     }
 
     @Test
-    func testIndexData() throws {
-        let (_, asset) = try loadGLTFAndAsset()
+    func testIndexData() async throws {
+        let (_, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         #expect(submesh.indexCount == 36)
@@ -29,16 +29,16 @@ struct CubeTests {
     }
 
     @Test
-    func testGeometryType() throws {
-        let (_, asset) = try loadGLTFAndAsset()
+    func testGeometryType() async throws {
+        let (_, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         #expect(submesh.geometryType == .triangles)
     }
 
     @Test
-    func testSceneNodeHierarchy() throws {
-        let (gltf, asset) = try loadGLTFAndAsset()
+    func testSceneNodeHierarchy() async throws {
+        let (gltf, asset) = try await loadGLTFAndAsset()
         #expect(gltf.scenes!.count == 1)
         #expect(gltf.nodes!.count == 1)
         #expect(asset.count == 1)
@@ -46,8 +46,8 @@ struct CubeTests {
     }
 
     @Test
-    func testVertexDescriptor() throws {
-        let (_, asset) = try loadGLTFAndAsset()
+    func testVertexDescriptor() async throws {
+        let (_, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let descriptor = mesh.vertexDescriptor
 
@@ -74,8 +74,8 @@ struct CubeTests {
     }
 
     @Test
-    func testIndexBufferMatchesOriginalBinary() throws {
-        let (gltf, asset) = try loadGLTFAndAsset()
+    func testIndexBufferMatchesOriginalBinary() async throws {
+        let (gltf, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let indicesData = (mesh.submeshes?.firstObject as! MDLSubmesh).indexBuffer.map().bytes.assumingMemoryBound(to: UInt8.self)
 
@@ -95,8 +95,8 @@ struct CubeTests {
     }
 
     @Test
-    func testPositionBufferMatchesOriginalBinary() throws {
-        let (gltf, asset) = try loadGLTFAndAsset()
+    func testPositionBufferMatchesOriginalBinary() async throws {
+        let (gltf, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
@@ -124,8 +124,8 @@ struct CubeTests {
     }
 
     @Test
-    func testNormalBufferMatchesOriginalBinary() throws {
-        let (gltf, asset) = try loadGLTFAndAsset()
+    func testNormalBufferMatchesOriginalBinary() async throws {
+        let (gltf, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
@@ -153,8 +153,8 @@ struct CubeTests {
     }
 
     @Test
-    func testTexCoordBufferMatchesOriginalBinary() throws {
-        let (gltf, asset) = try loadGLTFAndAsset()
+    func testTexCoordBufferMatchesOriginalBinary() async throws {
+        let (gltf, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
@@ -182,8 +182,8 @@ struct CubeTests {
     }
 
     @Test
-    func testMaterialProperties() throws {
-        let (_, asset) = try loadGLTFAndAsset()
+    func testMaterialProperties() async throws {
+        let (_, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
@@ -207,13 +207,13 @@ struct CubeTests {
 
     // MARK: - Helper Methods
 
-    private func loadGLTFAndAsset() throws -> (GLTF, MDLAsset) {
+    private func loadGLTFAndAsset() async throws -> (GLTF, MDLAsset) {
         guard let gltfURL = Bundle.module.url(forResource: "cube", withExtension: "gltf") else {
             throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "cube.gltf not found"])
         }
         let data = try Data(contentsOf: gltfURL)
         let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try makeMDLAsset(
+        let asset = try await makeMDLAsset(
             from: gltfContainer,
             options: GLTFDecodeOptions(convertToLeftHanded: false, autoScale: false)
         )

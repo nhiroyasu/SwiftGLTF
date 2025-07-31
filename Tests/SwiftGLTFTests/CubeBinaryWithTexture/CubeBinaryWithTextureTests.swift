@@ -5,8 +5,8 @@ import ModelIO
 
 struct CubeBinaryWithTextureTests {
     @Test
-    func testTexCoordBufferMatchesOriginalBinary() throws {
-        let (gltfContainer, asset) = try loadGLBAndAsset()
+    func testTexCoordBufferMatchesOriginalBinary() async throws {
+        let (gltfContainer, asset) = try await loadGLBAndAsset()
         let gltf = gltfContainer.gltf
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
@@ -35,8 +35,8 @@ struct CubeBinaryWithTextureTests {
     }
 
     @Test
-    func testMaterialBaseColorAndNormalTexture() throws {
-        let (gltfContainer, asset) = try loadGLBAndAsset()
+    func testMaterialBaseColorAndNormalTexture() async throws {
+        let (gltfContainer, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
@@ -59,8 +59,8 @@ struct CubeBinaryWithTextureTests {
     }
 
     @Test
-    func testSamplerFilterAndWrapSettings() throws {
-        let (gltfContainer, asset) = try loadGLBAndAsset()
+    func testSamplerFilterAndWrapSettings() async throws {
+        let (gltfContainer, asset) = try await loadGLBAndAsset()
         let gltf = gltfContainer.gltf
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
@@ -95,9 +95,9 @@ struct CubeBinaryWithTextureTests {
     }
 
     @Test
-    func testMetallicRoughnessProperties() throws {
+    func testMetallicRoughnessProperties() async throws {
         // Please write a test for metallic and roughness properties
-        let (_, asset) = try loadGLBAndAsset()
+        let (_, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
@@ -110,13 +110,13 @@ struct CubeBinaryWithTextureTests {
 
     // MARK: - Helper Methods
 
-    private func loadGLBAndAsset() throws -> (GLTFContainer, MDLAsset) {
+    private func loadGLBAndAsset() async throws -> (GLTFContainer, MDLAsset) {
         guard let gltfURL = Bundle.module.url(forResource: "bricks_cube", withExtension: "glb") else {
             throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "cube.glb not found"])
         }
         let data = try Data(contentsOf: gltfURL)
         let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try makeMDLAsset(from: gltfContainer)
+        let asset = try await makeMDLAsset(from: gltfContainer)
         return (gltfContainer, asset)
     }
 

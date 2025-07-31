@@ -29,7 +29,7 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     func loadDefaultAsset() async {
         do {
             let url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
-            let asset = try makeMDLAsset(from: url)
+            let asset = try await makeMDLAsset(from: url)
             let newRenderer = try await GLTFRenderer()
             try await newRenderer.load(from: asset)
             renderer = newRenderer
@@ -50,10 +50,8 @@ class GLTFViewModel: ObservableObject, DropDelegate {
         defer { url.stopAccessingSecurityScopedResource() }
 
         do {
-            try await Task.detached {
-                let asset = try makeMDLAsset(from: url)
-                try await self.renderer?.load(from: asset)
-            }.value
+            let asset = try await makeMDLAsset(from: url)
+            try await self.renderer?.load(from: asset)
         } catch {
             showError = true
             errorMessage = "Failed to load asset: \(error.localizedDescription)"

@@ -5,8 +5,8 @@ import ModelIO
 
 struct MaterialCubeTests {
     @Test
-    func testMetallicRoughnessFactor() throws {
-        let (_, asset) = try loadGLTFAndAsset()
+    func testMetallicRoughnessFactor() async throws {
+        let (_, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
@@ -18,8 +18,8 @@ struct MaterialCubeTests {
     }
 
     @Test
-    func testBaseColorFactor() throws {
-        let (_, asset) = try loadGLTFAndAsset()
+    func testBaseColorFactor() async throws {
+        let (_, asset) = try await loadGLTFAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
@@ -30,13 +30,13 @@ struct MaterialCubeTests {
 
     // MARK: - Helper Methods
 
-    private func loadGLTFAndAsset() throws -> (GLTF, MDLAsset) {
+    private func loadGLTFAndAsset() async throws -> (GLTF, MDLAsset) {
         guard let gltfURL = Bundle.module.url(forResource: "material_cube", withExtension: "gltf") else {
             throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "material_cube.gltf not found"])
         }
         let data = try Data(contentsOf: gltfURL)
         let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try makeMDLAsset(from: gltfContainer)
+        let asset = try await makeMDLAsset(from: gltfContainer)
         return (gltfContainer.gltf, asset)
     }
 }
