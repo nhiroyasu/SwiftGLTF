@@ -139,22 +139,4 @@ struct CubeBinaryWithTextureTests {
             return .repeat
         }
     }
-
-    enum VertexAttributeStride {
-        static let stride = 48
-    }
-
-    enum VertexAttributeSize {
-        static let position = 12 // float3
-        static let normal = 12 // float3
-        static let tangent = 16 // float4
-        static let texcoord = 8 // float2
-    }
-
-    enum VertexAttributeOffset {
-        static let position = 0
-        static let normal = 12
-        static let tangent = 24
-        static let texcoord = 40
-    }
 }

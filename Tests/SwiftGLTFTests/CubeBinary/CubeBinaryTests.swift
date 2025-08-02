@@ -31,7 +31,7 @@ struct CubeBinaryTests {
         let (_, asset) = try await loadGLBAndAsset()
         let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         #expect(mesh.vertexCount == 24)
-        #expect(mesh.vertexBuffers[0].length == 1152) // 24points × VertexAttributeStride.stride = 24 × 48
+        #expect(mesh.vertexBuffers[0].length == 24 * VertexAttributeStride.stride)
     }
 
     @Test
@@ -236,21 +236,26 @@ struct CubeBinaryTests {
         return (gltfContainer.gltf, asset)
     }
 
-    enum VertexAttributeStride {
-        static let stride = 48
-    }
 
-    enum VertexAttributeSize {
-        static let position = 12 // float3
-        static let normal = 12 // float3
-        static let tangent = 16 // float4
-        static let texcoord = 8 // float2
-    }
+}
 
-    enum VertexAttributeOffset {
-        static let position = 0
-        static let normal = 12
-        static let tangent = 24
-        static let texcoord = 40
-    }
+enum VertexAttributeStride {
+    // 12 (position) + 12 (normal) + 16 (tangent) + 8 (texcoord) + 16 (color)
+    static let stride = 64
+}
+
+enum VertexAttributeSize: CaseIterable {
+    static let position = 12 // float3
+    static let normal = 12 // float3
+    static let tangent = 16 // float4
+    static let texcoord = 8 // float2
+    static let color = 16 // float4
+}
+
+enum VertexAttributeOffset {
+    static let position = 0
+    static let normal = 12
+    static let tangent = 24
+    static let texcoord = 40
+    static let color = 48
 }

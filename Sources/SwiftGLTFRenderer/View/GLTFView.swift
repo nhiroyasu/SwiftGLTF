@@ -1,6 +1,7 @@
 import SwiftGLTF
 import MetalKit
 import Img2Cubemap
+import SwiftGLTFShaderTypes
 
 public enum RenderingType {
     case pbr
@@ -10,10 +11,8 @@ public enum RenderingType {
 public class GLTFView: MTKView {
     private let renderer: GLTFRenderer
 
-    private let pbrSceneUniformsBuffer: FrameInFlightBuffer
-    private let viewBuffer: FrameInFlightBuffer
-    private let projectionBuffer: FrameInFlightBuffer
-    private let offsetBuffer: FrameInFlightBuffer
+    private let fragmentParamsBuffer: FrameInFlightBuffer
+    private let vertexPramsBuffer: FrameInFlightBuffer
     private let skyboxVPMatrixBuffer: FrameInFlightBuffer
 
     private var rotationX: Float32 = -.pi / 2
@@ -43,27 +42,15 @@ public class GLTFView: MTKView {
 
         let device = renderer.device
 
-        self.pbrSceneUniformsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+        self.fragmentParamsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
-                length: MemoryLayout<PBRSceneUniforms>.size,
+                length: MemoryLayout<PBRFragmentVariableParameters>.size,
                 options: []
             )!
         }
-        self.viewBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+        self.vertexPramsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
-                length: MemoryLayout<float4x4>.size,
-                options: []
-            )!
-        }
-        self.projectionBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
-            device.makeBuffer(
-                length: MemoryLayout<float4x4>.size,
-                options: []
-            )!
-        }
-        self.offsetBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
-            device.makeBuffer(
-                length: MemoryLayout<float4x4>.size,
+                length: MemoryLayout<PBRVertexVariableParameters>.size,
                 options: .storageModeShared
             )!
         }
@@ -105,7 +92,7 @@ public class GLTFView: MTKView {
     // MARK: - Buffer Management
 
     private func updateSkyboxBuffer(
-        toVPMatrixBuffer: MTLBuffer,
+        toVPMatrix: MTLBuffer,
         rotationX: Float32,
         rotationY: Float32,
         upSign: Float32,
@@ -128,58 +115,51 @@ public class GLTFView: MTKView {
             far: 100.0
         )
         var skyboxVPMatrix = skyboxProjectionMatrix * skyboxViewMatrix
-        toVPMatrixBuffer.contents().copyMemory(
+        toVPMatrix.contents().copyMemory(
             from: &skyboxVPMatrix,
             byteCount: MemoryLayout<simd_float4x4>.size
         )
     }
 
     private func updateSceneBuffer(
-        toViewBuffer: MTLBuffer,
-        toProjectionBuffer: MTLBuffer,
-        toOffsetBuffer: MTLBuffer,
-        toPBRSceneUniformsBuffer: MTLBuffer,
+        toVertexParams: MTLBuffer,
+        toFragmentParams: MTLBuffer,
         eye: SIMD3<Float>,
         lightPosition: SIMD3<Float>,
         ambientLightColor: SIMD3<Float>,
         upSign: Float32,
         drawableSize: CGSize
     ) {
-        var view = lookAt(
+        let view = lookAt(
             eye: eye,
             target: simd_float3(0, 0, 0),
             up: simd_float3(0, upSign, 0)
         )
-        toViewBuffer.contents().copyMemory(
-            from: &view,
-            byteCount: MemoryLayout<float4x4>.size
-        )
-
-        var projection = perspectiveMatrix(
+        let projection = perspectiveMatrix(
             fov: .pi / 3,
             aspect: Float(drawableSize.width / drawableSize.height),
             near: 0.1,
             far: 1000.0
         )
-        toProjectionBuffer.contents().copyMemory(
-            from: &projection,
-            byteCount: MemoryLayout<float4x4>.size
+        let offset = translationMatrix(targetOffset.x, targetOffset.y, targetOffset.z)
+        var vpUniforms = PBRVertexVariableParameters(
+            view: view,
+            projection: projection,
+            externalTransform: offset
+        )
+        toVertexParams.contents().copyMemory(
+            from: &vpUniforms,
+            byteCount: MemoryLayout<PBRVertexVariableParameters>.size
         )
 
-        var offset = translationMatrix(targetOffset.x, targetOffset.y, targetOffset.z)
-        toOffsetBuffer.contents().copyMemory(
-            from: &offset,
-            byteCount: MemoryLayout<float4x4>.size
-        )
-
-        var pbrSceneUniforms = PBRSceneUniforms(
+        var pbrSceneUniforms = PBRFragmentVariableParameters(
             lightPosition: lightPosition,
             viewPosition: eye,
             ambientLightColor: ambientLightColor
         )
-        toPBRSceneUniformsBuffer.contents().copyMemory(
+        toFragmentParams.contents().copyMemory(
             from: &pbrSceneUniforms,
-            byteCount: MemoryLayout<PBRSceneUniforms>.size
+            byteCount: MemoryLayout<PBRFragmentVariableParameters>.size
         )
     }
 
@@ -199,17 +179,15 @@ public class GLTFView: MTKView {
 
         // Update buffers
         updateSkyboxBuffer(
-            toVPMatrixBuffer: skyboxVPMatrixBuffer.buffer(currentBuffer),
+            toVPMatrix: skyboxVPMatrixBuffer.buffer(currentBuffer),
             rotationX: rotationX,
             rotationY: rotationY,
             upSign: upSign,
             drawableSize: drawableSize
         )
         updateSceneBuffer(
-            toViewBuffer: viewBuffer.buffer(currentBuffer),
-            toProjectionBuffer: projectionBuffer.buffer(currentBuffer),
-            toOffsetBuffer: offsetBuffer.buffer(currentBuffer),
-            toPBRSceneUniformsBuffer: pbrSceneUniformsBuffer.buffer(currentBuffer),
+            toVertexParams: vertexPramsBuffer.buffer(currentBuffer),
+            toFragmentParams: fragmentParamsBuffer.buffer(currentBuffer),
             eye: eye,
             lightPosition: lightPosition,
             ambientLightColor: ambientLightColor,
@@ -220,10 +198,8 @@ public class GLTFView: MTKView {
         // Rendering
         renderer.render(
             using: renderEncoder,
-            view: viewBuffer.buffer(currentBuffer),
-            projection: projectionBuffer.buffer(currentBuffer),
-            externalTransform: offsetBuffer.buffer(currentBuffer),
-            pbrScene: pbrSceneUniformsBuffer.buffer(currentBuffer),
+            vertexParams: vertexPramsBuffer.buffer(currentBuffer),
+            fragmentParams: fragmentParamsBuffer.buffer(currentBuffer),
             skyboxVP: skyboxVPMatrixBuffer.buffer(currentBuffer)
         )
 

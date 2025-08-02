@@ -1,5 +1,5 @@
 #include <metal_stdlib>
-#include "../../SwiftGLTFShaderTypes/includes/metal_helper.h"
+#include "includes/metal_helper.h"
 
 using namespace metal;
 

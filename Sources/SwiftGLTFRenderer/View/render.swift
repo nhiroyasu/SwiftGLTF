@@ -23,78 +23,63 @@ func drawSkybox(
 
 func drawPBR(
     renderEncoder: MTLRenderCommandEncoder,
-    mesh: PBRMesh,
-    view: MTLBuffer,
-    projection: MTLBuffer,
-    externalTransform: MTLBuffer,
-    pbrSceneUniformsBuffer: MTLBuffer,
-    specularCubeMapTexture: MTLTexture,
-    irradianceCubeMapTexture: MTLTexture,
-    brdfLUT: MTLTexture
+    pipelineState: MTLRenderPipelineState,
+    depthStencilState: MTLDepthStencilState,
+    vertexResources: [MTLHeap],
+    fragmentResources: [MTLHeap],
+    meshes: [PBRMesh],
+    vertexParams: MTLBuffer,
+    skyboxArgBuffer: MTLBuffer,
+    fragmentParams: MTLBuffer
 ) {
-    renderEncoder.setRenderPipelineState(mesh.pso)
-    renderEncoder.setDepthStencilState(mesh.dso)
+    renderEncoder.setRenderPipelineState(pipelineState)
+    renderEncoder.setDepthStencilState(depthStencilState)
+    renderEncoder.useHeaps(vertexResources, stages: .vertex)
+    renderEncoder.useHeaps(fragmentResources, stages: .fragment)
+    renderEncoder.setVertexBuffer(vertexParams, offset: 0, index: 2)
+    renderEncoder.setFragmentBuffer(skyboxArgBuffer, offset: 0, index: 1)
+    renderEncoder.setFragmentBuffer(fragmentParams, offset: 0, index: 2)
+    for mesh in meshes {
+        renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
+        renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
 
-    renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-    renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
-    renderEncoder.setVertexBuffer(view, offset: 0, index: 2)
-    renderEncoder.setVertexBuffer(projection, offset: 0, index: 3)
-    renderEncoder.setVertexBuffer(externalTransform, offset: 0, index: 4)
-    renderEncoder.setFragmentBuffer(mesh.vertexUniformsBuffer, offset: 0, index: 0)
-    renderEncoder.setFragmentBuffer(pbrSceneUniformsBuffer, offset: 0, index: 1)
-    renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
-    renderEncoder.setFragmentTexture(irradianceCubeMapTexture, index: 1)
-    renderEncoder.setFragmentTexture(brdfLUT, index: 2)
+        for submesh in mesh.submeshes {
+            renderEncoder.setFragmentBuffer(submesh.fragmentArgumentBuffer, offset: 0, index: 0)
 
-    for submesh in mesh.submeshes {
-        // Set per-submesh material factors buffer
-        renderEncoder.setFragmentBuffer(submesh.materialUniformsBuffer, offset: 0, index: 2)
-        // Set baseColor, normal, metallic and roughness textures/samplers
-        renderEncoder.setFragmentTexture(submesh.baseColorTexture, index: 3)
-        renderEncoder.setFragmentSamplerState(submesh.baseColorSampler, index: 0)
-        renderEncoder.setFragmentTexture(submesh.normalTexture, index: 4)
-        renderEncoder.setFragmentSamplerState(submesh.normalSampler, index: 1)
-        renderEncoder.setFragmentTexture(submesh.metallicRoughnessTexture, index: 5)
-        renderEncoder.setFragmentSamplerState(submesh.metallicRoughnessSampler, index: 2)
-        renderEncoder.setFragmentTexture(submesh.emissiveTexture, index: 6)
-        renderEncoder.setFragmentSamplerState(submesh.emissiveSampler, index: 3)
-        renderEncoder.setFragmentTexture(submesh.occlusionTexture, index: 7)
-        renderEncoder.setFragmentSamplerState(submesh.occlusionSampler, index: 4)
-
-        renderEncoder.drawIndexedPrimitives(
-            type: submesh.primitiveType,
-            indexCount: submesh.indexCount,
-            indexType: submesh.indexType,
-            indexBuffer: submesh.indexBuffer.buffer,
-            indexBufferOffset: submesh.indexBuffer.offset
-        )
+            renderEncoder.drawIndexedPrimitives(
+                type: submesh.primitiveType,
+                indexCount: submesh.indexCount,
+                indexType: submesh.indexType,
+                indexBuffer: submesh.indexBuffer.buffer,
+                indexBufferOffset: submesh.indexBuffer.offset
+            )
+        }
     }
+
 }
 
 func drawWireframe(
     renderEncoder: MTLRenderCommandEncoder,
-    mesh: PBRMesh,
-    view: MTLBuffer,
-    projection: MTLBuffer,
-    externalTransform: MTLBuffer
+    pipelineState: MTLRenderPipelineState,
+    depthStencilState: MTLDepthStencilState,
+    meshes: [PBRMesh],
+    vertexParams: MTLBuffer
 ) {
-    renderEncoder.setRenderPipelineState(mesh.pso)
-    renderEncoder.setDepthStencilState(mesh.dso)
-
-    renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-    renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
-    renderEncoder.setVertexBuffer(view, offset: 0, index: 2)
-    renderEncoder.setVertexBuffer(projection, offset: 0, index: 3)
-    renderEncoder.setVertexBuffer(externalTransform, offset: 0, index: 4)
     renderEncoder.setTriangleFillMode(.lines)
-
-    for submesh in mesh.submeshes {
-        renderEncoder.drawIndexedPrimitives(
-            type: submesh.primitiveType,
-            indexCount: submesh.indexCount,
-            indexType: submesh.indexType,
-            indexBuffer: submesh.indexBuffer.buffer,
-            indexBufferOffset: submesh.indexBuffer.offset
-        )
+    renderEncoder.setRenderPipelineState(pipelineState)
+    renderEncoder.setDepthStencilState(depthStencilState)
+    renderEncoder.setVertexBuffer(vertexParams, offset: 0, index: 2)
+    for mesh in meshes {
+        renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
+        renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
+        for submesh in mesh.submeshes {
+            renderEncoder.drawIndexedPrimitives(
+                type: submesh.primitiveType,
+                indexCount: submesh.indexCount,
+                indexType: submesh.indexType,
+                indexBuffer: submesh.indexBuffer.buffer,
+                indexBufferOffset: submesh.indexBuffer.offset
+            )
+        }
     }
 }

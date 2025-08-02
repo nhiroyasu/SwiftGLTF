@@ -39,7 +39,7 @@ public class SkyboxMeshLoader {
         device: MTLDevice,
         library: MTLLibrary,
         config: SkyboxPipelineConfig
-    ) async throws {
+    ) throws {
         self.device = device
         // Pipeline state
         let desc = MTLRenderPipelineDescriptor()
@@ -48,7 +48,7 @@ public class SkyboxMeshLoader {
         desc.colorAttachments[0].pixelFormat = config.colorPixelFormat
         desc.depthAttachmentPixelFormat = config.depthPixelFormat
         desc.rasterSampleCount = config.sampleCount
-        self.pso = try await device.makeRenderPipelineState(descriptor: desc)
+        self.pso = try device.makeRenderPipelineState(descriptor: desc)
         // Depth stencil state
         let dsd = MTLDepthStencilDescriptor()
         dsd.depthCompareFunction = .always

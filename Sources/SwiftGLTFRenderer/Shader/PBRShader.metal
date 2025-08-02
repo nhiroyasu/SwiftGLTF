@@ -1,6 +1,6 @@
 #include <metal_stdlib>
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
-#include "../../SwiftGLTFShaderTypes/includes/metal_helper.h"
+#include "includes/metal_helper.h"
 using namespace metal;
 
 // MARK: - Compute lighting
@@ -117,17 +117,41 @@ struct PBRVertexOut {
     float4 modulationColor;
 };
 
+struct PBRFragmentArguments {
+    constant PBRMaterialUniforms &material [[id(0)]];
+    bool hasBaseColorTexture [[id(1)]];
+    texture2d<float> baseColorTexture [[id(2)]];
+    sampler baseColorSampler [[id(3)]];
+    bool hasNormalTexture [[id(4)]];
+    texture2d<float> normalTexture [[id(5)]];
+    sampler normalSampler [[id(6)]];
+    bool hasMetallicRoughnessTexture [[id(7)]];
+    texture2d<float> metallicRoughnessTexture [[id(8)]];
+    sampler metallicRoughnessSampler [[id(9)]];
+    bool hasEmissiveTexture [[id(10)]];
+    texture2d<float> emissiveTexture [[id(11)]];
+    sampler emissiveSampler [[id(12)]];
+    bool hasOcclusionTexture [[id(13)]];
+    texture2d<float> occlusionTexture [[id(14)]];
+    sampler occlusionSampler [[id(15)]];
+};
+
+struct PBRSkyboxArguments {
+    texturecube<float> specularCubeMap [[id(0)]];
+    texturecube<float> irradianceMap [[id(1)]];
+    texture2d<float> brdfLUT [[id(2)]];
+};
+
 // MARK: - PBR Shader
 
 vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
                                       constant float4x4 &model [[buffer(1)]],
-                                      constant float4x4 &view [[buffer(2)]],
-                                      constant float4x4 &projection [[buffer(3)]],
-                                      constant float4x4 &externalTransform [[buffer(4)]]) {
+                                      constant PBRVertexVariableParameters &params [[buffer(2)]])
+{
     PBRVertexOut out;
 
-    float4x4 modelTransform = externalTransform * model;
-    float4x4 mvpTransform = projection * view * modelTransform;
+    float4x4 modelTransform = params.externalTransform * model;
+    float4x4 mvpTransform = params.projection * params.view * modelTransform;
 
     float3x3 normalTransform = transpose(inverse(_float3x3(modelTransform)));
 
@@ -141,40 +165,62 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
 }
 
 fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
-                                    constant PBRVertexUniforms &vUni [[buffer(0)]],
-                                    constant PBRSceneUniforms &sUni [[buffer(1)]],
-                                    constant PBRMaterialUniforms &mUni [[buffer(2)]],
-                                    texturecube<float, access::sample> specularCubeMap [[ texture(0) ]],
-                                    texturecube<float, access::sample> irradianceMap [[ texture(1) ]],
-                                    texture2d<float, access::sample> brdfLUT [[ texture(2) ]],
-                                    texture2d<float, access::sample> baseColorTexture [[ texture(3) ]],
-                                    sampler baseColorSampler [[ sampler(0) ]],
-                                    texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                    sampler normalSampler [[ sampler(1) ]],
-                                    texture2d<float, access::sample> metallicRoughnessTexture [[ texture(5) ]],
-                                    sampler metallicRoughnessSampler [[ sampler(2) ]],
-                                    texture2d<float, access::sample> emissiveTexture [[ texture(6) ]],
-                                    sampler emissiveSampler [[ sampler(3) ]],
-                                    texture2d<float, access::sample> occlusionTexture [[ texture(7) ]],
-                                    sampler occlusionSampler [[ sampler(4) ]]) {
-    float2 uv = vUni.hasUV ? in.uv : float2(0.0, 0.0);
-    float4 modulationColor = vUni.hasModulationColor ? in.modulationColor : float4(1.0, 1.0, 1.0, 1.0);
+                                    constant PBRFragmentArguments &fragArgs [[buffer(0)]],
+                                    constant PBRSkyboxArguments &skyboxArgs [[buffer(1)]],
+                                    constant PBRFragmentVariableParameters &params [[buffer(2)]])
+{
+    constant PBRMaterialUniforms &mUni = fragArgs.material;
+    texture2d<float> baseColorTexture = fragArgs.baseColorTexture;
+    sampler baseColorSampler = fragArgs.baseColorSampler;
+    texture2d<float> normalTexture = fragArgs.normalTexture;
+    sampler normalSampler = fragArgs.normalSampler;
+    texture2d<float> metallicRoughnessTexture = fragArgs.metallicRoughnessTexture;
+    sampler metallicRoughnessSampler = fragArgs.metallicRoughnessSampler;
+    texture2d<float> emissiveTexture = fragArgs.emissiveTexture;
+    sampler emissiveSampler = fragArgs.emissiveSampler;
+    texture2d<float> occlusionTexture = fragArgs.occlusionTexture;
+    sampler occlusionSampler = fragArgs.occlusionSampler;
+
+    texturecube<float> specularCubeMap = skyboxArgs.specularCubeMap;
+    texturecube<float> irradianceMap = skyboxArgs.irradianceMap;
+    texture2d<float> brdfLUT = skyboxArgs.brdfLUT;
+
+    float2 uv = in.uv;
+    float4 modulationColor = in.modulationColor;
 
     // Apply base color texture, vertex modulation color, and material base color factor
-    float3 albedo = baseColorTexture.sample(baseColorSampler, uv).rgb * modulationColor.rgb * mUni.baseColorFactor.rgb;
+    float3 albedo = fragArgs.hasBaseColorTexture
+    ? baseColorTexture.sample(baseColorSampler, uv).rgb * modulationColor.rgb * mUni.baseColorFactor.rgb
+    : float3(1, 1, 1) * modulationColor.rgb * mUni.baseColorFactor.rgb;
+
     // Sample metallic-roughness and occlusion, apply material factors
-    float metallic = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).b * mUni.metalRoughnessOcclusion.x;
-    float roughness = metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).g * mUni.metalRoughnessOcclusion.y;
-    float ambientOcclusion = occlusionTexture.sample(occlusionSampler, uv).r * mUni.metalRoughnessOcclusion.z;
+    float metallic = fragArgs.hasMetallicRoughnessTexture
+    ? metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).b * mUni.metalRoughnessOcclusion.x
+    : 1.0 * mUni.metalRoughnessOcclusion.x;
+    float roughness = fragArgs.hasMetallicRoughnessTexture
+    ? metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).g * mUni.metalRoughnessOcclusion.y
+    : 1.0 * mUni.metalRoughnessOcclusion.y;
+
+    // Emissive lighting: apply material emissive factor
+    float3 emissive = fragArgs.hasEmissiveTexture
+    ? emissiveTexture.sample(emissiveSampler, uv).rgb * mUni.emissiveFactor.rgb
+    : float3(1, 1, 1) * mUni.emissiveFactor.rgb;
+
+    // Ambient occlusion: apply material occlusion factor
+    float ambientOcclusion = fragArgs.hasOcclusionTexture
+    ? occlusionTexture.sample(occlusionSampler, uv).r * mUni.metalRoughnessOcclusion.z
+    : 1.0 * mUni.metalRoughnessOcclusion.z;
 
     float3 N = normalize(in.normal);
-    float3x3 TBN = vUni.hasTangent ? make_tbn(N, in.tangent.xyz, in.tangent.w) : make_tbn(N);
+    float3x3 TBN = make_tbn(N, in.tangent.xyz, in.tangent.w);
 
-    float3 normalTexValue = normalTexture.sample(normalSampler, uv).rgb * 2.0 - 1.0;
+    float3 normalTexValue = fragArgs.hasNormalTexture
+    ? normalTexture.sample(normalSampler, uv).rgb * 2.0 - 1.0
+    : float3(0, 0, 1);
     float3 normal = normalize(TBN * normalTexValue);
 
     float3 worldPosition = in.worldPosition;
-    float3 viewPosition = sUni.viewPosition;
+    float3 viewPosition = params.viewPosition;
 
     // Direct lighting
     float3 directLighting = compute_direct_lighting(normal,
@@ -182,9 +228,9 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                     albedo,
                                                     metallic,
                                                     roughness,
-                                                    sUni.viewPosition,
-                                                    sUni.lightPosition,
-                                                    sUni.ambientLightColor);
+                                                    params.viewPosition,
+                                                    params.lightPosition,
+                                                    params.ambientLightColor);
 
     // Indirect lighting
     float3 indirectLighting = compute_indirect_lighting(normal,
@@ -198,41 +244,8 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                         irradianceMap,
                                                         brdfLUT);
 
-    // Emissive lighting: apply material emissive factor
-    float3 emissive = emissiveTexture.sample(emissiveSampler, uv).rgb * mUni.emissiveFactor.rgb;
-
     // Final color
     float3 color = directLighting + indirectLighting + emissive;
 
     return float4(color, 1.0);
-}
-
-// MARK: - Debug Shader
-
-fragment float4 normal_display_shader(PBRVertexOut in [[stage_in]],
-                                      constant PBRVertexUniforms &vUni [[buffer(0)]],
-                                      texture2d<float, access::sample> normalTexture [[ texture(4) ]],
-                                      sampler normalSampler [[ sampler(1) ]]) {
-    float2 uv = vUni.hasUV ? in.uv : float2(0.0, 0.0);
-
-    float3 N = normalize(in.normal);
-    float3x3 TBN = vUni.hasTangent ? make_tbn(N, in.tangent.xyz, in.tangent.w) : make_tbn(N);
-
-    float3 normalTexValue = normalTexture.sample(normalSampler, uv).rgb * 2.0 - 1.0;
-    float3 normal = normalize(TBN * normalTexValue);
-    // -1 ~ 1 → 0 ~ 1
-    normal = (normal + 1.0) * 0.5;
-
-    return float4(normal, 1.0); // Display normal as RGB
-}
-
-fragment float4 tangent_display_shader(PBRVertexOut in [[stage_in]],
-                                      constant PBRVertexUniforms &vUni [[buffer(0)]]) {
-
-    float3 tangent = vUni.hasTangent ? in.tangent.xyz : float3(0.0, 0.0, 0.0);
-    tangent = normalize(tangent);
-    // -1 ~ 1 → 0 ~ 1
-    tangent = (tangent + 1.0) * 0.5;
-
-    return float4(tangent, 1.0); // Display tangent as RGB
 }

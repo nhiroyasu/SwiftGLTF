@@ -3,14 +3,6 @@ import MetalKit
 import SwiftGLTFCore
 import OSLog
 
-public enum GLTFVertexAttributeIndex {
-    public static let POSITION = 0
-    public static let NORMAL = 1
-    public static let TANGENT = 2
-    public static let TEXCOORD_0 = 3
-    public static let COLOR_0 = 4
-}
-
 public struct GLTFDecodeOptions: Sendable {
     /// Converts the model to left-handed coordinate system if true.
     public let convertToLeftHanded: Bool
@@ -185,7 +177,7 @@ public func makeMDLMesh(
             tangentVertex = try generateTangents(positionVertex, normalVertex, texcoordVertex, indexInfo, vertexCount: vertexCount)
         }
 
-        let vertexDescriptor = makeVertexDescriptor(
+        let vertexDescriptor = try makeVertexDescriptor(
             positionVertex,
             normalVertex,
             tangentVertex,
@@ -532,59 +524,75 @@ private func makeVertexDescriptor(
     _ tangentVertex: VertexInfo?,
     _ texcoordVertex: VertexInfo?,
     _ modulationColorVertex: VertexInfo?
-) -> MDLVertexDescriptor {
+) throws -> MDLVertexDescriptor {
     let descriptor = MDLVertexDescriptor()
     var offset = 0
 
+    let positionIsFloat3 = positionVertex.componentFormat == .float3
+    if !positionIsFloat3 {
+        throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Position vertex must be float3"])
+    }
+    if let normalVertex {
+        let normalIsFloat3 = normalVertex.componentFormat == .float3
+        if !normalIsFloat3 {
+            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Normal vertex must be float3"])
+        }
+    }
+    if let tangentVertex {
+        if tangentVertex.componentFormat != .float4 {
+            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Tangent vertex must be float4"])
+        }
+    }
+    if let texcoordVertex {
+        if texcoordVertex.componentFormat != .float2 {
+            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Texcoord vertex must be float2"])
+        }
+    }
+    if let modulationColorVertex {
+        if modulationColorVertex.componentFormat != .float3 && modulationColorVertex.componentFormat != .float4 {
+            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Modulation color vertex must be float3 or float4"])
+        }
+    }
+
     descriptor.attributes[GLTFVertexAttributeIndex.POSITION] = MDLVertexAttribute(
         name: MDLVertexAttributePosition,
-        format: positionVertex.componentFormat,
+        format: .float3,
         offset: offset,
         bufferIndex: 0
     )
-    offset += positionVertex.componentSize
+    offset += MemoryLayout<Float>.size * 3
 
-    if let normalVertex {
-        descriptor.attributes[GLTFVertexAttributeIndex.NORMAL] = MDLVertexAttribute(
-            name: MDLVertexAttributeNormal,
-            format: normalVertex.componentFormat,
-            offset: offset,
-            bufferIndex: 0
-        )
-        offset += normalVertex.componentSize
-    }
+    descriptor.attributes[GLTFVertexAttributeIndex.NORMAL] = MDLVertexAttribute(
+        name: MDLVertexAttributeNormal,
+        format: .float3,
+        offset: offset,
+        bufferIndex: 0
+    )
+    offset += MemoryLayout<Float>.size * 3
 
-    if let tangentVertex {
-        descriptor.attributes[GLTFVertexAttributeIndex.TANGENT] = MDLVertexAttribute(
-            name: MDLVertexAttributeTangent,
-            format: tangentVertex.componentFormat,
-            offset: offset,
-            bufferIndex: 0
-        )
-        offset += tangentVertex.componentSize
-    }
+    descriptor.attributes[GLTFVertexAttributeIndex.TANGENT] = MDLVertexAttribute(
+        name: MDLVertexAttributeTangent,
+        format: .float4,
+        offset: offset,
+        bufferIndex: 0
+    )
+    offset += MemoryLayout<Float>.size * 4
 
-    if let texcoordVertex {
-        descriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0] = MDLVertexAttribute(
-            name: MDLVertexAttributeTextureCoordinate,
-            format: texcoordVertex.componentFormat,
-            offset: offset,
-            bufferIndex: 0
-        )
-        offset += texcoordVertex.componentSize
-    }
+    descriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_0] = MDLVertexAttribute(
+        name: MDLVertexAttributeTextureCoordinate,
+        format: .float2,
+        offset: offset,
+        bufferIndex: 0
+    )
+    offset += MemoryLayout<Float>.size * 2
 
-    if modulationColorVertex != nil {
-        // Although the glTF specification allows both VEC3 and VEC4 formats for color attributes,
-        // this project standardizes on VEC4. Therefore, the size is fixed to 16 bytes.
-        descriptor.attributes[GLTFVertexAttributeIndex.COLOR_0] = MDLVertexAttribute(
-            name: MDLVertexAttributeColor,
-            format: .float4,
-            offset: offset,
-            bufferIndex: 0
-        )
-        offset += 16
-    }
+    descriptor.attributes[GLTFVertexAttributeIndex.COLOR_0] = MDLVertexAttribute(
+        name: MDLVertexAttributeColor,
+        format: .float4,
+        offset: offset,
+        bufferIndex: 0
+    )
+    offset += MemoryLayout<Float>.size * 4
 
     descriptor.layouts[0] = MDLVertexBufferLayout(stride: offset)
 
@@ -622,6 +630,10 @@ private func makeVertexData(
                 normalArray[2] = -normalArray[2]
             }
             vertexData.append(Data(bytes: &normalArray, count: stride))
+        } else {
+            // If no normal is provided, use default normal (0, 0, 1)
+            var defaultNormal: [Float] = options.convertToLeftHanded ? [0, 0, -1] : [0, 0, 1]
+            vertexData.append(Data(bytes: &defaultNormal, count: MemoryLayout<Float>.size * 3))
         }
 
         // Tangent
@@ -634,6 +646,11 @@ private func makeVertexData(
                 tangentArray[2] = -tangentArray[2]
             }
             vertexData.append(Data(bytes: &tangentArray, count: stride))
+        } else {
+            // If no tangent is provided, use default tangent (1, 0, 0, 1)
+            // TODO: Is this okay?
+            var defaultTangent: SIMD4<Float> = options.convertToLeftHanded ? SIMD4<Float>(1, 0, 0, -1) : SIMD4<Float>(1, 0, 0, 1)
+            vertexData.append(Data(bytes: &defaultTangent, count: MemoryLayout<SIMD4<Float>>.size))
         }
 
         // Texcoord
@@ -642,6 +659,10 @@ private func makeVertexData(
             let base = i * stride
             let slice = texcoordVertex.data[base..<base+stride]
             vertexData.append(slice)
+        } else {
+            // If no texcoord is provided, use default texcoord (0, 0)
+            var defaultTexcoord: SIMD2<Float> = SIMD2<Float>(0, 0)
+            vertexData.append(Data(bytes: &defaultTexcoord, count: MemoryLayout<SIMD2<Float>>.size))
         }
 
         // Modulation Color
@@ -656,6 +677,10 @@ private func makeVertexData(
             } else {
                 vertexData.append(slice)
             }
+        } else {
+            // If no modulation color is provided, use default color (1, 1, 1, 1)
+            var defaultColor: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1)
+            vertexData.append(Data(bytes: &defaultColor, count: MemoryLayout<SIMD4<Float>>.size))
         }
     }
 

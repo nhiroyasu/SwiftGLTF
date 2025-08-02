@@ -4,6 +4,7 @@ import CoreGraphics
 import UniformTypeIdentifiers
 import Img2Cubemap
 import SwiftGLTF
+import SwiftGLTFShaderTypes
 @testable import SwiftGLTFRenderer
 
 final class WireframeRenderTests {
@@ -11,8 +12,6 @@ final class WireframeRenderTests {
     let library: MTLLibrary
     let commandQueue: MTLCommandQueue
     let shaderConnection: ShaderConnection
-    let pipelineStateLoader: WireframePipelineStateLoader
-    let depthStencilStateLoader: DepthStencilStateLoader
 
     let TEX_SIZE = 256
 
@@ -26,16 +25,6 @@ final class WireframeRenderTests {
             library: library,
             commandQueue: commandQueue
         )
-        self.pipelineStateLoader = WireframePipelineStateLoader(
-            device: device,
-            library: library,
-            config: .init(
-                sampleCount: 1,
-                colorPixelFormat: .rgba8Unorm_srgb,
-                depthPixelFormat: .depth32Float
-            )
-        )
-        self.depthStencilStateLoader = DepthStencilStateLoader(device: device)
     }
 
     // Helper to create a render target texture
@@ -50,12 +39,45 @@ final class WireframeRenderTests {
     }
 
     func renderMesh(to output: MTLTexture, meshURL: URL) async throws {
+        let loader = try WireframeMeshLoader(
+            device: device,
+            library: library,
+            config: .init(
+                sampleCount: 1,
+                colorPixelFormat: output.pixelFormat,
+                depthPixelFormat: .depth32Float
+            )
+        )
+        
         // Create view-projection matrix buffer
         let eye = SIMD3<Float>(-2.83, 2.83, -2.83)
-        var vMatrix = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
-        let vMatrixBuf = device.makeBuffer(bytes: &vMatrix, length: MemoryLayout.size(ofValue: vMatrix))!
-        var pMatrix = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
-        let pMatrixBuf = device.makeBuffer(bytes: &pMatrix, length: MemoryLayout.size(ofValue: pMatrix))!
+        let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
+        let projection = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
+        var vertexVariableParams = PBRVertexVariableParameters(
+            view: view,
+            projection: projection,
+            externalTransform: simd_float4x4(1)
+        )
+        let vertexParams = device.makeBuffer(
+            bytes: &vertexVariableParams,
+            length: MemoryLayout<PBRVertexVariableParameters>.size,
+            options: .storageModeShared
+        )!
+
+        // pipeline state
+        let pipelineStateDescriptor = MTLRenderPipelineDescriptor()
+        pipelineStateDescriptor.vertexFunction = library.makeFunction(name: "wireframe_vertex_shader")!
+        pipelineStateDescriptor.fragmentFunction = library.makeFunction(name: "wireframe_shader")!
+        pipelineStateDescriptor.colorAttachments[0].pixelFormat = output.pixelFormat
+        pipelineStateDescriptor.depthAttachmentPixelFormat = .depth32Float
+        pipelineStateDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()
+        let pipelineState = try await device.makeRenderPipelineState(descriptor: pipelineStateDescriptor)
+
+        // depth stencil state
+        let depthStencilDescriptor = MTLDepthStencilDescriptor()
+        depthStencilDescriptor.depthCompareFunction = .less
+        depthStencilDescriptor.isDepthWriteEnabled = true
+        let depthStencilState = device.makeDepthStencilState(descriptor: depthStencilDescriptor)!
 
         let depthTextureDesc = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .depth32Float,
@@ -80,30 +102,20 @@ final class WireframeRenderTests {
 
         // Load a sample mesh
         let asset = try await makeMDLAsset(from: meshURL)
-        let loader = WireframeMeshLoader(
-            device: device,
-            pipelineStateLoader: pipelineStateLoader,
-            depthStencilStateLoader: depthStencilStateLoader,
-        )
         let meshes = try loader.loadMeshes(from: asset)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
         let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc)!
 
-        var externalTransform: simd_float4x4 = simd_float4x4(1)
-        let externalTransformBuf = device.makeBuffer(bytes: &externalTransform, length: MemoryLayout<simd_float4x4>.size)!
-
         // Draw the mesh
-        for mesh in meshes {
-            drawWireframe(
-                renderEncoder: encoder,
-                mesh: mesh,
-                view: vMatrixBuf,
-                projection: pMatrixBuf,
-                externalTransform: externalTransformBuf
-            )
-        }
+        drawWireframe(
+            renderEncoder: encoder,
+            pipelineState: pipelineState,
+            depthStencilState: depthStencilState,
+            meshes: meshes,
+            vertexParams: vertexParams
+        )
 
         encoder.endEncoding()
         cmdBuf.commit()
