@@ -62,9 +62,9 @@ class EnvironmentMapLoader {
 
         return (
             heap,
-            results[0],
-            results[1],
-            results[2]
+            prefilterEnvMapTexture,
+            irradianceCubeMapTexture,
+            brdfLUT
         )
     }
 }

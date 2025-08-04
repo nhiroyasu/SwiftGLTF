@@ -138,8 +138,8 @@ final class PBRRenderTests {
             renderEncoder: encoder,
             pipelineState: pipelineConnector.pipelineState,
             depthStencilState: depthStencilState,
-            vertexResources: pbrMeshContainer.vertexResources,
-            fragmentResources: pbrMeshContainer.fragmentResources + [envMapHeap],
+            vertexResources: [],
+            fragmentResources: [],
             meshes: pbrMeshContainer.meshes,
             vertexParams: vertexParams,
             envMapArgBuffer: envMapArgBuffer,
@@ -150,7 +150,7 @@ final class PBRRenderTests {
         cmdBuf.commit()
         cmdBuf.waitUntilCompleted()
 
-        print(prefilterEnvMap, irradianceMap, brdfLUT, pbrMeshContainer)
+//        print(prefilterEnvMap, irradianceMap, brdfLUT, pbrMeshContainer)
     }
 
     // MARK: - Export golden images
