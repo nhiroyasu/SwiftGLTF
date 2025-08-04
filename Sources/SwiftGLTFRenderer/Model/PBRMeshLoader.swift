@@ -29,10 +29,10 @@ class PBRMeshLoader {
         #endif
 
         var textureMap = try extractAllTextureMap(from: asset)
-        let texturesHeap = try makeTexturesHeap(from: Array(textureMap.values))
-        if let texturesHeap {
-            textureMap = try convertHeapTexture(from: textureMap, use: texturesHeap)
-        }
+//        let texturesHeap = try makeTexturesHeap(from: Array(textureMap.values))
+//        if let texturesHeap {
+//            textureMap = try convertHeapTexture(from: textureMap, use: texturesHeap)
+//        }
 
         let meshCount = extractAllMeshCounts(from: asset)
         let vertexBuffers = extractAllMeshVertexBuffer(from: asset)
@@ -56,7 +56,7 @@ class PBRMeshLoader {
         return PBRMeshContainer(
             meshes: pbrMeshes,
             vertexResources: [vertexHeap],
-            fragmentResources: [texturesHeap, fragmentHeap].compactMap { $0 }
+            fragmentResources: [fragmentHeap].compactMap { $0 }
         )
     }
 
@@ -116,7 +116,7 @@ class PBRMeshLoader {
                 )
 
                 let argumentBuffer = try pipelineConnector.makeFragmentArgumentBuffer(
-                    materialUniformsBuffer: materialUniformsBuffer,
+                    materialUniformsBuffer: tmpMaterialUniformsBuffer,
                     hasBaseColorTexture: &hasBaseColorTexture,
                     baseColorTexture: baseColorTexture,
                     baseColorSampler: baseColorSamplerState,
@@ -173,8 +173,8 @@ class PBRMeshLoader {
             )
 
             let pbrMesh = PBRMesh(
-                vertexBuffer: vertexBuffer,
-                modelBuffer: modelBuffer,
+                vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
+                modelBuffer: tmpModelBuffer,
                 submeshes: submeshes,
             )
             pbrMeshes.append(pbrMesh)

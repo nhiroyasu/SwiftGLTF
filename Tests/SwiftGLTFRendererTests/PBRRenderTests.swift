@@ -135,8 +135,6 @@ final class PBRRenderTests {
         let cmdBuf = commandQueue.makeCommandBuffer()!
         let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc)!
 
-        _store.append(pipelineConnector)
-
         // Draw the mesh
         drawPBR(
             renderEncoder: encoder,
