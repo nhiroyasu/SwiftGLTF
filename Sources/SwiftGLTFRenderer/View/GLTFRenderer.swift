@@ -197,7 +197,7 @@ public class GLTFRenderer {
         }
 
         // TODO: env map loading should be optional
-        guard let envMapUrl = Bundle.main.url(forResource: "env_map", withExtension: "exr") else {
+        guard let envMapUrl = Bundle.module.url(forResource: "env_map", withExtension: "exr") else {
             throw NSError(domain: "MDLAssetMTKView", code: 0, userInfo: [NSLocalizedDescriptionKey: "Environment map not found"])
         }
         let (

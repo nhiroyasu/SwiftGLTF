@@ -29,6 +29,7 @@ let package = Package(
             dependencies: ["SwiftGLTF", "SwiftGLTFShaderTypes", "Img2Cubemap"],
             resources: [
                 .process("Shader/"),
+                .process("Resources/"),
             ]),
         .testTarget(
             name: "SwiftGLTFRendererTests",
