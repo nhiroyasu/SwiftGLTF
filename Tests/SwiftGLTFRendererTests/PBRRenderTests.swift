@@ -186,7 +186,7 @@ final class PBRRenderTests {
 
     // MARK: - Tests
 
-    @Test
+//    @Test
 //    func testMeshRenderingMatchesGolden() async throws {
 //        for meshName in meshNames {
 //            let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
