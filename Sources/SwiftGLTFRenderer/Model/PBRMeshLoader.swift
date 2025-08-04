@@ -110,7 +110,7 @@ class PBRMeshLoader {
                     bytes: &materialUniforms,
                     length: MemoryLayout<PBRMaterialUniforms>.size
                 )!
-                let materialUniformsBuffer = try await shaderConnection.moveResourcesToHeap(
+                let materialUniformsBuffer = try shaderConnection.moveResourcesToHeap(
                     from: tmpMaterialUniformsBuffer,
                     use: fragmentHeap
                 )
@@ -162,12 +162,12 @@ class PBRMeshLoader {
                 bytes: &model,
                 length: MemoryLayout<float4x4>.size
             )!
-            let modelBuffer = try await shaderConnection.moveResourcesToHeap(
+            let modelBuffer = try shaderConnection.moveResourcesToHeap(
                 from: tmpModelBuffer,
                 use: vertexHeap
             )
 
-            let vertexBuffer = try await shaderConnection.moveResourcesToHeap(
+            let vertexBuffer = try shaderConnection.moveResourcesToHeap(
                 from: mtkMesh.vertexBuffers[0].buffer,
                 use: vertexHeap
             )

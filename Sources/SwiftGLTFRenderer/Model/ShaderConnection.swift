@@ -54,6 +54,7 @@ class ShaderConnection {
         }
 
         commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
         return output
     }
 
@@ -123,7 +124,7 @@ class ShaderConnection {
     func moveResourcesToHeap(
         from buffer: MTLBuffer,
         use heap: MTLHeap
-    ) async throws -> MTLBuffer {
+    ) throws -> MTLBuffer {
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
             throw NSError(domain: "ShaderConnection", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to create command buffer"])
         }
@@ -138,10 +139,8 @@ class ShaderConnection {
         encoder.copy(from: buffer, sourceOffset: 0, to: heapBuffer, destinationOffset: 0, size: buffer.length)
 
         encoder.endEncoding()
-        await withCheckedContinuation { continuation in
-            commandBuffer.addCompletedHandler { _ in continuation.resume() }
-            commandBuffer.commit()
-        }
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
         return heapBuffer
     }
 }
