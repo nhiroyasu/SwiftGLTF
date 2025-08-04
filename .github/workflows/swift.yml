@@ -48,6 +48,11 @@ jobs:
 
     - name: Select Xcode version
       run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      
+    - name: Set up Git config
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
     - name: Run tests
       run: swift test -v
