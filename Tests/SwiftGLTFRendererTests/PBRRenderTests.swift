@@ -14,6 +14,11 @@ final class PBRRenderTests {
     let shaderConnection: ShaderConnection
     let depthStencilState: MTLDepthStencilState
 
+    var _prefilterEnvMap: MTLTexture!
+    var _irradianceMap: MTLTexture!
+    var _brdfLUT: MTLTexture!
+    var _pbrMeshContainer: PBRMeshContainer!
+
     let TEX_SIZE = 256
 
     init() {
@@ -90,18 +95,19 @@ final class PBRRenderTests {
             options: .storageModeShared
         )!
 
-        let (
+        let envMapHeap: MTLHeap
+        (
             envMapHeap,
-            prefilterEnvMap,
-            irradianceMap,
-            brdfLUT
+            self._prefilterEnvMap,
+            self._irradianceMap,
+            self._brdfLUT
         ) = try await envMapLoader.makeEnvMapHeapAndTexture(
             url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
         )
         let envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
-            prefilterEnvMap: prefilterEnvMap,
-            irradianceMap: irradianceMap,
-            brdfLUT: brdfLUT
+            prefilterEnvMap: _prefilterEnvMap,
+            irradianceMap: _irradianceMap,
+            brdfLUT: _brdfLUT
         )
 
         let depthTextureDesc = MTLTextureDescriptor.texture2DDescriptor(
@@ -127,7 +133,7 @@ final class PBRRenderTests {
 
         // Load a sample mesh
         let asset = try await makeMDLAsset(from: meshURL)
-        let container = try await loader.loadMeshes(from: asset)
+        self._pbrMeshContainer = try await loader.loadMeshes(from: asset)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
@@ -138,9 +144,9 @@ final class PBRRenderTests {
             renderEncoder: encoder,
             pipelineState: pipelineConnector.pipelineState,
             depthStencilState: depthStencilState,
-            vertexResources: container.vertexResources,
-            fragmentResources: container.fragmentResources + [envMapHeap],
-            meshes: container.meshes,
+            vertexResources: _pbrMeshContainer.vertexResources,
+            fragmentResources: _pbrMeshContainer.fragmentResources + [envMapHeap],
+            meshes: _pbrMeshContainer.meshes,
             vertexParams: vertexParams,
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams
