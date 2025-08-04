@@ -116,6 +116,7 @@ class ShaderConnection {
 
         encoder.endEncoding()
         commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
         return output
     }
 
