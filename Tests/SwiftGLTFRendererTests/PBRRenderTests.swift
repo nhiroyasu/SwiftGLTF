@@ -7,6 +7,8 @@ import SwiftGLTF
 import SwiftGLTFShaderTypes
 @testable import SwiftGLTFRenderer
 
+var _store: [Any] = []
+
 final class PBRRenderTests {
     let device: MTLDevice
     let library: MTLLibrary
@@ -133,17 +135,15 @@ final class PBRRenderTests {
         let cmdBuf = commandQueue.makeCommandBuffer()!
         let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc)!
 
+        _store.append(pipelineConnector)
+
         // Draw the mesh
-        drawPBR(
+        drawWireframe(
             renderEncoder: encoder,
             pipelineState: pipelineConnector.pipelineState,
             depthStencilState: depthStencilState,
-            vertexResources: [],
-            fragmentResources: [],
             meshes: pbrMeshContainer.meshes,
-            vertexParams: vertexParams,
-            envMapArgBuffer: envMapArgBuffer,
-            fragmentParams: fragmentParams
+            vertexParams: vertexParams
         )
 
         encoder.endEncoding()
