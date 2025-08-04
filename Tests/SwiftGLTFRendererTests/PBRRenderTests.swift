@@ -138,12 +138,16 @@ final class PBRRenderTests {
         _store.append(pipelineConnector)
 
         // Draw the mesh
-        drawWireframe(
+        drawPBR(
             renderEncoder: encoder,
             pipelineState: pipelineConnector.pipelineState,
             depthStencilState: depthStencilState,
+            vertexResources: [],
+            fragmentResources: [],
             meshes: pbrMeshContainer.meshes,
-            vertexParams: vertexParams
+            vertexParams: vertexParams,
+            envMapArgBuffer: envMapArgBuffer,
+            fragmentParams: fragmentParams
         )
 
         encoder.endEncoding()
