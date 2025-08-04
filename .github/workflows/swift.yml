@@ -37,6 +37,7 @@ jobs:
       run: swift build -v
 
     - name: Run tests
+      run: swift test -v
 
   build_ex:
 
