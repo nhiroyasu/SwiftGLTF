@@ -4,13 +4,14 @@ import UniformTypeIdentifiers
 import Testing
 
 // If you want to export golden images, manually set this flag to true and run the test.
-let EXPORT_GOLDEN_IMAGES_FLAG = false
+let EXPORT_GOLDEN_IMAGES_FLAG = true
 
 // If you want to export the texture output from the texture comparison test, manually set the flag to true.
 let EXPORT_OUTPUT_IMAGES_FLAG = false
 
 func isCI() -> Bool {
-    return ProcessInfo.processInfo.environment["CI"] == "true"
+//    return ProcessInfo.processInfo.environment["CI"] == "true"
+    return false
 }
 
 // Convert MTLTexture to CGImage
@@ -56,7 +57,10 @@ func export(texture: MTLTexture, name: String) throws {
     guard let image = cgImage(from: texture) else {
         throw NSError(domain: "RenderTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert texture to CGImage"])
     }
-    let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!.appendingPathComponent(name)
+    let currentFilePath = #file
+    let currentDirectory = URL(fileURLWithPath: currentFilePath).deletingLastPathComponent()
+//    let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!.appendingPathComponent(name)
+    let url = currentDirectory.appendingPathComponent(name)
     let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
     CGImageDestinationAddImage(dest, image, nil)
     if !CGImageDestinationFinalize(dest) {
