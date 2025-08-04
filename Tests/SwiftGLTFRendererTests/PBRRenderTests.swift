@@ -1,5 +1,6 @@
 import Testing
 import MetalKit
+import Metal
 import CoreGraphics
 import UniformTypeIdentifiers
 import Img2Cubemap
@@ -183,6 +184,41 @@ final class PBRRenderTests {
             let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
             try await renderMesh(to: meshTarget, meshURL: meshURL)
             try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName).png")
+        }
+    }
+
+    @Test
+    func test_print() {
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            fatalError("Metal対応デバイスが見つかりません")
+        }
+
+        // GPU名称
+        print("Device name: \(device.name)")
+
+        // サポートしているGPUファミリー一覧
+        print("Supported GPU families:")
+        for family in [
+            MTLGPUFamily.apple1,
+            MTLGPUFamily.apple2,
+            MTLGPUFamily.apple3,
+            MTLGPUFamily.apple4,
+            MTLGPUFamily.apple5,
+            MTLGPUFamily.apple6,
+            MTLGPUFamily.apple7,
+            MTLGPUFamily.apple8,
+            MTLGPUFamily.apple9,
+            MTLGPUFamily.mac1,
+            MTLGPUFamily.mac2,
+            MTLGPUFamily.common1,
+            MTLGPUFamily.common2,
+            MTLGPUFamily.common3,
+            MTLGPUFamily.macCatalyst1,
+            MTLGPUFamily.macCatalyst2
+        ] {
+            if device.supportsFamily(family) {
+                print("supportFamily: \(family)")
+            }
         }
     }
 
