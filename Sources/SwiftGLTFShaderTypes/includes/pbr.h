@@ -22,4 +22,15 @@ typedef struct {
     vector_float3 ambientLightColor; // Ambient light color
 } PBRFragmentVariableParameters;
 
+typedef struct {
+    float roughness;
+    uint32_t mipLevel;
+    uint32_t cubeSize;
+    uint32_t sampleCount;
+} PreFilterEnvMapParams;
+
+typedef struct {
+    uint32_t cubeSize;
+} IrradianceMapParams;
+
 #endif /* PBR_h */

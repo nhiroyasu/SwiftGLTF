@@ -11,15 +11,16 @@ public class GLTFRenderer {
     private var type: RenderingType = .pbr
 
     private var skyboxMesh: SkyboxMesh?
-    private var specularCubeMapTexture: MTLTexture?
-    private var irradianceCubeMapTexture: MTLTexture?
-    private var brdfLUT: MTLTexture?
-    private var skyboxArgBuffer: MTLBuffer?
-    private var skyboxFragmentHeap: MTLHeap?
+    private var envMapArgBuffer: MTLBuffer?
+    private var envMapHeap: MTLHeap?
 
     private let pbrMeshLoader: PBRMeshLoader
+    private let pbrPipelineConnector: PBRPipelineConnector
     private let wireframeMeshLoader: WireframeMeshLoader
+    private let envMapLoader: EnvironmentMapLoader
     private let shaderConnection: ShaderConnection
+
+    private let depthStencilState: MTLDepthStencilState
 
     let device: MTLDevice
     let library: MTLLibrary
@@ -29,7 +30,10 @@ public class GLTFRenderer {
     let colorPixelFormat: MTLPixelFormat
     let depthPixelFormat: MTLPixelFormat
 
-    private let IRRADIANCE_SIZE = 128
+    // Variables to prevent deallocation by ARC
+    private var _specularCubeMapTexture: MTLTexture?
+    private var _irradianceCubeMapTexture: MTLTexture?
+    private var _brdfLUT: MTLTexture?
 
     public init(
         device: MTLDevice = MTLCreateSystemDefaultDevice()!,
@@ -61,17 +65,30 @@ public class GLTFRenderer {
             colorPixelFormat: colorPixelFormat,
             depthPixelFormat: depthPixelFormat
         )
-        self.pbrMeshLoader = try PBRMeshLoader(
+        self.pbrPipelineConnector = try PBRPipelineConnector(
             device: device,
             library: library,
             config: pipelineStateConfig,
+            shaderConnection: shaderConnection
+        )
+        self.pbrMeshLoader = PBRMeshLoader(
+            device: device,
             shaderConnection: shaderConnection,
+            pipelineConnector: pbrPipelineConnector
         )
         self.wireframeMeshLoader = try WireframeMeshLoader(
             device: device,
             library: library,
             config: pipelineStateConfig
         )
+        self.envMapLoader = EnvironmentMapLoader(
+            device: device,
+            library: library,
+            commandQueue: commandQueue,
+            shaderConnection: shaderConnection
+        )
+
+        self.depthStencilState = try makeLessEqualDepthStencilState(device: device)
     }
 
     // MARK: - Rendering
@@ -82,7 +99,7 @@ public class GLTFRenderer {
         fragmentParams: MTLBuffer,
         skyboxVP: MTLBuffer
     ) {
-        guard let skyboxMesh, let specularCubeMapTexture, let skyboxFragmentHeap, let skyboxArgBuffer else {
+        guard let skyboxMesh, let _specularCubeMapTexture, let envMapHeap, let envMapArgBuffer else {
             os_log("Skybox or textures not loaded", log: .default, type: .error)
             return
         }
@@ -91,27 +108,27 @@ public class GLTFRenderer {
             renderEncoder: renderEncoder,
             mesh: skyboxMesh,
             vpMatrixBuffer: skyboxVP,
-            specularCubeMapTexture: specularCubeMapTexture
+            specularCubeMapTexture: _specularCubeMapTexture
         )
 
         switch type {
         case .pbr:
             drawPBR(
                 renderEncoder: renderEncoder,
-                pipelineState: pbrMeshLoader.pipelineState,
-                depthStencilState: pbrMeshLoader.depthStencilState,
+                pipelineState: pbrPipelineConnector.pipelineState,
+                depthStencilState: depthStencilState,
                 vertexResources: vertexResources,
-                fragmentResources: fragmentResources + [skyboxFragmentHeap],
+                fragmentResources: fragmentResources + [envMapHeap],
                 meshes: meshes,
                 vertexParams: vertexParams,
-                skyboxArgBuffer: skyboxArgBuffer,
+                envMapArgBuffer: envMapArgBuffer,
                 fragmentParams: fragmentParams
             )
         case .wireframe:
             drawWireframe(
                 renderEncoder: renderEncoder,
                 pipelineState: wireframeMeshLoader.pipelineState,
-                depthStencilState: wireframeMeshLoader.depthStencilState,
+                depthStencilState: depthStencilState,
                 meshes: meshes,
                 vertexParams: vertexParams
             )
@@ -155,6 +172,10 @@ public class GLTFRenderer {
     }
 
     private func _loadSkybox() async throws {
+        guard skyboxMesh == nil else {
+            // Skybox already loaded
+            return
+        }
         // Create skybox mesh via loader
         let skyboxConfig = SkyboxPipelineConfig(
             sampleCount: sampleCount,
@@ -170,38 +191,28 @@ public class GLTFRenderer {
     }
 
     private func _loadEnvMap() async throws {
-        // Load environment textures
+        guard envMapHeap == nil else {
+            // Environment map already loaded
+            return
+        }
+
+        // TODO: env map loading should be optional
         guard let envMapUrl = Bundle.main.url(forResource: "env_map", withExtension: "exr") else {
             throw NSError(domain: "MDLAssetMTKView", code: 0, userInfo: [NSLocalizedDescriptionKey: "Environment map not found"])
         }
-        let specularCubeMapTexture = try await generateCubeTexture(device: device, exr: envMapUrl)
-        let irradianceCubeMapTexture = generateIrradianceTexture(
-            commandQueue: commandQueue,
-            library: library,
-            envMap: specularCubeMapTexture,
-            size: IRRADIANCE_SIZE
-        )
-        let brdfLUT = generateBRDFLUT(
-            commandQueue: commandQueue,
-            library: library,
-            width: specularCubeMapTexture.width,
-            height: specularCubeMapTexture.height
-        )
-        let skyboxFragmentHeap = pbrMeshLoader.createSkyboxFragmentHeap(
-            specularCubeMap: specularCubeMapTexture,
-            irradianceMap: irradianceCubeMapTexture,
-            brdfLUT: brdfLUT
-        )
-        self.skyboxFragmentHeap = skyboxFragmentHeap
-        (
-            skyboxArgBuffer,
-            self.specularCubeMapTexture,
-            self.irradianceCubeMapTexture,
-            self.brdfLUT
-        ) = try pbrMeshLoader.makeSkyboxArgBuffer(
-            heap: skyboxFragmentHeap,
-            specularCubeMap: specularCubeMapTexture,
-            irradianceMap: irradianceCubeMapTexture,
+        let (
+            envMapHeap,
+            prefilterEnvMap,
+            irradianceMap,
+            brdfLUT
+        ) = try await envMapLoader.makeEnvMapHeapAndTexture(url: envMapUrl)
+        self.envMapHeap = envMapHeap
+        self._specularCubeMapTexture = prefilterEnvMap
+        self._irradianceCubeMapTexture = irradianceMap
+        self._brdfLUT = brdfLUT
+        self.envMapArgBuffer = try pbrPipelineConnector.makeEnvMapArgBuffer(
+            prefilterEnvMap: prefilterEnvMap,
+            irradianceMap: irradianceMap,
             brdfLUT: brdfLUT
         )
     }

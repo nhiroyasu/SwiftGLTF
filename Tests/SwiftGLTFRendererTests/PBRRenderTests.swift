@@ -12,6 +12,7 @@ final class PBRRenderTests {
     let library: MTLLibrary
     let commandQueue: MTLCommandQueue
     let shaderConnection: ShaderConnection
+    let depthStencilState: MTLDepthStencilState
 
     let TEX_SIZE = 256
 
@@ -25,6 +26,7 @@ final class PBRRenderTests {
             library: library,
             commandQueue: commandQueue
         )
+        self.depthStencilState = try! makeLessEqualDepthStencilState(device: device)
     }
 
     // Helper to create a render target texture
@@ -39,7 +41,7 @@ final class PBRRenderTests {
     }
 
     func renderMesh(to output: MTLTexture, meshURL: URL) async throws {
-        let loader = try PBRMeshLoader(
+        let pipelineConnector = try PBRPipelineConnector(
             device: device,
             library: library,
             config: .init(
@@ -47,6 +49,17 @@ final class PBRRenderTests {
                 colorPixelFormat: output.pixelFormat,
                 depthPixelFormat: .depth32Float
             ),
+            shaderConnection: shaderConnection
+        )
+        let loader = PBRMeshLoader(
+            device: device,
+            shaderConnection: shaderConnection,
+            pipelineConnector: pipelineConnector
+        )
+        let envMapLoader = EnvironmentMapLoader(
+            device: device,
+            library: library,
+            commandQueue: commandQueue,
             shaderConnection: shaderConnection
         )
 
@@ -77,32 +90,17 @@ final class PBRRenderTests {
             options: .storageModeShared
         )!
 
-        var envMap = try await generateCubeTexture(
-            device: device,
-            exr: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
+        let (
+            envMapHeap,
+            prefilterEnvMap,
+            irradianceMap,
+            brdfLUT
+        ) = try await envMapLoader.makeEnvMapHeapAndTexture(
+            url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
         )
-        var irrMap = generateIrradianceTexture(
-            commandQueue: commandQueue,
-            library: library,
-            envMap: envMap,
-            size: 128
-        )
-        var brdfLUT = generateBRDFLUT(
-            commandQueue: commandQueue,
-            library: library,
-            width: envMap.width,
-            height: envMap.height
-        )
-        let skyboxFragmentHeap = loader.createSkyboxFragmentHeap(
-            specularCubeMap: envMap,
-            irradianceMap: irrMap,
-            brdfLUT: brdfLUT
-        )
-        let skyboxArgBuffer: MTLBuffer
-        (skyboxArgBuffer, envMap, irrMap, brdfLUT) = try loader.makeSkyboxArgBuffer(
-            heap: skyboxFragmentHeap,
-            specularCubeMap: envMap,
-            irradianceMap: irrMap,
+        let envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
+            prefilterEnvMap: prefilterEnvMap,
+            irradianceMap: irradianceMap,
             brdfLUT: brdfLUT
         )
 
@@ -138,13 +136,13 @@ final class PBRRenderTests {
         // Draw the mesh
         drawPBR(
             renderEncoder: encoder,
-            pipelineState: loader.pipelineState,
-            depthStencilState: loader.depthStencilState,
+            pipelineState: pipelineConnector.pipelineState,
+            depthStencilState: depthStencilState,
             vertexResources: container.vertexResources,
-            fragmentResources: container.fragmentResources + [skyboxFragmentHeap],
+            fragmentResources: container.fragmentResources + [envMapHeap],
             meshes: container.meshes,
             vertexParams: vertexParams,
-            skyboxArgBuffer: skyboxArgBuffer,
+            envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams
         )
 

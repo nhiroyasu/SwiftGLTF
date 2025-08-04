@@ -29,7 +29,7 @@ func drawPBR(
     fragmentResources: [MTLHeap],
     meshes: [PBRMesh],
     vertexParams: MTLBuffer,
-    skyboxArgBuffer: MTLBuffer,
+    envMapArgBuffer: MTLBuffer,
     fragmentParams: MTLBuffer
 ) {
     renderEncoder.setRenderPipelineState(pipelineState)
@@ -37,7 +37,7 @@ func drawPBR(
     renderEncoder.useHeaps(vertexResources, stages: .vertex)
     renderEncoder.useHeaps(fragmentResources, stages: .fragment)
     renderEncoder.setVertexBuffer(vertexParams, offset: 0, index: 2)
-    renderEncoder.setFragmentBuffer(skyboxArgBuffer, offset: 0, index: 1)
+    renderEncoder.setFragmentBuffer(envMapArgBuffer, offset: 0, index: 1)
     renderEncoder.setFragmentBuffer(fragmentParams, offset: 0, index: 2)
     for mesh in meshes {
         renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)

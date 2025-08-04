@@ -1,97 +1,58 @@
 import MetalKit
+import SwiftGLTFShaderTypes
 
-func generateEnvMap(commandQueue: MTLCommandQueue, faceFiles: [String]) -> MTLTexture {
+func generatePrefilterEnvMapTexture(
+    commandQueue: MTLCommandQueue,
+    library: MTLLibrary,
+    envMap: MTLTexture
+) -> MTLTexture {
     let device = commandQueue.device
-    let textureLoader = MTKTextureLoader(device: device)
-
-    var textures: [MTLTexture] = []
-    for face in faceFiles {
-        if let url = Bundle.main.url(forResource: face, withExtension: nil) {
-            let texture = try! textureLoader.newTexture(
-                URL: url,
-                options: [
-                    MTKTextureLoader.Option.textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue),
-                    MTKTextureLoader.Option.textureStorageMode: NSNumber(value: MTLStorageMode.shared.rawValue)
-                ]
-            )
-            textures.append(texture)
-        }
-    }
-
-    let textureDescriptor = MTLTextureDescriptor.textureCubeDescriptor(
-        pixelFormat: textures.first!.pixelFormat,
-        size: textures.first!.width,
-        mipmapped: true
-    )
-    textureDescriptor.usage = [.shaderRead]
-    textureDescriptor.storageMode = .shared
-    let envMap = device.makeTexture(descriptor: textureDescriptor)!
-
-    // 各面にコピー
-    for (index, texture) in textures.enumerated() {
-        let region = MTLRegionMake2D(0, 0, texture.width, texture.height)
-        let bytesPerRow = texture.width * 4 * MemoryLayout<Float16>.size
-        let bytesPerImage = bytesPerRow * texture.height
-        var imageData = [Float16](repeating: 0, count: texture.width * texture.height * 4)
-        texture.getBytes(&imageData, bytesPerRow: bytesPerRow, from: region, mipmapLevel: 0)
-        envMap.replace(
-            region: region,
-            mipmapLevel: 0,
-            slice: index,
-            withBytes: &imageData,
-            bytesPerRow: bytesPerRow,
-            bytesPerImage: bytesPerImage
-        )
-    }
-
+    let prefilterEnvMapKernel = library.makeFunction(name: "prefilterEnvMap")!
+    let pso = try! device.makeComputePipelineState(function: prefilterEnvMapKernel)
     let commandBuffer = commandQueue.makeCommandBuffer()!
-    let commandEncoder = commandBuffer.makeBlitCommandEncoder()!
-    commandEncoder.generateMipmaps(for: envMap)
-    commandEncoder.endEncoding()
-    commandBuffer.commit()
-    commandBuffer.waitUntilCompleted()
+    let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
+    commandEncoder.setComputePipelineState(pso)
 
-    return envMap
-}
-
-func generateEnvMap(commandQueue: MTLCommandQueue, color: simd_float3, size: Int = 128) -> MTLTexture {
-    let device = commandQueue.device
-    let textureDescriptor = MTLTextureDescriptor.textureCubeDescriptor(
+    let prefilterEnvMapDescriptor = MTLTextureDescriptor.textureCubeDescriptor(
         pixelFormat: .rgba16Float,
-        size: size,
+        size: envMap.width,
         mipmapped: true
     )
-    textureDescriptor.usage = [.shaderRead, .shaderWrite]
-    textureDescriptor.storageMode = .shared
-    let envMap = device.makeTexture(descriptor: textureDescriptor)!
+    prefilterEnvMapDescriptor.usage = [.shaderRead, .shaderWrite]
+    prefilterEnvMapDescriptor.storageMode = .shared
+    let prefilterEnvMap = device.makeTexture(descriptor: prefilterEnvMapDescriptor)!
 
-    let commandBuffer = commandQueue.makeCommandBuffer()!
-    let commandEncoder = commandBuffer.makeBlitCommandEncoder()!
+    commandEncoder.setTexture(envMap, index: 0)
+    commandEncoder.setTexture(prefilterEnvMap, index: 1)
 
-    for face in 0..<6 {
-        let region = MTLRegionMake2D(0, 0, size, size)
-        var colorData = [Float16](repeating: Float16(color.x), count: size * size * 4)
-        for i in 1..<size * size {
-            colorData[i * 4 + 1] = Float16(color.y)
-            colorData[i * 4 + 2] = Float16(color.z)
-            colorData[i * 4 + 3] = Float16(1.0)
-        }
-        envMap.replace(
-            region: region,
-            mipmapLevel: 0,
-            slice: face,
-            withBytes: &colorData,
-            bytesPerRow: size * 4 * MemoryLayout<Float16>.size,
-            bytesPerImage: size * size * 4 * MemoryLayout<Float16>.size
+    let mipCount = envMap.mipmapLevelCount
+    let textureSize = envMap.width
+    for mipLevel in 0..<mipCount {
+        let roughness = Float(mipLevel) / Float(mipCount - 1)
+        let cubeSize = max(textureSize >> mipLevel, 1)
+
+        var params = PreFilterEnvMapParams(
+            roughness: roughness,
+            mipLevel: UInt32(mipLevel),
+            cubeSize: UInt32(cubeSize),
+            sampleCount: 1024
+        )
+        commandEncoder.setBytes(&params, length: MemoryLayout<PreFilterEnvMapParams>.size, index: 0)
+        let threads = MTLSize(width: 16, height: 16, depth: 1)
+        let threadGroups = MTLSize(
+            width: (cubeSize + threads.width - 1) / threads.width,
+            height: (cubeSize + threads.height - 1) / threads.height,
+            depth: 6
+        )
+        commandEncoder.dispatchThreadgroups(
+            threadGroups,
+            threadsPerThreadgroup: threads
         )
     }
-
-    commandEncoder.generateMipmaps(for: envMap)
     commandEncoder.endEncoding()
     commandBuffer.commit()
     commandBuffer.waitUntilCompleted()
-
-    return envMap
+    return prefilterEnvMap
 }
 
 func generateIrradianceTexture(
@@ -101,29 +62,38 @@ func generateIrradianceTexture(
     size: Int
 ) -> MTLTexture {
     let device = commandQueue.device
+    let irradianceKernel = library.makeFunction(name: "irradianceMap")!
+    let irradiancePSO = try! device.makeComputePipelineState(function: irradianceKernel)
+    let irradianceCommandBuffer = commandQueue.makeCommandBuffer()!
+    let irradianceComputeEncoder = irradianceCommandBuffer.makeComputeCommandEncoder()!
+    irradianceComputeEncoder.setComputePipelineState(irradiancePSO)
+
     let irradianceTextureDescriptor = MTLTextureDescriptor.textureCubeDescriptor(
-        pixelFormat: envMap.pixelFormat,
+        pixelFormat: .rgba16Float,
         size: size,
         mipmapped: false
     )
     irradianceTextureDescriptor.usage = [.shaderRead, .shaderWrite]
     irradianceTextureDescriptor.storageMode = .shared
     let irradianceMap = device.makeTexture(descriptor: irradianceTextureDescriptor)!
-
-    let irradianceKernel = library.makeFunction(name: "prefilterLambertEnvMap")!
-    let irradiancePSO = try! device.makeComputePipelineState(function: irradianceKernel)
-    let irradianceCommandBuffer = commandQueue.makeCommandBuffer()!
-    let irradianceComputeEncoder = irradianceCommandBuffer.makeComputeCommandEncoder()!
-    irradianceComputeEncoder.setComputePipelineState(irradiancePSO)
     irradianceComputeEncoder.setTexture(envMap, index: 0)
     irradianceComputeEncoder.setTexture(irradianceMap, index: 1)
-    let threadsPerThreadgroupForPrefilter = MTLSize(width: 16, height: 16, depth: 1)
-    let threadgroupsForPrefilter = MTLSize(
-        width: irradianceMap.width / threadsPerThreadgroupForPrefilter.width,
-        height: irradianceMap.height / threadsPerThreadgroupForPrefilter.height,
+
+    var params = IrradianceMapParams(
+        cubeSize: UInt32(size)
+    )
+    irradianceComputeEncoder.setBytes(&params, length: MemoryLayout<IrradianceMapParams>.size, index: 0)
+
+    let threads = MTLSize(width: 16, height: 16, depth: 1)
+    let threadGroups = MTLSize(
+        width: (size + threads.width - 1) / threads.width,
+        height: (size + threads.height - 1) / threads.height,
         depth: 6
     )
-    irradianceComputeEncoder.dispatchThreadgroups(threadgroupsForPrefilter, threadsPerThreadgroup: threadsPerThreadgroupForPrefilter)
+    irradianceComputeEncoder.dispatchThreadgroups(
+        threadGroups,
+        threadsPerThreadgroup: threads
+    )
     irradianceComputeEncoder.endEncoding()
     irradianceCommandBuffer.commit()
     irradianceCommandBuffer.waitUntilCompleted()

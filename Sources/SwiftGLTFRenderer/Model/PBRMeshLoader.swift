@@ -4,45 +4,19 @@ import SwiftGLTF
 
 class PBRMeshLoader {
     private let device: MTLDevice
+    private let pipelineConnector: PBRPipelineConnector
     private let shaderConnection: ShaderConnection
     private let textureLoader: MTKTextureLoader
 
-    let vertexFunction: MTLFunction
-    let fragmentFunction: MTLFunction
-    let pipelineState: MTLRenderPipelineState
-    let depthStencilState: MTLDepthStencilState
-
     init(
         device: MTLDevice,
-        library: MTLLibrary,
-        config: PipelineStateLoaderConfig,
-        shaderConnection: ShaderConnection
-    ) throws {
+        shaderConnection: ShaderConnection,
+        pipelineConnector: PBRPipelineConnector
+    ) {
         self.device = device
         self.shaderConnection = shaderConnection
+        self.pipelineConnector = pipelineConnector
         self.textureLoader = MTKTextureLoader(device: device)
-
-        self.vertexFunction = library.makeFunction(name: "pbr_vertex_shader")!
-        self.fragmentFunction = library.makeFunction(name: "pbr_fragment_shader")!
-
-        let psoDescriptor = MTLRenderPipelineDescriptor()
-        psoDescriptor.vertexFunction = vertexFunction
-        psoDescriptor.fragmentFunction = fragmentFunction
-        psoDescriptor.colorAttachments[0].pixelFormat = config.colorPixelFormat
-        psoDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
-        psoDescriptor.rasterSampleCount = config.sampleCount
-        psoDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()
-        self.pipelineState = try device.makeRenderPipelineState(descriptor: psoDescriptor)
-
-        let descriptor = MTLDepthStencilDescriptor()
-        descriptor.label = "Less Than Depth Stencil State"
-        descriptor.depthCompareFunction = .less
-        descriptor.isDepthWriteEnabled = true
-        if let depthStencilState = device.makeDepthStencilState(descriptor: descriptor) {
-            self.depthStencilState = depthStencilState
-        } else {
-            throw NSError(domain: "DepthStencilStateLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create depth stencil state"])
-        }
     }
 
     func loadMeshes(from asset: MDLAsset) async throws -> PBRMeshContainer {
@@ -141,7 +115,7 @@ class PBRMeshLoader {
                     use: fragmentHeap
                 )
 
-                let (argumentBuffer, storedInstance) = try makeFragmentArgumentBuffer(
+                let argumentBuffer = try pipelineConnector.makeFragmentArgumentBuffer(
                     materialUniformsBuffer: materialUniformsBuffer,
                     hasBaseColorTexture: &hasBaseColorTexture,
                     baseColorTexture: baseColorTexture,
@@ -166,7 +140,19 @@ class PBRMeshLoader {
                     indexType: mtkSubmesh.indexType,
                     indexBuffer: mtkSubmesh.indexBuffer,
                     fragmentArgumentBuffer: argumentBuffer,
-                    _storedHeapInstance: storedInstance
+                    _storedHeapInstance: [
+                        materialUniformsBuffer,
+                        baseColorTexture,
+                        baseColorSamplerState,
+                        normalTexture,
+                        normalSamplerState,
+                        metallicRoughnessTexture,
+                        metallicRoughnessSamplerState,
+                        emissiveTexture,
+                        emissiveSamplerState,
+                        occlusionTexture,
+                        occlusionSamplerState
+                    ]
                 )
                 submeshes.append(submeshData)
             }
@@ -352,51 +338,6 @@ class PBRMeshLoader {
         return convertedMap
     }
 
-    func createSkyboxFragmentHeap(
-        specularCubeMap: MTLTexture,
-        irradianceMap: MTLTexture,
-        brdfLUT: MTLTexture
-    ) -> MTLHeap {
-        let descriptor = MTLHeapDescriptor()
-        descriptor.storageMode = .private
-
-        let specularCubeMapDescriptor = newDescriptorFromTexture(specularCubeMap, storageMode: .private)
-        let irradianceDescriptor = newDescriptorFromTexture(irradianceMap, storageMode: .private)
-        let brdfLUTDescriptor = newDescriptorFromTexture(brdfLUT, storageMode: .private)
-
-        let specularCubeMapSize = device.heapTextureSizeAndAlign(descriptor: specularCubeMapDescriptor)
-        let irradianceSize = device.heapTextureSizeAndAlign(descriptor: irradianceDescriptor)
-        let brdfLUTSize = device.heapTextureSizeAndAlign(descriptor: brdfLUTDescriptor)
-
-        descriptor.size = specularCubeMapSize.alignedSize +
-                            irradianceSize.alignedSize +
-                            brdfLUTSize.alignedSize
-
-        let heap = device.makeHeap(descriptor: descriptor)!
-        return heap
-    }
-
-    func makeSkyboxArgBuffer(
-        heap: MTLHeap,
-        specularCubeMap: MTLTexture,
-        irradianceMap: MTLTexture,
-        brdfLUT: MTLTexture
-    ) throws -> (MTLBuffer, MTLTexture, MTLTexture, MTLTexture) {
-        let results = try shaderConnection.moveResourcesToHeap(
-            from: [specularCubeMap, irradianceMap, brdfLUT],
-            use: heap
-        )
-
-        let argEncoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 1)
-        let buffer = device.makeBuffer(length: argEncoder.encodedLength, options: .storageModeShared)!
-        argEncoder.setArgumentBuffer(buffer, offset: 0)
-        argEncoder.setTexture(results[0], index: 0)
-        argEncoder.setTexture(results[1], index: 1)
-        argEncoder.setTexture(results[2], index: 2)
-
-        return (buffer, results[0], results[1], results[2])
-    }
-
     // MARK: - Texture & Sampler Helpers
 
     private func retrieveTexture(prop: MDLMaterialProperty?, textureMap: [MDLTexture: MTLTexture]) -> (Bool, MTLTexture?, MTLSamplerState?) {
@@ -463,70 +404,5 @@ class PBRMeshLoader {
                 userInfo: [NSLocalizedDescriptionKey: "Failed to create sampler state"]
             )
         }
-    }
-
-    // MARK: - Argument Buffer
-
-    func makeFragmentArgumentBuffer(
-        materialUniformsBuffer: MTLBuffer,
-        hasBaseColorTexture: UnsafePointer<Bool>,
-        baseColorTexture: MTLTexture?,
-        baseColorSampler: MTLSamplerState?,
-        hasNormalTexture: UnsafePointer<Bool>,
-        normalTexture: MTLTexture?,
-        normalSampler: MTLSamplerState?,
-        hasMetallicRoughnessTexture: UnsafePointer<Bool>,
-        metallicRoughnessTexture: MTLTexture?,
-        metallicRoughnessSampler: MTLSamplerState?,
-        hasEmissiveTexture: UnsafePointer<Bool>,
-        emissiveTexture: MTLTexture?,
-        emissiveSampler: MTLSamplerState?,
-        hasOcclusionTexture: UnsafePointer<Bool>,
-        occlusionTexture: MTLTexture?,
-        occlusionSampler: MTLSamplerState?
-    ) throws -> (argBuffer: MTLBuffer, storedInstances: [Any?]) {
-        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 0)
-        guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
-            throw NSError(domain: "PBRPipelineStateLoader", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create argument buffer"])
-        }
-        encoder.setArgumentBuffer(buffer, offset: 0)
-
-        encoder.setBuffer(materialUniformsBuffer, offset: 0, index: 0)
-        let hasBaseColorTextureAddr = encoder.constantData(at: 1)
-        hasBaseColorTextureAddr.copyMemory(from: hasBaseColorTexture, byteCount: MemoryLayout<Bool>.size)
-        encoder.setTexture(baseColorTexture, index: 2)
-        encoder.setSamplerState(baseColorSampler, index: 3)
-        let hasNormalTextureAddr = encoder.constantData(at: 4)
-        hasNormalTextureAddr.copyMemory(from: hasNormalTexture, byteCount: MemoryLayout<Bool>.size)
-        encoder.setTexture(normalTexture, index: 5)
-        encoder.setSamplerState(normalSampler, index: 6)
-        let hasMetallicRoughnessTextureAddr = encoder.constantData(at: 7)
-        hasMetallicRoughnessTextureAddr.copyMemory(from: hasMetallicRoughnessTexture, byteCount: MemoryLayout<Bool>.size)
-        encoder.setTexture(metallicRoughnessTexture, index: 8)
-        encoder.setSamplerState(metallicRoughnessSampler, index: 9)
-        let hasEmissiveTextureAddr = encoder.constantData(at: 10)
-        hasEmissiveTextureAddr.copyMemory(from: hasEmissiveTexture, byteCount: MemoryLayout<Bool>.size)
-        encoder.setTexture(emissiveTexture, index: 11)
-        encoder.setSamplerState(emissiveSampler, index: 12)
-        let hasOcclusionTextureAddr = encoder.constantData(at: 13)
-        hasOcclusionTextureAddr.copyMemory(from: hasOcclusionTexture, byteCount: MemoryLayout<Bool>.size)
-        encoder.setTexture(occlusionTexture, index: 14)
-        encoder.setSamplerState(occlusionSampler, index: 15)
-
-        let resources: [Any?] = [
-            materialUniformsBuffer,
-            baseColorTexture,
-            baseColorSampler,
-            normalTexture,
-            normalSampler,
-            metallicRoughnessTexture,
-            metallicRoughnessSampler,
-            emissiveTexture,
-            emissiveSampler,
-            occlusionTexture,
-            occlusionSampler
-        ]
-
-        return (buffer, resources)
     }
 }

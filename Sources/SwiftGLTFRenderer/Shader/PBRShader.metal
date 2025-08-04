@@ -60,7 +60,7 @@ float3 compute_indirect_lighting(float3 normal,
                                  float metallic,
                                  float roughness,
                                  float ambientOcclusion,
-                                 texturecube<float, access::sample> specularCubeMap,
+                                 texturecube<float, access::sample> prefilterEnvMap,
                                  texturecube<float, access::sample> irradianceCubeMap,
                                  texture2d<float, access::sample> brdfLUT) {
     constexpr sampler mipMapSampler(mag_filter::linear, min_filter::linear, mip_filter::linear, s_address::clamp_to_edge, t_address::clamp_to_edge);
@@ -80,10 +80,10 @@ float3 compute_indirect_lighting(float3 normal,
     diffuseColor *= 1.0 - metallic;
 
     // Specular IBL
-    float textureSize = specularCubeMap.get_width();
+    float textureSize = prefilterEnvMap.get_width();
     float maxMipLevel = floor(log2(textureSize));
     float mipLevel = roughness * maxMipLevel;
-    float3 specular = specularCubeMap.sample(mipMapSampler, R, level(mipLevel)).rgb;
+    float3 specular = prefilterEnvMap.sample(mipMapSampler, R, level(mipLevel)).rgb;
 
     // BRDF LUT
     float2 brdf = brdfLUT.sample(texSampler, float2(max(dot(N, V), 0.0), roughness)).rg;
@@ -136,8 +136,8 @@ struct PBRFragmentArguments {
     sampler occlusionSampler [[id(15)]];
 };
 
-struct PBRSkyboxArguments {
-    texturecube<float> specularCubeMap [[id(0)]];
+struct PBREnvMapArguments {
+    texturecube<float> prefilterEnvMap [[id(0)]];
     texturecube<float> irradianceMap [[id(1)]];
     texture2d<float> brdfLUT [[id(2)]];
 };
@@ -166,7 +166,7 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
 
 fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                     constant PBRFragmentArguments &fragArgs [[buffer(0)]],
-                                    constant PBRSkyboxArguments &skyboxArgs [[buffer(1)]],
+                                    constant PBREnvMapArguments &envMapArgs [[buffer(1)]],
                                     constant PBRFragmentVariableParameters &params [[buffer(2)]])
 {
     constant PBRMaterialUniforms &mUni = fragArgs.material;
@@ -181,9 +181,9 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     texture2d<float> occlusionTexture = fragArgs.occlusionTexture;
     sampler occlusionSampler = fragArgs.occlusionSampler;
 
-    texturecube<float> specularCubeMap = skyboxArgs.specularCubeMap;
-    texturecube<float> irradianceMap = skyboxArgs.irradianceMap;
-    texture2d<float> brdfLUT = skyboxArgs.brdfLUT;
+    texturecube<float> prefilterEnvMap = envMapArgs.prefilterEnvMap;
+    texturecube<float> irradianceMap = envMapArgs.irradianceMap;
+    texture2d<float> brdfLUT = envMapArgs.brdfLUT;
 
     float2 uv = in.uv;
     float4 modulationColor = in.modulationColor;
@@ -240,7 +240,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                         metallic,
                                                         roughness,
                                                         ambientOcclusion,
-                                                        specularCubeMap,
+                                                        prefilterEnvMap,
                                                         irradianceMap,
                                                         brdfLUT);
 
