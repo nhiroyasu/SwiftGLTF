@@ -214,7 +214,8 @@ final class PBRRenderTests {
             MTLGPUFamily.common2,
             MTLGPUFamily.common3,
             MTLGPUFamily.macCatalyst1,
-            MTLGPUFamily.macCatalyst2
+            MTLGPUFamily.macCatalyst2,
+            MTLGPUFamily.metal3
         ] {
             if device.supportsFamily(family) {
                 print("supportFamily: \(family)")
