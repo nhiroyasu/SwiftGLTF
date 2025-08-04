@@ -48,6 +48,9 @@ jobs:
 
     - name: Select Xcode version
       run: sudo xcode-select -s /Applications/Xcode_16.4.app
+    
+    - name: Show SPDisplaysDataType
+      run: system_profiler SPDisplaysDataType
       
     - name: Set up Git config
       run: |
