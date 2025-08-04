@@ -172,32 +172,32 @@ final class PBRRenderTests {
 
     // Export baseline textures
     // These should be run manually to generate expected textures
-//    @Test
-//    func ExportGoldenImages() async throws {
-//        guard EXPORT_GOLDEN_IMAGES_FLAG, !isCI() else { return }
-//
-//        for meshName in meshNames {
-//            let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
-//            let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
-//            try await renderMesh(to: meshTarget, meshURL: meshURL)
-//            try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName).png")
-//        }
-//    }
-
-    // MARK: - Tests
-
     @Test
-    func testMeshRenderingMatchesGolden() async throws {
+    func ExportGoldenImages() async throws {
+        guard EXPORT_GOLDEN_IMAGES_FLAG, !isCI() else { return }
+
         for meshName in meshNames {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
             let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
             try await renderMesh(to: meshTarget, meshURL: meshURL)
-
-            assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
-
-            if EXPORT_OUTPUT_IMAGES_FLAG, !isCI() {
-                try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName).png")
-            }
+            try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName).png")
         }
     }
+
+    // MARK: - Tests
+
+    @Test
+//    func testMeshRenderingMatchesGolden() async throws {
+//        for meshName in meshNames {
+//            let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
+//            let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
+//            try await renderMesh(to: meshTarget, meshURL: meshURL)
+//
+//            assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
+//
+//            if EXPORT_OUTPUT_IMAGES_FLAG, !isCI() {
+//                try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName).png")
+//            }
+//        }
+//    }
 }
