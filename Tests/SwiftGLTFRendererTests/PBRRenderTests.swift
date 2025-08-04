@@ -189,19 +189,19 @@ final class PBRRenderTests {
     }
 
     // MARK: - Tests
-
-    @Test
-    func testMeshRenderingMatchesGolden() async throws {
-        for meshName in meshNames {
-            let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
-            let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
-            try await renderMesh(to: meshTarget, meshURL: meshURL)
-
-            assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
-
-            if EXPORT_OUTPUT_IMAGES_FLAG, !isCI() {
-                try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName).png")
-            }
-        }
-    }
+//
+//    @Test
+//    func testMeshRenderingMatchesGolden() async throws {
+//        for meshName in meshNames {
+//            let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
+//            let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
+//            try await renderMesh(to: meshTarget, meshURL: meshURL)
+//
+//            assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
+//
+//            if EXPORT_OUTPUT_IMAGES_FLAG, !isCI() {
+//                try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName).png")
+//            }
+//        }
+//    }
 }

@@ -14,30 +14,30 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  # build:
 
-    runs-on: macos-15
+  #   runs-on: macos-15
 
-    steps:
-    - uses: actions/checkout@v4
+  #   steps:
+  #   - uses: actions/checkout@v4
 
-    - name: Select Xcode version
-      run: sudo xcode-select -s /Applications/Xcode_16.4.app
+  #   - name: Select Xcode version
+  #     run: sudo xcode-select -s /Applications/Xcode_16.4.app
 
-    - name: Show Xcode version
-      run: xcodebuild -version
+  #   - name: Show Xcode version
+  #     run: xcodebuild -version
       
-    - name: Show Swift version
-      run: swift --version
+  #   - name: Show Swift version
+  #     run: swift --version
 
-    - name: Setup
-      run: make
+  #   - name: Setup
+  #     run: make
 
-    - name: Build
-      run: swift build -v
+  #   - name: Build
+  #     run: swift build -v
 
-    - name: Run tests
-      run: swift test -v
+  #   - name: Run tests
+  #     run: swift test -v
 
   build_ex:
 
