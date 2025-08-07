@@ -4,6 +4,7 @@ import CoreGraphics
 import UniformTypeIdentifiers
 import Img2Cubemap
 import SwiftGLTF
+import SwiftGLTFShaderTypes
 @testable import SwiftGLTFRenderer
 
 final class PBRRenderTests {
@@ -11,8 +12,12 @@ final class PBRRenderTests {
     let library: MTLLibrary
     let commandQueue: MTLCommandQueue
     let shaderConnection: ShaderConnection
-    let pipelineStateLoader: PBRPipelineStateLoader
-    let depthStencilStateLoader: DepthStencilStateLoader
+    let depthStencilState: MTLDepthStencilState
+
+    var _prefilterEnvMap: MTLTexture!
+    var _irradianceMap: MTLTexture!
+    var _brdfLUT: MTLTexture!
+    var _pbrMeshContainer: PBRMeshContainer!
 
     let TEX_SIZE = 256
 
@@ -26,16 +31,7 @@ final class PBRRenderTests {
             library: library,
             commandQueue: commandQueue
         )
-        self.pipelineStateLoader = PBRPipelineStateLoader(
-            device: device,
-            library: library,
-            config: .init(
-                sampleCount: 1,
-                colorPixelFormat: .rgba8Unorm_srgb,
-                depthPixelFormat: .depth32Float
-            )
-        )
-        self.depthStencilStateLoader = DepthStencilStateLoader(device: device)
+        self.depthStencilState = try! makeLessEqualDepthStencilState(device: device)
     }
 
     // Helper to create a render target texture
@@ -50,40 +46,68 @@ final class PBRRenderTests {
     }
 
     func renderMesh(to output: MTLTexture, meshURL: URL) async throws {
+        let pipelineConnector = try PBRPipelineConnector(
+            device: device,
+            library: library,
+            config: .init(
+                sampleCount: 1,
+                colorPixelFormat: output.pixelFormat,
+                depthPixelFormat: .depth32Float
+            ),
+            shaderConnection: shaderConnection
+        )
+        let loader = PBRMeshLoader(
+            device: device,
+            shaderConnection: shaderConnection,
+            pipelineConnector: pipelineConnector
+        )
+        let envMapLoader = EnvironmentMapLoader(
+            device: device,
+            library: library,
+            commandQueue: commandQueue,
+            shaderConnection: shaderConnection
+        )
+
         // Create view-projection matrix buffer
         let eye = SIMD3<Float>(-2.83, 2.83, -2.83)
-        var vMatrix = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
-        let vMatrixBuf = device.makeBuffer(bytes: &vMatrix, length: MemoryLayout.size(ofValue: vMatrix))!
-        var pMatrix = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
-        let pMatrixBuf = device.makeBuffer(bytes: &pMatrix, length: MemoryLayout.size(ofValue: pMatrix))!
+        let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
+        let projection = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
+        var vertexVariableParams = PBRVertexVariableParameters(
+            view: view,
+            projection: projection,
+            externalTransform: simd_float4x4(1)
+        )
+        let vertexParams = device.makeBuffer(
+            bytes: &vertexVariableParams,
+            length: MemoryLayout<PBRVertexVariableParameters>.size,
+            options: .storageModeShared
+        )!
 
         // Create a pbr scene uniforms buffer
-        var pbrSceneUniforms = PBRSceneUniforms(
+        var pbrSceneUniforms = PBRFragmentVariableParameters(
             lightPosition: SIMD3<Float>(0, 5, -5),
             viewPosition: eye,
             ambientLightColor: SIMD3<Float>(5, 5, 5)
         )
-        let sceneUniformsBuffer = device.makeBuffer(
+        let fragmentParams = device.makeBuffer(
             bytes: &pbrSceneUniforms,
-            length: MemoryLayout<PBRSceneUniforms>.size,
+            length: MemoryLayout<PBRFragmentVariableParameters>.size,
             options: .storageModeShared
         )!
 
-        let envMap = try await generateCubeTexture(
-            device: device,
-            exr: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
+        let envMapHeap: MTLHeap
+        (
+            envMapHeap,
+            self._prefilterEnvMap,
+            self._irradianceMap,
+            self._brdfLUT
+        ) = try await envMapLoader.makeEnvMapHeapAndTexture(
+            url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
         )
-        let irrMap = generateIrradianceTexture(
-            commandQueue: commandQueue,
-            library: library,
-            envMap: envMap,
-            size: 128
-        )
-        let brdfLUT = generateBRDFLUT(
-            commandQueue: commandQueue,
-            library: library,
-            width: envMap.width,
-            height: envMap.height
+        let envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
+            prefilterEnvMap: _prefilterEnvMap,
+            irradianceMap: _irradianceMap,
+            brdfLUT: _brdfLUT
         )
 
         let depthTextureDesc = MTLTextureDescriptor.texture2DDescriptor(
@@ -109,35 +133,24 @@ final class PBRRenderTests {
 
         // Load a sample mesh
         let asset = try await makeMDLAsset(from: meshURL)
-        let loader = PBRMeshLoader(
-            device: device,
-            shaderConnection: shaderConnection,
-            pipelineStateLoader: pipelineStateLoader,
-            depthStencilStateLoader: depthStencilStateLoader
-        )
-        let meshes = try await loader.loadMeshes(from: asset)
+        self._pbrMeshContainer = try await loader.loadMeshes(from: asset)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
         let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc)!
 
-        var externalTransform: simd_float4x4 = simd_float4x4(1)
-        let externalTransformBuf = device.makeBuffer(bytes: &externalTransform, length: MemoryLayout<simd_float4x4>.size)!
-
         // Draw the mesh
-        for mesh in meshes {
-            drawPBR(
-                renderEncoder: encoder,
-                mesh: mesh,
-                view: vMatrixBuf,
-                projection: pMatrixBuf,
-                externalTransform: externalTransformBuf,
-                pbrSceneUniformsBuffer: sceneUniformsBuffer,
-                specularCubeMapTexture: envMap,
-                irradianceCubeMapTexture: irrMap,
-                brdfLUT: brdfLUT
-            )
-        }
+        drawPBR(
+            renderEncoder: encoder,
+            pipelineState: pipelineConnector.pipelineState,
+            depthStencilState: depthStencilState,
+            vertexResources: _pbrMeshContainer.vertexResources,
+            fragmentResources: _pbrMeshContainer.fragmentResources + [envMapHeap],
+            meshes: _pbrMeshContainer.meshes,
+            vertexParams: vertexParams,
+            envMapArgBuffer: envMapArgBuffer,
+            fragmentParams: fragmentParams
+        )
 
         encoder.endEncoding()
         cmdBuf.commit()
@@ -149,7 +162,6 @@ final class PBRRenderTests {
     let goldenFilePrefix = "golden_pbr_mesh_"
     let outputFilePrefix = "wireframe_mesh_"
     let meshNames: [String] = [
-        "BoxTextured",
         "BoxTextured",
         "CompareBaseColor",
         "CompareEmissiveStrength",
@@ -180,6 +192,9 @@ final class PBRRenderTests {
 
     @Test
     func testMeshRenderingMatchesGolden() async throws {
+        // This rendering test is not run on CI because it depends on the GPU and the supported Metal version.
+        guard !isCI() else { return }
+
         for meshName in meshNames {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
             let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!

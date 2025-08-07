@@ -1,5 +1,5 @@
 #include <metal_stdlib>
-#include "../../SwiftGLTFShaderTypes/includes/metal_helper.h"
+#include "includes/metal_helper.h"
 
 using namespace metal;
 
@@ -10,7 +10,25 @@ float3 importanceSampleGGX(float2 xi, float3 N, float roughness) {
     float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
 
     float3 H = float3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
-    return normalize(H);
+
+    float3 up = abs(N.z) < 0.999 ? float3(0, 0, 1) : float3(1, 0, 0);
+    float3 T = normalize(cross(up, N));
+    float3 B = cross(N, T);
+    return normalize(T * H.x + B * H.y + N * H.z);
+}
+
+float3 ImportanceSampleCosineWeighted(float2 xi, float3 N)
+{
+    float phi = 2 * M_PI_F * xi.x;
+    float cosTheta = sqrt(1 - xi.y);
+    float sinTheta = sqrt(1 - cosTheta * cosTheta);
+
+    float3 H = float3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
+
+    float3 up = abs(N.z) < 0.999 ? float3(0, 0, 1) : float3(1, 0, 0);
+    float3 T = normalize(cross(up, N));
+    float3 B = cross(N, T);
+    return normalize(T * H.x + B * H.y + N * H.z);
 }
 
 uint bitfieldReverse(uint x) {
@@ -46,21 +64,6 @@ float3 ACESFilm(float3 x) {
     float d = 0.59;
     float e = 0.14;
     return saturate((x*(a*x + b))/(x*(c*x + d) + e));
-}
-
-float3 ImportanceSampleCosineWeighted(float2 Xi, float3 N)
-{
-    float phi = 2 * M_PI_F * Xi.x;
-    float cosTheta = sqrt(1 - Xi.y);
-    float sinTheta = sqrt(1 - cosTheta * cosTheta);
-
-    float3 H = float3(sinTheta * cos(phi), cosTheta, sinTheta * sin(phi));
-
-    float3 X = abs(N.x) < 0.999 ? float3(1, 0, 0) : float3(0, -1, 0);
-    float3 zTangent = normalize( cross(X, N) );
-    float3 xTangent = cross ( N, zTangent );
-    // Tangent to world space
-    return normalize(xTangent * H.x + N * H.y + zTangent * H.z);
 }
 
 float3 linearToSrgb(float3 rgbLinear)
@@ -156,7 +159,7 @@ float swapToonShading(float value) {
 
 float3x3 make_tbn(float3 normal) {
     // Construct a TBN matrix assuming the normal is Z and use a fixed tangent space
-    float3 up = abs(normal.y) < 0.999 ? float3(0, 1, 0) : float3(1, 0, 0);
+    float3 up = abs(normal.z) < 0.999 ? float3(0, 0, 1) : float3(1, 0, 0);
     float3 tangent = normalize(cross(up, normal));
     float3 bitangent = cross(normal, tangent);
     return float3x3(tangent, bitangent, normal);

@@ -38,7 +38,7 @@ import SwiftGLTFRenderer
 
 // ...
 
-let renderer = try await GLTFRenderer()
+let renderer = try GLTFRenderer()
 let gltfView = GLTFView(frame: view.frame, renderer: renderer)
 view.addSubview(gltfView)
 

@@ -30,7 +30,7 @@ class GLTFViewModel: ObservableObject, DropDelegate {
         do {
             let url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
             let asset = try await makeMDLAsset(from: url)
-            let newRenderer = try await GLTFRenderer()
+            let newRenderer = try GLTFRenderer()
             try await newRenderer.load(from: asset)
             renderer = newRenderer
         } catch {
@@ -59,6 +59,8 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     }
 
     func updateRenderingMode(_ mode: RenderingType) async {
+        isLoading = true
+        defer { isLoading = false }
         do {
             try await renderer?.reload(with: mode)
         } catch {

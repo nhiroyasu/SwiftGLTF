@@ -1,7 +1,19 @@
 #include <metal_stdlib>
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
-#include "../../SwiftGLTFShaderTypes/includes/metal_helper.h"
+#include "includes/metal_helper.h"
 using namespace metal;
+
+float3 getDirectionForFace(uint faceIndex, float2 uv) {
+    switch (faceIndex) {
+        case 0: return normalize(float3(1.0, -uv.y, -uv.x)); // +X
+        case 1: return normalize(float3(-1.0, -uv.y, uv.x)); // -X
+        case 2: return normalize(float3(uv.x, 1.0, uv.y));    // +Y
+        case 3: return normalize(float3(uv.x, -1.0, -uv.y));  // -Y
+        case 4: return normalize(float3(uv.x, -uv.y, 1.0));   // +Z
+        case 5: return normalize(float3(-uv.x, -uv.y, -1.0)); // -Z
+        default: return float3(0.0);
+    }
+}
 
 kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)]],
                             uint2 gid [[thread_position_in_grid]])
@@ -52,68 +64,76 @@ kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)
     brdfLUT.write(float4(A, B, 0.0, 1.0), gid);
 }
 
-kernel void prefilterLambertEnvMap(texturecube<float, access::sample> envMap [[texture(0)]],
-                                   texturecube<float, access::write> diffuseEnvMap [[texture(1)]],
+kernel void irradianceMap(texturecube<float, access::sample> envMap [[texture(0)]],
+                                   texturecube<float, access::write> out [[texture(1)]],
+                                   constant IrradianceMapParams &params [[buffer(0)]],
                                    uint3 gid [[thread_position_in_grid]])
 {
-    sampler sampler(mag_filter::linear, min_filter::linear, mip_filter::linear);
+    uint size = params.cubeSize;
 
-    uint width = diffuseEnvMap.get_width();
-    uint height = diffuseEnvMap.get_height();
-    float u = float(gid.x) / float(width - 1);
-    float v = float(gid.y) / float(height - 1);
+    if (gid.x >= size || gid.y >= size) return;
 
-    float3 lambertColor = float3(0.0);
-    const uint sampleCount = 1024;
-    float x;
-    float y;
-    float z;
-    switch (gid.z) {
-        case 0: // positive x
-            x = 0.5;
-            y = 0.5 - v;
-            z = 0.5 - u;
-            break;
-        case 1: // negative x
-            x = -0.5;
-            y = 0.5 - v;
-            z = u - 0.5;
-            break;
-        case 2: // positive y
-            x = u - 0.5;
-            y = 0.5;
-            z = v - 0.5;
-            break;
-        case 3: // negative y
-            x = u - 0.5;
-            y = -0.5;
-            z = 0.5 - v;
-            break;
-        case 4: // positive z
-            x = u - 0.5;
-            y = 0.5 - v;
-            z = 0.5;
-            break;
-        case 5: // negative z
-            x = 0.5 - u;
-            y = 0.5 - v;
-            z = -0.5;
-            break;
-        default:
-            assert(false);
-            x = 0;
-            y = 0;
-            z = 0;
-            break;
+    float2 uv = (float2(gid.xy) + 0.5) / float(size) * 2.0 - 1.0; // Convert to [-1, 1] range
+    float3 N = normalize(getDirectionForFace(gid.z, uv));
+
+    constexpr sampler sampler(mip_filter::linear);
+
+    float3x3 tbn = make_tbn(N);
+    float3 irradiance = float3(0.0);
+    uint sampleCount = 0;
+
+    float delta = 0.025;
+    for (float phi = 0.0; phi < M_PI_F * 2.0; phi += delta) {
+        for (float theta = 0.0; theta < M_PI_F * 0.5; theta += delta) {
+            float3 tangentSample = float3(sin(theta) * cos(phi),
+                                          sin(theta) * sin(phi),
+                                          cos(theta));
+
+            float3 sampleVec = normalize(tbn[0] * tangentSample.x +
+                                         tbn[1] * tangentSample.y +
+                                         tbn[2] * tangentSample.z);
+
+            float weight = cos(theta) * sin(theta);
+            irradiance += envMap.sample(sampler, sampleVec).rgb * weight;
+            sampleCount++;
+        }
     }
 
-    float3 N = normalize(float3(x, y, z));
+    irradiance = M_PI_F * irradiance / float(sampleCount);
 
-    for (uint i = 0; i < sampleCount; i++) {
-        float2 xi = hammersley(i, sampleCount);
-        float3 H = ImportanceSampleCosineWeighted(xi, N);
-        lambertColor += ACESFilm(envMap.sample(sampler, H, level(0)).rgb);
+    out.write(float4(irradiance, 1.0), gid.xy, gid.z);
+}
+
+kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(0)]],
+                            texturecube<float, access::write> outMap [[texture(1)]],
+                            constant PreFilterEnvMapParams &params [[buffer(0)]],
+                            uint3 gid [[thread_position_in_grid]])
+{
+    if (gid.x >= params.cubeSize || gid.y >= params.cubeSize) return;
+
+    float2 uv = (float2(gid.xy) + 0.5) / float(params.cubeSize) * 2.0 - 1.0; // Convert to [-1, 1] range
+    float3 R = getDirectionForFace(gid.z, uv);
+    float3 N = normalize(R);
+    float3 V = N;
+
+    constexpr sampler sampler(mip_filter::linear);
+
+    float3 prefilteredColor = float3(0.0);
+    float totalWeight = 0.0;
+
+    for (uint i = 0; i < params.sampleCount; ++i) {
+        float2 xi = hammersley(i, params.sampleCount);
+        float3 H = importanceSampleGGX(xi, N, params.roughness);
+        float3 L = normalize(2.0 * dot(V, H) * H - V);
+
+        float NdotL = max(dot(N, L), 0.0);
+        if (NdotL > 0.0) {
+            prefilteredColor += envMap.sample(sampler, L).rgb * NdotL;
+            totalWeight += NdotL;
+        }
     }
-    lambertColor /= float(sampleCount);
-    diffuseEnvMap.write(float4(lambertColor, 1.0), gid.xy, gid.z);
+
+    prefilteredColor = totalWeight > 0.0 ? prefilteredColor / totalWeight : float3(0.0);
+
+    outMap.write(float4(prefilteredColor, 1.0), gid.xy, gid.z, params.mipLevel);
 }

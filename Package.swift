@@ -19,16 +19,17 @@ let package = Package(
             targets: ["SwiftGLTFRenderer"])
     ],
     dependencies: [
-        .package(url: "https://github.com/nhiroyasu/Img2Cubemap.git", from: "0.1.4")
+        .package(url: "https://github.com/nhiroyasu/Img2Cubemap.git", from: "0.1.6")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "SwiftGLTFRenderer",
-            dependencies: ["SwiftGLTF", "Img2Cubemap"],
+            dependencies: ["SwiftGLTF", "SwiftGLTFShaderTypes", "Img2Cubemap"],
             resources: [
                 .process("Shader/"),
+                .process("Resources/"),
             ]),
         .testTarget(
             name: "SwiftGLTFRendererTests",

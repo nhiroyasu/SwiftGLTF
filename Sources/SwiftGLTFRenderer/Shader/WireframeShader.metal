@@ -1,4 +1,5 @@
 #include <metal_stdlib>
+#include "../../SwiftGLTFShaderTypes/includes/pbr.h"
 using namespace metal;
 
 struct VertexIn_Wireframe {
@@ -11,12 +12,11 @@ struct VertexOut_Wireframe {
 
 vertex VertexOut_Wireframe wireframe_vertex_shader(VertexIn_Wireframe in [[stage_in]],
                                                    constant float4x4 &model [[buffer(1)]],
-                                                   constant float4x4 &view [[buffer(2)]],
-                                                   constant float4x4 &projection [[buffer(3)]],
-                                                   constant float4x4 &offsetMatrix [[buffer(4)]]) {
+                                                   constant PBRVertexVariableParameters &params [[buffer(2)]])
+{
     VertexOut_Wireframe out;
 
-    float4x4 mvpMatrix = projection * view * model;
+    float4x4 mvpMatrix = params.projection * params.view * model;
 
     out.position = mvpMatrix * float4(in.position, 1.0);
     return out;

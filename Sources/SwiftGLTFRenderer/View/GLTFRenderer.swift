@@ -1,31 +1,39 @@
 import MetalKit
 import Img2Cubemap
 import simd
+import OSLog
 
 public class GLTFRenderer {
     private var asset: MDLAsset?
     private var meshes: [PBRMesh] = []
+    private var vertexResources: [MTLHeap] = []
+    private var fragmentResources: [MTLHeap] = []
     private var type: RenderingType = .pbr
 
+    private var skyboxMesh: SkyboxMesh?
+    private var envMapArgBuffer: MTLBuffer?
+    private var envMapHeap: MTLHeap?
+
     private let pbrMeshLoader: PBRMeshLoader
+    private let pbrPipelineConnector: PBRPipelineConnector
     private let wireframeMeshLoader: WireframeMeshLoader
-    private let depthStencilStateLoader: DepthStencilStateLoader
+    private let envMapLoader: EnvironmentMapLoader
     private let shaderConnection: ShaderConnection
 
-    private let specularCubeMapTexture: MTLTexture
-    private let irradianceCubeMapTexture: MTLTexture
-    private let brdfLUT: MTLTexture
-
-    private let skyboxMesh: SkyboxMesh
+    private let depthStencilState: MTLDepthStencilState
 
     let device: MTLDevice
+    let library: MTLLibrary
     let commandQueue: MTLCommandQueue
 
     let sampleCount: Int
     let colorPixelFormat: MTLPixelFormat
     let depthPixelFormat: MTLPixelFormat
 
-    private let IRRADIANCE_SIZE = 128
+    // Variables to prevent deallocation by ARC
+    private var _specularCubeMapTexture: MTLTexture?
+    private var _irradianceCubeMapTexture: MTLTexture?
+    private var _brdfLUT: MTLTexture?
 
     public init(
         device: MTLDevice = MTLCreateSystemDefaultDevice()!,
@@ -33,7 +41,7 @@ public class GLTFRenderer {
         sampleCount: Int = 4,
         colorPixelFormat: MTLPixelFormat = .rgba8Unorm_srgb,
         depthPixelFormat: MTLPixelFormat = .depth32Float
-    ) async throws {
+    ) throws {
         self.device = device
         self.type = type
         if let commandQueue = device.makeCommandQueue() {
@@ -41,7 +49,7 @@ public class GLTFRenderer {
         } else {
             throw NSError(domain: "PBRRenderer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create command queue"])
         }
-        let library = try device.makePackageLibrary()
+        library = try device.makePackageLibrary()
 
         self.sampleCount = sampleCount
         self.colorPixelFormat = colorPixelFormat
@@ -51,122 +59,90 @@ public class GLTFRenderer {
             library: library,
             commandQueue: commandQueue
         )
-        self.depthStencilStateLoader = DepthStencilStateLoader(device: device)
 
         let pipelineStateConfig = PipelineStateLoaderConfig(
             sampleCount: sampleCount,
             colorPixelFormat: colorPixelFormat,
             depthPixelFormat: depthPixelFormat
         )
-        let pbrPipelineStateLoader = PBRPipelineStateLoader(
+        self.pbrPipelineConnector = try PBRPipelineConnector(
             device: device,
             library: library,
-            config: pipelineStateConfig
+            config: pipelineStateConfig,
+            shaderConnection: shaderConnection
         )
         self.pbrMeshLoader = PBRMeshLoader(
             device: device,
             shaderConnection: shaderConnection,
-            pipelineStateLoader: pbrPipelineStateLoader,
-            depthStencilStateLoader: depthStencilStateLoader,
+            pipelineConnector: pbrPipelineConnector
         )
-        let wireframePipelineStateLoader = WireframePipelineStateLoader(
+        self.wireframeMeshLoader = try WireframeMeshLoader(
             device: device,
             library: library,
             config: pipelineStateConfig
         )
-        self.wireframeMeshLoader = WireframeMeshLoader(
-            device: device,
-            pipelineStateLoader: wireframePipelineStateLoader,
-            depthStencilStateLoader: depthStencilStateLoader,
-        )
-
-        // Create skybox mesh via loader
-        let skyboxConfig = SkyboxPipelineConfig(
-            sampleCount: sampleCount,
-            colorPixelFormat: colorPixelFormat,
-            depthPixelFormat: depthPixelFormat
-        )
-        let skyboxLoader = try await SkyboxMeshLoader(
+        self.envMapLoader = EnvironmentMapLoader(
             device: device,
             library: library,
-            config: skyboxConfig
+            commandQueue: commandQueue,
+            shaderConnection: shaderConnection
         )
-        self.skyboxMesh = skyboxLoader.loadMesh()
 
-        // Load environment textures
-        guard let envMapUrl = Bundle.main.url(forResource: "env_map", withExtension: "exr") else {
-            throw NSError(domain: "MDLAssetMTKView", code: 0, userInfo: [NSLocalizedDescriptionKey: "Environment map not found"])
-        }
-        self.specularCubeMapTexture = try await generateCubeTexture(device: device, exr: envMapUrl)
-        self.irradianceCubeMapTexture = generateIrradianceTexture(
-            commandQueue: commandQueue,
-            library: library,
-            envMap: specularCubeMapTexture,
-            size: IRRADIANCE_SIZE
-        )
-        self.brdfLUT = generateBRDFLUT(
-            commandQueue: commandQueue,
-            library: library,
-            width: specularCubeMapTexture.width,
-            height: specularCubeMapTexture.height
-        )
+        self.depthStencilState = try makeLessEqualDepthStencilState(device: device)
     }
 
     // MARK: - Rendering
 
     func render(
         using renderEncoder: MTLRenderCommandEncoder,
-        view: MTLBuffer,
-        projection: MTLBuffer,
-        externalTransform: MTLBuffer,
-        pbrScene: MTLBuffer,
+        vertexParams: MTLBuffer,
+        fragmentParams: MTLBuffer,
         skyboxVP: MTLBuffer
     ) {
+        guard let skyboxMesh, let _specularCubeMapTexture, let envMapHeap, let envMapArgBuffer else {
+            os_log("Skybox or textures not loaded", log: .default, type: .error)
+            return
+        }
         // Draw Skybox
         drawSkybox(
             renderEncoder: renderEncoder,
             mesh: skyboxMesh,
             vpMatrixBuffer: skyboxVP,
-            specularCubeMapTexture: specularCubeMapTexture
+            specularCubeMapTexture: _specularCubeMapTexture
         )
 
-        for mesh in meshes {
-            switch type {
-            case .pbr:
-                drawPBR(
-                    renderEncoder: renderEncoder,
-                    mesh: mesh,
-                    view: view,
-                    projection: projection,
-                    externalTransform: externalTransform,
-                    pbrSceneUniformsBuffer: pbrScene,
-                    specularCubeMapTexture: specularCubeMapTexture,
-                    irradianceCubeMapTexture: irradianceCubeMapTexture,
-                    brdfLUT: brdfLUT
-                )
-            case .wireframe:
-                drawWireframe(
-                    renderEncoder: renderEncoder,
-                    mesh: mesh,
-                    view: view,
-                    projection: projection,
-                    externalTransform: externalTransform
-                )
-            }
+        switch type {
+        case .pbr:
+            drawPBR(
+                renderEncoder: renderEncoder,
+                pipelineState: pbrPipelineConnector.pipelineState,
+                depthStencilState: depthStencilState,
+                vertexResources: vertexResources,
+                fragmentResources: fragmentResources + [envMapHeap],
+                meshes: meshes,
+                vertexParams: vertexParams,
+                envMapArgBuffer: envMapArgBuffer,
+                fragmentParams: fragmentParams
+            )
+        case .wireframe:
+            drawWireframe(
+                renderEncoder: renderEncoder,
+                pipelineState: wireframeMeshLoader.pipelineState,
+                depthStencilState: depthStencilState,
+                meshes: meshes,
+                vertexParams: vertexParams
+            )
         }
     }
 
     // MARK: - Update states
 
     public func load(from asset: MDLAsset) async throws {
-        self.asset = asset
-
-        switch type {
-        case .pbr:
-            self.meshes = try await pbrMeshLoader.loadMeshes(from: asset)
-        case .wireframe:
-            self.meshes = try wireframeMeshLoader.loadMeshes(from: asset)
-        }
+        _ = try await (
+            _loadSkybox(),
+            _loadEnvMap(),
+            _loadAsset(asset: asset, type: type)
+        )
     }
 
     public func reload(with type: RenderingType) async throws {
@@ -174,7 +150,70 @@ public class GLTFRenderer {
             throw NSError(domain: "GLTFRenderer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Asset not loaded"])
         }
 
+        try await _loadAsset(asset: asset, type: type)
         self.type = type
-        try await load(from: asset)
+    }
+
+    // MARK: - Helper
+
+    private func _loadAsset(asset: MDLAsset, type: RenderingType) async throws {
+        self.asset = asset
+        switch type {
+        case .pbr:
+            let meshContainer = try await pbrMeshLoader.loadMeshes(from: asset)
+            self.meshes = meshContainer.meshes
+            self.vertexResources = meshContainer.vertexResources
+            self.fragmentResources = meshContainer.fragmentResources
+        case .wireframe:
+            self.meshes = try wireframeMeshLoader.loadMeshes(from: asset)
+            self.vertexResources = []
+            self.fragmentResources = []
+        }
+    }
+
+    private func _loadSkybox() async throws {
+        guard skyboxMesh == nil else {
+            // Skybox already loaded
+            return
+        }
+        // Create skybox mesh via loader
+        let skyboxConfig = SkyboxPipelineConfig(
+            sampleCount: sampleCount,
+            colorPixelFormat: colorPixelFormat,
+            depthPixelFormat: depthPixelFormat
+        )
+        let skyboxLoader = try SkyboxMeshLoader(
+            device: device,
+            library: library,
+            config: skyboxConfig
+        )
+        self.skyboxMesh = skyboxLoader.loadMesh()
+    }
+
+    private func _loadEnvMap() async throws {
+        guard envMapHeap == nil else {
+            // Environment map already loaded
+            return
+        }
+
+        // TODO: env map loading should be optional
+        guard let envMapUrl = Bundle.module.url(forResource: "env_map", withExtension: "exr") else {
+            throw NSError(domain: "MDLAssetMTKView", code: 0, userInfo: [NSLocalizedDescriptionKey: "Environment map not found"])
+        }
+        let (
+            envMapHeap,
+            prefilterEnvMap,
+            irradianceMap,
+            brdfLUT
+        ) = try await envMapLoader.makeEnvMapHeapAndTexture(url: envMapUrl)
+        self.envMapHeap = envMapHeap
+        self._specularCubeMapTexture = prefilterEnvMap
+        self._irradianceCubeMapTexture = irradianceMap
+        self._brdfLUT = brdfLUT
+        self.envMapArgBuffer = try pbrPipelineConnector.makeEnvMapArgBuffer(
+            prefilterEnvMap: prefilterEnvMap,
+            irradianceMap: irradianceMap,
+            brdfLUT: brdfLUT
+        )
     }
 }

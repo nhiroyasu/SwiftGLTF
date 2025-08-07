@@ -1,4 +1,5 @@
 import MetalKit
+import SwiftGLTFShaderTypes
 
 public class MDLAssetMTKView: MTKView {
     private let commandQueue: MTLCommandQueue

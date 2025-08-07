@@ -4,17 +4,39 @@ import SwiftGLTF
 
 class WireframeMeshLoader {
     private let device: MTLDevice
-    private let pipelineStateLoader: WireframePipelineStateLoader
-    private let depthStencilStateLoader: DepthStencilStateLoader
+
+    let vertexFunction: MTLFunction
+    let fragmentFunction: MTLFunction
+    let pipelineState: MTLRenderPipelineState
+    let depthStencilState: MTLDepthStencilState
 
     init(
         device: MTLDevice,
-        pipelineStateLoader: WireframePipelineStateLoader,
-        depthStencilStateLoader: DepthStencilStateLoader
-    ) {
+        library: MTLLibrary,
+        config: PipelineStateLoaderConfig
+    ) throws {
         self.device = device
-        self.pipelineStateLoader = pipelineStateLoader
-        self.depthStencilStateLoader = depthStencilStateLoader
+        self.vertexFunction = library.makeFunction(name: "wireframe_vertex_shader")!
+        self.fragmentFunction = library.makeFunction(name: "wireframe_shader")!
+
+        let psoDescriptor = MTLRenderPipelineDescriptor()
+        psoDescriptor.vertexFunction = vertexFunction
+        psoDescriptor.fragmentFunction = fragmentFunction
+        psoDescriptor.colorAttachments[0].pixelFormat = config.colorPixelFormat
+        psoDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
+        psoDescriptor.rasterSampleCount = config.sampleCount
+        psoDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()
+        self.pipelineState = try device.makeRenderPipelineState(descriptor: psoDescriptor)
+
+        let descriptor = MTLDepthStencilDescriptor()
+        descriptor.label = "Less Than Depth Stencil State"
+        descriptor.depthCompareFunction = .less
+        descriptor.isDepthWriteEnabled = true
+        if let depthStencilState = device.makeDepthStencilState(descriptor: descriptor) {
+            self.depthStencilState = depthStencilState
+        } else {
+            throw NSError(domain: "DepthStencilStateLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create depth stencil state"])
+        }
     }
 
     func loadMeshes(from asset: MDLAsset) throws -> [PBRMesh] {
@@ -48,46 +70,26 @@ class WireframeMeshLoader {
             var submeshes: [PBRMesh.Submesh] = []
             for mtkSubmesh in mtkMesh.submeshes {
                 // Create a dummy material uniforms buffer (unused in wireframe rendering)
-                let dummyMaterialUniforms = device.makeBuffer(length: 48, options: [])!
                 let submeshData = PBRMesh.Submesh(
                     primitiveType: mtkSubmesh.primitiveType,
                     indexCount: mtkSubmesh.indexCount,
                     indexType: mtkSubmesh.indexType,
                     indexBuffer: mtkSubmesh.indexBuffer,
-                    baseColorTexture: nil,
-                    baseColorSampler: nil,
-                    normalTexture: nil,
-                    normalSampler: nil,
-                    metallicRoughnessTexture: nil,
-                    metallicRoughnessSampler: nil,
-                    emissiveTexture: nil,
-                    emissiveSampler: nil,
-                    occlusionTexture: nil,
-                    occlusionSampler: nil,
-                    materialUniformsBuffer: dummyMaterialUniforms
+                    fragmentArgumentBuffer: device.makeBuffer(length: MemoryLayout<Int>.size, options: [])!,
+                    _storedHeapInstance: []
                 )
                 submeshes.append(submeshData)
             }
-
-            var vertexUniforms = PBRVertexUniforms(
-                hasTangent: false, hasUV: false, hasModulationColor: false
-            )
 
             var model = transform
 
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
-                vertexUniformsBuffer: device.makeBuffer(
-                    bytes: &vertexUniforms,
-                    length: MemoryLayout<PBRVertexUniforms>.size,
-                )!,
-                submeshes: submeshes,
                 modelBuffer: device.makeBuffer(
                     bytes: &model,
                     length: MemoryLayout<float4x4>.size
                 )!,
-                pso: try pipelineStateLoader.load(for: mtkMesh.vertexDescriptor),
-                dso: try depthStencilStateLoader.load(for: .lessThan)
+                submeshes: submeshes
             )
             pbrMeshes.append(pbrMesh)
         }
