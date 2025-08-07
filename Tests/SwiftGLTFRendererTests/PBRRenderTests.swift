@@ -192,6 +192,9 @@ final class PBRRenderTests {
 
     @Test
     func testMeshRenderingMatchesGolden() async throws {
+        // This rendering test is not run on CI because it depends on the GPU and the supported Metal version.
+        guard !isCI() else { return }
+
         for meshName in meshNames {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
             let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
