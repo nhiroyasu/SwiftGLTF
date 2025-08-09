@@ -46,7 +46,13 @@ class PBRPipelineConnector {
         emissiveSampler: MTLSamplerState?,
         hasOcclusionTexture: UnsafePointer<Bool>,
         occlusionTexture: MTLTexture?,
-        occlusionSampler: MTLSamplerState?
+        occlusionSampler: MTLSamplerState?,
+        // Texture coordinate indices
+        baseColorTexCoord: UnsafePointer<UInt32>,
+        normalTexCoord: UnsafePointer<UInt32>,
+        metallicRoughnessTexCoord: UnsafePointer<UInt32>,
+        emissiveTexCoord: UnsafePointer<UInt32>,
+        occlusionTexCoord: UnsafePointer<UInt32>
     ) throws -> MTLBuffer {
         let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 0)
         guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
@@ -59,23 +65,36 @@ class PBRPipelineConnector {
         hasBaseColorTextureAddr.copyMemory(from: hasBaseColorTexture, byteCount: MemoryLayout<Bool>.size)
         encoder.setTexture(baseColorTexture, index: 2)
         encoder.setSamplerState(baseColorSampler, index: 3)
-        let hasNormalTextureAddr = encoder.constantData(at: 4)
-        hasNormalTextureAddr.copyMemory(from: hasNormalTexture, byteCount: MemoryLayout<Bool>.size)
-        encoder.setTexture(normalTexture, index: 5)
-        encoder.setSamplerState(normalSampler, index: 6)
-        let hasMetallicRoughnessTextureAddr = encoder.constantData(at: 7)
-        hasMetallicRoughnessTextureAddr.copyMemory(from: hasMetallicRoughnessTexture, byteCount: MemoryLayout<Bool>.size)
-        encoder.setTexture(metallicRoughnessTexture, index: 8)
-        encoder.setSamplerState(metallicRoughnessSampler, index: 9)
-        let hasEmissiveTextureAddr = encoder.constantData(at: 10)
-        hasEmissiveTextureAddr.copyMemory(from: hasEmissiveTexture, byteCount: MemoryLayout<Bool>.size)
-        encoder.setTexture(emissiveTexture, index: 11)
-        encoder.setSamplerState(emissiveSampler, index: 12)
-        let hasOcclusionTextureAddr = encoder.constantData(at: 13)
-        hasOcclusionTextureAddr.copyMemory(from: hasOcclusionTexture, byteCount: MemoryLayout<Bool>.size)
-        encoder.setTexture(occlusionTexture, index: 14)
-        encoder.setSamplerState(occlusionSampler, index: 15)
+        let baseColorCoordAddr = encoder.constantData(at: 4)
+        baseColorCoordAddr.copyMemory(from: baseColorTexCoord, byteCount: MemoryLayout<UInt32>.size)
 
+        let hasNormalTextureAddr = encoder.constantData(at: 5)
+        hasNormalTextureAddr.copyMemory(from: hasNormalTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(normalTexture, index: 6)
+        encoder.setSamplerState(normalSampler, index: 7)
+        let normalCoordAddr = encoder.constantData(at: 8)
+        normalCoordAddr.copyMemory(from: normalTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        let hasMetallicRoughnessTextureAddr = encoder.constantData(at: 9)
+        hasMetallicRoughnessTextureAddr.copyMemory(from: hasMetallicRoughnessTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(metallicRoughnessTexture, index: 10)
+        encoder.setSamplerState(metallicRoughnessSampler, index: 11)
+        let mrcCoordAddr = encoder.constantData(at: 12)
+        mrcCoordAddr.copyMemory(from: metallicRoughnessTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        let hasEmissiveTextureAddr = encoder.constantData(at: 13)
+        hasEmissiveTextureAddr.copyMemory(from: hasEmissiveTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(emissiveTexture, index: 14)
+        encoder.setSamplerState(emissiveSampler, index: 15)
+        let emissiveCoordAddr = encoder.constantData(at: 16)
+        emissiveCoordAddr.copyMemory(from: emissiveTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        let hasOcclusionTextureAddr = encoder.constantData(at: 17)
+        hasOcclusionTextureAddr.copyMemory(from: hasOcclusionTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(occlusionTexture, index: 18)
+        encoder.setSamplerState(occlusionSampler, index: 19)
+        let occlusionCoordAddr = encoder.constantData(at: 20)
+        occlusionCoordAddr.copyMemory(from: occlusionTexCoord, byteCount: MemoryLayout<UInt32>.size)
         return buffer
     }
 

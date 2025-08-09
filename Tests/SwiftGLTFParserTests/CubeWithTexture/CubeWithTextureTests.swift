@@ -23,7 +23,7 @@ struct CubeWithTextureTests {
         var actualTexCoordData = Data(capacity: length)
         let stride = VertexAttributeStride.stride
         let readSize = 8 // TexCoord is float3 (3 * 4 bytes)
-        var offset = VertexAttributeOffset.texcoord
+        var offset = VertexAttributeOffset.texcoord0
         while offset + readSize <= stride * accessor.count {
             let value = vertexData.subdata(in: offset..<offset + readSize)
             actualTexCoordData.append(value)
