@@ -39,14 +39,8 @@ final class WireframeRenderTests {
     }
 
     func renderMesh(to output: MTLTexture, meshURL: URL) async throws {
-        let loader = try WireframeMeshLoader(
-            device: device,
-            library: library,
-            config: .init(
-                sampleCount: 1,
-                colorPixelFormat: output.pixelFormat,
-                depthPixelFormat: .depth32Float
-            )
+        let loader = WireframeMeshLoader(
+            device: device
         )
         
         // Create view-projection matrix buffer
@@ -67,7 +61,7 @@ final class WireframeRenderTests {
         // pipeline state
         let pipelineStateDescriptor = MTLRenderPipelineDescriptor()
         pipelineStateDescriptor.vertexFunction = library.makeFunction(name: "wireframe_vertex_shader")!
-        pipelineStateDescriptor.fragmentFunction = library.makeFunction(name: "wireframe_shader")!
+        pipelineStateDescriptor.fragmentFunction = library.makeFunction(name: "wireframe_fragment_shader")!
         pipelineStateDescriptor.colorAttachments[0].pixelFormat = output.pixelFormat
         pipelineStateDescriptor.depthAttachmentPixelFormat = .depth32Float
         pipelineStateDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()

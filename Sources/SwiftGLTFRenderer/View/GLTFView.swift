@@ -1,20 +1,21 @@
 import SwiftGLTF
-import MetalKit
-import Img2Cubemap
 import SwiftGLTFShaderTypes
+import MetalKit
+import OSLog
 
-public enum RenderingType {
-    case pbr
-    case wireframe
-}
-
+@MainActor
 public class GLTFView: MTKView {
-    private let renderer: GLTFRenderer
+    private let commandQueue: MTLCommandQueue
+
+    private let renderer: PBRRenderer
 
     private let fragmentParamsBuffer: FrameInFlightBuffer
     private let vertexPramsBuffer: FrameInFlightBuffer
     private let skyboxVPMatrixBuffer: FrameInFlightBuffer
 
+    private var displayType: DisplayType = .loading {
+        didSet { onChange(displayType) }
+    }
     private var rotationX: Float32 = -.pi / 2
     private var rotationY: Float32 = .pi / 2
     private var upSign: Float32 = 1
@@ -36,11 +37,30 @@ public class GLTFView: MTKView {
         )
     }
 
-    public init(frame: CGRect, renderer: GLTFRenderer) {
-        self.renderer = renderer
-        self.frameSemaphores = DispatchSemaphore(value: maxFramesInFlight)
+    public init(
+        frame: CGRect,
+        asset: MDLAsset? = nil,
+        device: MTLDevice = MTLCreateSystemDefaultDevice()!
+    ) throws {
+        let device = device
+        if let commandQueue = device.makeCommandQueue() {
+            self.commandQueue = commandQueue
+        } else {
+            throw NSError(domain: "PBRRenderer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create command queue"])
+        }
 
-        let device = renderer.device
+        let sampleCount = 4
+        let colorPixelFormat: MTLPixelFormat = .rgba8Unorm_srgb
+        let depthPixelFormat: MTLPixelFormat = .depth32Float
+
+        self.renderer = try PBRRenderer(
+            commandQueue: commandQueue,
+            sampleCount: sampleCount,
+            colorPixelFormat: colorPixelFormat,
+            depthPixelFormat: depthPixelFormat
+        )
+
+        self.frameSemaphores = DispatchSemaphore(value: maxFramesInFlight)
 
         self.fragmentParamsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
@@ -63,16 +83,35 @@ public class GLTFView: MTKView {
 
         super.init(frame: frame, device: device)
 
-        self.colorPixelFormat = renderer.colorPixelFormat
-        self.depthStencilPixelFormat = renderer.depthPixelFormat
-        self.sampleCount = renderer.sampleCount
+        self.colorPixelFormat = colorPixelFormat
+        self.depthStencilPixelFormat = depthPixelFormat
+        self.sampleCount = sampleCount
         self.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1.0)
-
-        #if os(iOS)
-        setupUIForIOS()
-        #elseif os(macOS)
+        self.isPaused = true
+        #if os(macOS)
         self.colorspace = CGColorSpaceCreateDeviceRGB()
         #endif
+
+        setupUI()
+
+        if let asset {
+            Task.detached(priority: .high) { [weak self] in
+                await self?.load(from: asset)
+            }
+        }
+    }
+
+    convenience init(
+        frame: CGRect,
+        url: URL,
+        device: MTLDevice = MTLCreateSystemDefaultDevice()!
+    ) throws {
+        try self.init(frame: frame, device: device)
+
+        Task {
+            let asset = try await makeMDLAsset(from: url)
+            await self.load(from: asset)
+        }
     }
 
     required init(coder: NSCoder) {
@@ -81,7 +120,55 @@ public class GLTFView: MTKView {
 
     // MARK: - State Management
 
-    func resetCamera() {
+    public func load(from asset: MDLAsset) async {
+        do {
+            displayType = .loading
+            try await renderer.load(from: asset)
+            displayType = .drawable
+        } catch {
+            os_log("Failed to load asset: %@", type: .error, error.localizedDescription)
+            displayType = .error("Failed to load asset: \(error.localizedDescription)")
+        }
+    }
+
+    public func loadAsync(from asset: MDLAsset) {
+        Task {
+            do {
+                displayType = .loading
+                try await renderer.load(from: asset)
+                displayType = .drawable
+            } catch {
+                os_log("Failed to load asset: %@", type: .error, error.localizedDescription)
+                displayType = .error("Failed to load asset: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    public func load(from url: URL) async {
+        do {
+            displayType = .loading
+            let asset = try await makeMDLAsset(from: url)
+            await load(from: asset)
+        } catch {
+            os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
+            displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
+        }
+    }
+
+    public func loadAsync(from url: URL) {
+        Task {
+            do {
+                displayType = .loading
+                let asset = try await makeMDLAsset(from: url)
+                await load(from: asset)
+            } catch {
+                os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
+                displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    public func resetCamera() {
         rotationX = -.pi / 2
         rotationY = .pi / 2
         upSign = 1
@@ -168,7 +255,7 @@ public class GLTFView: MTKView {
     public override func draw(_ rect: CGRect) {
         guard let drawable = currentDrawable,
               let descriptor = currentRenderPassDescriptor,
-              let commandBuffer = renderer.commandQueue.makeCommandBuffer(),
+              let commandBuffer = commandQueue.makeCommandBuffer(),
               let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
             return
         }
@@ -213,16 +300,20 @@ public class GLTFView: MTKView {
         commandBuffer.commit()
     }
 
-    // MARK: - UI Setup
+    // MARK: - UI
 
     #if os(iOS)
-    func setupUIForIOS() {
+    private let messageLabel = UILabel()
+
+    func setupUI() {
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
         self.addGestureRecognizer(panGesture)
 
         let pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
         self.addGestureRecognizer(pinchGesture)
 
+        messageLabel.isHidden = true
+        addSubview(messageLabel)
     }
 
     var prevTranslation: CGPoint = .zero
@@ -256,7 +347,26 @@ public class GLTFView: MTKView {
         }
     }
 
+    func showError(_ message: String) {
+        messageLabel.text = message
+        messageLabel.textColor = .systemRed
+        messageLabel.textAlignment = .center
+        messageLabel.numberOfLines = 0
+        messageLabel.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    }
+
     #elseif os(macOS)
+
+    private let messageLabel = NSTextField()
+
+    private func setupUI() {
+        messageLabel.isEditable = false
+        messageLabel.isBezeled = false
+        messageLabel.drawsBackground = false
+        messageLabel.autoresizingMask = [.width, .height]
+        messageLabel.isHidden = true
+        addSubview(messageLabel)
+    }
 
     public override func scrollWheel(with event: NSEvent) {
         // Shift + scroll: pan camera (move eye & target in world space), otherwise rotate camera
@@ -284,5 +394,34 @@ public class GLTFView: MTKView {
         }
     }
 
+    func showError(_ message: String) {
+        messageLabel.stringValue = message
+        messageLabel.textColor = .systemRed
+        messageLabel.alignment = .center
+    }
+
     #endif
+
+    func onChange(_ displayType: DisplayType) {
+        switch displayType {
+        case .loading:
+            isPaused = true
+            messageLabel.isHidden = true
+        case .drawable:
+            isPaused = false
+            messageLabel.isHidden = true
+        case .error(let message):
+            isPaused = true
+            messageLabel.isHidden = false
+            showError(message)
+        }
+    }
+
+    // MARK: - Internal Types
+
+    enum DisplayType {
+        case loading
+        case drawable
+        case error(String)
+    }
 }

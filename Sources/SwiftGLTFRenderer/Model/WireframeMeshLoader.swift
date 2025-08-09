@@ -5,38 +5,8 @@ import SwiftGLTF
 class WireframeMeshLoader {
     private let device: MTLDevice
 
-    let vertexFunction: MTLFunction
-    let fragmentFunction: MTLFunction
-    let pipelineState: MTLRenderPipelineState
-    let depthStencilState: MTLDepthStencilState
-
-    init(
-        device: MTLDevice,
-        library: MTLLibrary,
-        config: PipelineStateLoaderConfig
-    ) throws {
+    init(device: MTLDevice) {
         self.device = device
-        self.vertexFunction = library.makeFunction(name: "wireframe_vertex_shader")!
-        self.fragmentFunction = library.makeFunction(name: "wireframe_shader")!
-
-        let psoDescriptor = MTLRenderPipelineDescriptor()
-        psoDescriptor.vertexFunction = vertexFunction
-        psoDescriptor.fragmentFunction = fragmentFunction
-        psoDescriptor.colorAttachments[0].pixelFormat = config.colorPixelFormat
-        psoDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
-        psoDescriptor.rasterSampleCount = config.sampleCount
-        psoDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()
-        self.pipelineState = try device.makeRenderPipelineState(descriptor: psoDescriptor)
-
-        let descriptor = MTLDepthStencilDescriptor()
-        descriptor.label = "Less Than Depth Stencil State"
-        descriptor.depthCompareFunction = .less
-        descriptor.isDepthWriteEnabled = true
-        if let depthStencilState = device.makeDepthStencilState(descriptor: descriptor) {
-            self.depthStencilState = depthStencilState
-        } else {
-            throw NSError(domain: "DepthStencilStateLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create depth stencil state"])
-        }
     }
 
     func loadMeshes(from asset: MDLAsset) throws -> [PBRMesh] {

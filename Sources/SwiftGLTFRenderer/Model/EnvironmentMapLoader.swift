@@ -4,7 +4,6 @@ import Img2Cubemap
 class EnvironmentMapLoader {
     private let device: MTLDevice
     private let library: MTLLibrary
-    private let commandQueue: MTLCommandQueue
     private let shaderConnection: ShaderConnection
 
     private let IRRADIANCE_SIZE = 32
@@ -12,31 +11,21 @@ class EnvironmentMapLoader {
     init(
         device: MTLDevice,
         library: MTLLibrary,
-        commandQueue: MTLCommandQueue,
         shaderConnection: ShaderConnection
     ) {
         self.device = device
-        self.commandQueue = commandQueue
         self.library = library
         self.shaderConnection = shaderConnection
     }
 
     func makeEnvMapHeapAndTexture(url: URL) async throws -> (MTLHeap, MTLTexture, MTLTexture, MTLTexture) {
         let envMap = try await generateCubeTexture(device: device, exr: url)
-        let prefilterEnvMapTexture = generatePrefilterEnvMapTexture(
-            commandQueue: commandQueue,
-            library: library,
-            envMap: envMap
-        )
-        let irradianceCubeMapTexture = generateIrradianceTexture(
-            commandQueue: commandQueue,
-            library: library,
+        let prefilterEnvMapTexture = shaderConnection.generatePrefilterEnvMapTexture(envMap: envMap)
+        let irradianceCubeMapTexture = shaderConnection.generateIrradianceTexture(
             envMap: envMap,
             size: IRRADIANCE_SIZE
         )
-        let brdfLUT = generateBRDFLUT(
-            commandQueue: commandQueue,
-            library: library,
+        let brdfLUT = shaderConnection.generateBRDFLUT(
             width: envMap.width,
             height: envMap.height
         )

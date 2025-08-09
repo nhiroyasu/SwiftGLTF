@@ -1,17 +1,15 @@
 import Foundation
 import SwiftUI
-import SwiftGLTF
 import SwiftGLTFRenderer
 import ModelIO
 import UniformTypeIdentifiers
 
 @MainActor
 class GLTFViewModel: ObservableObject, DropDelegate {
-    @Published var renderer: GLTFRenderer?
+    @Published var url: URL?
     @Published var showError = false
     @Published var errorMessage = ""
     @Published var showFileImporter = false
-    @Published var mode: RenderingType = .pbr
     @Published var isLoading: Bool = false
 
     #if os(iOS)
@@ -26,47 +24,12 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     let openBuffonTitle = "Open .gltf or .glb file"
     #endif
 
-    func loadDefaultAsset() async {
-        do {
-            let url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
-            let asset = try await makeMDLAsset(from: url)
-            let newRenderer = try GLTFRenderer()
-            try await newRenderer.load(from: asset)
-            renderer = newRenderer
-        } catch {
-            showError = true
-            errorMessage = "Failed to load default asset: \(error.localizedDescription)"
-        }
+    func loadDefaultAsset() {
+        url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
     }
 
-    func load(url: URL) async {
-        isLoading = true
-        defer { isLoading = false }
-        guard url.startAccessingSecurityScopedResource() else {
-            showError = true
-            errorMessage = "Failed to access file at \(url.path)"
-            return
-        }
-        defer { url.stopAccessingSecurityScopedResource() }
-
-        do {
-            let asset = try await makeMDLAsset(from: url)
-            try await self.renderer?.load(from: asset)
-        } catch {
-            showError = true
-            errorMessage = "Failed to load asset: \(error.localizedDescription)"
-        }
-    }
-
-    func updateRenderingMode(_ mode: RenderingType) async {
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            try await renderer?.reload(with: mode)
-        } catch {
-            showError = true
-            errorMessage = "Failed to update rendering mode: \(error.localizedDescription)"
-        }
+    func load(url: URL) {
+        self.url = url
     }
 
     func onTapOpenFile() {
@@ -95,14 +58,7 @@ class GLTFViewModel: ObservableObject, DropDelegate {
                 errorMessage = "Unsupported file type"
                 return
             }
-            guard url.startAccessingSecurityScopedResource() else {
-                showError = true
-                errorMessage = "Failed to access file at \(url.path)"
-                return
-            }
-            defer { url.stopAccessingSecurityScopedResource() }
-
-            await load(url: url)
+            self.url = url
         }
         return true
     }

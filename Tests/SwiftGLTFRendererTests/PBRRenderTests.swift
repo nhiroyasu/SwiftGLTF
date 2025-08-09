@@ -64,7 +64,6 @@ final class PBRRenderTests {
         let envMapLoader = EnvironmentMapLoader(
             device: device,
             library: library,
-            commandQueue: commandQueue,
             shaderConnection: shaderConnection
         )
 

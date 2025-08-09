@@ -36,36 +36,20 @@ dependencies: [
 ### Sample Code
 #### UIKit
 ```swift
-import SwiftGLTF
 import SwiftGLTFRenderer
 
-// ...
-
-let renderer = try GLTFRenderer()
-let gltfView = GLTFView(frame: view.frame, renderer: renderer)
-view.addSubview(gltfView)
-
 let gltfUrl = // URL to your glTF or GLB file
-let asset = try makeMDLAsset(from: gltfUrl)
-renderer.load(from: asset)
+let gltfView = GLTFView(frame: view.frame, url: gltfUrl)
+view.addSubview(gltfView)
 ```
 
 #### SwiftUI
 ```swift
-import SwiftGLTF
 import SwiftGLTFRenderer
 
-let renderer = try await GLTFRenderer()
-
-// ...
-
 var body: some View {
-    GLTFMetalView(renderer: renderer)
-        .task {
-            let gltfUrl = // URL to your glTF or GLB file
-            let asset = try! makeMDLAsset(from: gltfUrl)
-            try! renderer.load(from: asset)
-        }
+    @State private var gltfUrl = // URL to your glTF or GLB file
+    GLTFMetalView(url: gltfUrl)
 }
 ```
 

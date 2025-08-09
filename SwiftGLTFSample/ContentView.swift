@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftGLTFRenderer
-import SwiftGLTF
 import UniformTypeIdentifiers
 
 struct ContentView: View {
@@ -9,12 +8,8 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let renderer = viewModel.renderer {
-                GLTFMetalView(renderer: renderer)
-                    .edgesIgnoringSafeArea(.all)
-            } else {
-                Text("Loading...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if let url = viewModel.url {
+                GLTFMetalView(url: url)
             }
         }
         .overlay {
@@ -28,10 +23,8 @@ struct ContentView: View {
         .toolbar {
             #if os(iOS)
             let openFilePlacement: ToolbarItemPlacement = .bottomBar
-            let renderingPickerPlacement: ToolbarItemPlacement = .bottomBar
             #elseif os(macOS)
             let openFilePlacement: ToolbarItemPlacement = .primaryAction
-            let renderingPickerPlacement: ToolbarItemPlacement = .navigation
             #endif
             ToolbarItem(placement: openFilePlacement) {
                 Button {
@@ -40,15 +33,9 @@ struct ContentView: View {
                     Text(viewModel.openBuffonTitle)
                 }
             }
-            ToolbarItem(placement: renderingPickerPlacement) {
-                Picker("Mode", selection: $viewModel.mode) {
-                    Text("PBR").tag(RenderingType.pbr)
-                    Text("Wireframe").tag(RenderingType.wireframe)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-            }
         }
         .navigationTitle("GLTF Viewer")
+        .ignoresSafeArea(.container, edges: .all)
         .fileImporter(
             isPresented: $viewModel.showFileImporter,
             allowedContentTypes: viewModel.allowedContentTypes,
@@ -57,7 +44,7 @@ struct ContentView: View {
             switch result {
             case .success(let urls):
                 guard let url = urls.first else { return }
-                Task { await viewModel.load(url: url) }
+                viewModel.load(url: url)
             case .failure(let error):
                 print(error)
             }
@@ -70,13 +57,8 @@ struct ContentView: View {
                 Button("OK", role: .cancel, action: {})
             }
         )
-        .onChange(of: viewModel.mode, initial: false) { _, mode  in
-            Task {
-                await viewModel.updateRenderingMode(mode)
-            }
-        }
         .task {
-            await viewModel.loadDefaultAsset()
+            viewModel.loadDefaultAsset()
         }
     }
 }

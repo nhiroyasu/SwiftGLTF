@@ -3,20 +3,17 @@ import Img2Cubemap
 import simd
 import OSLog
 
-public class GLTFRenderer {
-    private var asset: MDLAsset?
+public class PBRRenderer {
     private var meshes: [PBRMesh] = []
     private var vertexResources: [MTLHeap] = []
     private var fragmentResources: [MTLHeap] = []
-    private var type: RenderingType = .pbr
 
     private var skyboxMesh: SkyboxMesh?
     private var envMapArgBuffer: MTLBuffer?
     private var envMapHeap: MTLHeap?
 
-    private let pbrMeshLoader: PBRMeshLoader
-    private let pbrPipelineConnector: PBRPipelineConnector
-    private let wireframeMeshLoader: WireframeMeshLoader
+    private let meshLoader: PBRMeshLoader
+    private let pipelineConnector: PBRPipelineConnector
     private let envMapLoader: EnvironmentMapLoader
     private let shaderConnection: ShaderConnection
 
@@ -36,20 +33,14 @@ public class GLTFRenderer {
     private var _brdfLUT: MTLTexture?
 
     public init(
-        device: MTLDevice = MTLCreateSystemDefaultDevice()!,
-        renderingType type: RenderingType = .pbr,
+        commandQueue: MTLCommandQueue,
         sampleCount: Int = 4,
         colorPixelFormat: MTLPixelFormat = .rgba8Unorm_srgb,
         depthPixelFormat: MTLPixelFormat = .depth32Float
     ) throws {
-        self.device = device
-        self.type = type
-        if let commandQueue = device.makeCommandQueue() {
-            self.commandQueue = commandQueue
-        } else {
-            throw NSError(domain: "PBRRenderer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create command queue"])
-        }
-        library = try device.makePackageLibrary()
+        self.device = commandQueue.device
+        self.commandQueue = commandQueue
+        self.library = try device.makePackageLibrary()
 
         self.sampleCount = sampleCount
         self.colorPixelFormat = colorPixelFormat
@@ -65,26 +56,20 @@ public class GLTFRenderer {
             colorPixelFormat: colorPixelFormat,
             depthPixelFormat: depthPixelFormat
         )
-        self.pbrPipelineConnector = try PBRPipelineConnector(
+        self.pipelineConnector = try PBRPipelineConnector(
             device: device,
             library: library,
             config: pipelineStateConfig,
             shaderConnection: shaderConnection
         )
-        self.pbrMeshLoader = PBRMeshLoader(
+        self.meshLoader = PBRMeshLoader(
             device: device,
             shaderConnection: shaderConnection,
-            pipelineConnector: pbrPipelineConnector
-        )
-        self.wireframeMeshLoader = try WireframeMeshLoader(
-            device: device,
-            library: library,
-            config: pipelineStateConfig
+            pipelineConnector: pipelineConnector
         )
         self.envMapLoader = EnvironmentMapLoader(
             device: device,
             library: library,
-            commandQueue: commandQueue,
             shaderConnection: shaderConnection
         )
 
@@ -103,7 +88,7 @@ public class GLTFRenderer {
             os_log("Skybox or textures not loaded", log: .default, type: .error)
             return
         }
-        // Draw Skybox
+
         drawSkybox(
             renderEncoder: renderEncoder,
             mesh: skyboxMesh,
@@ -111,28 +96,17 @@ public class GLTFRenderer {
             specularCubeMapTexture: _specularCubeMapTexture
         )
 
-        switch type {
-        case .pbr:
-            drawPBR(
-                renderEncoder: renderEncoder,
-                pipelineState: pbrPipelineConnector.pipelineState,
-                depthStencilState: depthStencilState,
-                vertexResources: vertexResources,
-                fragmentResources: fragmentResources + [envMapHeap],
-                meshes: meshes,
-                vertexParams: vertexParams,
-                envMapArgBuffer: envMapArgBuffer,
-                fragmentParams: fragmentParams
-            )
-        case .wireframe:
-            drawWireframe(
-                renderEncoder: renderEncoder,
-                pipelineState: wireframeMeshLoader.pipelineState,
-                depthStencilState: depthStencilState,
-                meshes: meshes,
-                vertexParams: vertexParams
-            )
-        }
+        drawPBR(
+            renderEncoder: renderEncoder,
+            pipelineState: pipelineConnector.pipelineState,
+            depthStencilState: depthStencilState,
+            vertexResources: vertexResources,
+            fragmentResources: fragmentResources + [envMapHeap],
+            meshes: meshes,
+            vertexParams: vertexParams,
+            envMapArgBuffer: envMapArgBuffer,
+            fragmentParams: fragmentParams
+        )
     }
 
     // MARK: - Update states
@@ -141,34 +115,17 @@ public class GLTFRenderer {
         _ = try await (
             _loadSkybox(),
             _loadEnvMap(),
-            _loadAsset(asset: asset, type: type)
+            _loadAsset(asset: asset)
         )
-    }
-
-    public func reload(with type: RenderingType) async throws {
-        guard let asset = self.asset else {
-            throw NSError(domain: "GLTFRenderer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Asset not loaded"])
-        }
-
-        try await _loadAsset(asset: asset, type: type)
-        self.type = type
     }
 
     // MARK: - Helper
 
-    private func _loadAsset(asset: MDLAsset, type: RenderingType) async throws {
-        self.asset = asset
-        switch type {
-        case .pbr:
-            let meshContainer = try await pbrMeshLoader.loadMeshes(from: asset)
-            self.meshes = meshContainer.meshes
-            self.vertexResources = meshContainer.vertexResources
-            self.fragmentResources = meshContainer.fragmentResources
-        case .wireframe:
-            self.meshes = try wireframeMeshLoader.loadMeshes(from: asset)
-            self.vertexResources = []
-            self.fragmentResources = []
-        }
+    private func _loadAsset(asset: MDLAsset) async throws {
+        let meshContainer = try await meshLoader.loadMeshes(from: asset)
+        self.meshes = meshContainer.meshes
+        self.vertexResources = meshContainer.vertexResources
+        self.fragmentResources = meshContainer.fragmentResources
     }
 
     private func _loadSkybox() async throws {
@@ -210,7 +167,7 @@ public class GLTFRenderer {
         self._specularCubeMapTexture = prefilterEnvMap
         self._irradianceCubeMapTexture = irradianceMap
         self._brdfLUT = brdfLUT
-        self.envMapArgBuffer = try pbrPipelineConnector.makeEnvMapArgBuffer(
+        self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
             prefilterEnvMap: prefilterEnvMap,
             irradianceMap: irradianceMap,
             brdfLUT: brdfLUT
