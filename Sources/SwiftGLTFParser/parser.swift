@@ -165,7 +165,7 @@ public func makeMDLMesh(
         let positionVertex = try makePositionVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
         var normalVertex = try makeNormalVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
         var tangentVertex = try makeTangentVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
-        let texcoordVertex0 = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
+        let texcoordVertex0 = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader, texCoordIndex: 0)
         let texcoordVertex1 = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader, texCoordIndex: 1)
         let modulationColorVertex = try makeModulationColorVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
 
@@ -174,8 +174,19 @@ public func makeMDLMesh(
             normalVertex = try generateNormalVertex(positionVertex: positionVertex, indexInfo: indexInfo)
         }
 
-        if tangentVertex == nil, let normalVertex, let texcoordVertex0, (primitive.mode == .triangles || primitive.mode == .none) {
-            tangentVertex = try generateTangents(positionVertex, normalVertex, texcoordVertex0, indexInfo, vertexCount: vertexCount)
+        if tangentVertex == nil,
+           let normalVertex,
+           let materialIndex = primitive.material,
+           let normalTexture = gltf.materials?[materialIndex].normalTexture,
+           (primitive.mode == .triangles || primitive.mode == .none) {
+            let texCoord: VertexInfo? = switch normalTexture.texCoord {
+            case 0, .none: texcoordVertex0
+            case 1: texcoordVertex1
+            default: nil
+            }
+            if let texCoord {
+                tangentVertex = try generateTangents(positionVertex, normalVertex, texCoord, indexInfo, vertexCount: vertexCount)
+            }
         }
 
         let vertexDescriptor = try makeVertexDescriptor(
@@ -447,7 +458,7 @@ private func makeTexcoordVertex(
     for primitive: Primitive,
     accessors: [Accessor],
     binaryLoader: GLTFBinaryLoader,
-    texCoordIndex: Int = 0
+    texCoordIndex: Int
 ) throws -> VertexInfo? {
     let key = GLTFAttribute.texcoord(texCoordIndex).rawValue
     guard let attrIndex = primitive.attributes[key],
@@ -703,7 +714,7 @@ private func makeVertexData(
             var defaultColor: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1)
             vertexData.append(Data(bytes: &defaultColor, count: MemoryLayout<SIMD4<Float>>.size))
         }
-        
+
         // Texcoord1
         if let tex1 = texcoordVertex1 {
             let stride = tex1.componentSize
