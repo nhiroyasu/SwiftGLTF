@@ -13,13 +13,7 @@ let package = Package(
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "SwiftGLTF",
-            targets: ["SwiftGLTF"]),
-        .library(
-            name: "SwiftGLTFRenderer",
-            targets: ["SwiftGLTFRenderer"]),
-        .library(
-            name: "SwiftGLTFParser",
-            targets: ["SwiftGLTFParser"])
+            targets: ["SwiftGLTF"])
     ],
     dependencies: [
         .package(url: "https://github.com/nhiroyasu/Img2Cubemap.git", from: "0.1.6")
