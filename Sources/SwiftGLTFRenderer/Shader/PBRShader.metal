@@ -121,25 +121,30 @@ struct PBRVertexOut {
 
 struct PBRFragmentArguments {
     constant PBRMaterialUniforms &material [[id(0)]];
+    // BaseColor: Texture -> Sampler -> TexCoord
     bool hasBaseColorTexture [[id(1)]];
     texture2d<float> baseColorTexture [[id(2)]];
     sampler baseColorSampler [[id(3)]];
-    bool hasNormalTexture [[id(4)]];
-    texture2d<float> normalTexture [[id(5)]];
-    sampler normalSampler [[id(6)]];
-    bool hasMetallicRoughnessTexture [[id(7)]];
-    texture2d<float> metallicRoughnessTexture [[id(8)]];
-    sampler metallicRoughnessSampler [[id(9)]];
-    bool hasEmissiveTexture [[id(10)]];
-    texture2d<float> emissiveTexture [[id(11)]];
-    sampler emissiveSampler [[id(12)]];
-    bool hasOcclusionTexture [[id(13)]];
-    texture2d<float> occlusionTexture [[id(14)]];
-    sampler occlusionSampler [[id(15)]];
-    uint baseColorTexCoord [[id(16)]];
-    uint normalTexCoord [[id(17)]];
-    uint metallicRoughnessTexCoord [[id(18)]];
-    uint emissiveTexCoord [[id(19)]];
+    uint baseColorTexCoord [[id(4)]];
+    // Normal: Texture -> Sampler -> TexCoord
+    bool hasNormalTexture [[id(5)]];
+    texture2d<float> normalTexture [[id(6)]];
+    sampler normalSampler [[id(7)]];
+    uint normalTexCoord [[id(8)]];
+    // MetallicRoughness: Texture -> Sampler -> TexCoord
+    bool hasMetallicRoughnessTexture [[id(9)]];
+    texture2d<float> metallicRoughnessTexture [[id(10)]];
+    sampler metallicRoughnessSampler [[id(11)]];
+    uint metallicRoughnessTexCoord [[id(12)]];
+    // Emissive: Texture -> Sampler -> TexCoord
+    bool hasEmissiveTexture [[id(13)]];
+    texture2d<float> emissiveTexture [[id(14)]];
+    sampler emissiveSampler [[id(15)]];
+    uint emissiveTexCoord [[id(16)]];
+    // Occlusion: Texture -> Sampler -> TexCoord
+    bool hasOcclusionTexture [[id(17)]];
+    texture2d<float> occlusionTexture [[id(18)]];
+    sampler occlusionSampler [[id(19)]];
     uint occlusionTexCoord [[id(20)]];
 };
 
