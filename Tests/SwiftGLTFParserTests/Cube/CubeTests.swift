@@ -66,7 +66,7 @@ struct CubeTests {
         let texcoord = descriptor.attributes[3] as! MDLVertexAttribute
         #expect(texcoord.name == MDLVertexAttributeTextureCoordinate)
         #expect(texcoord.format == .float2)
-        #expect(texcoord.offset == VertexAttributeOffset.texcoord)
+        #expect(texcoord.offset == VertexAttributeOffset.texcoord0)
         #expect(texcoord.bufferIndex == 0)
 
         let layout = descriptor.layouts[0] as! MDLVertexBufferLayout
@@ -170,8 +170,8 @@ struct CubeTests {
 
         var actualTexCoordData = Data(capacity: length)
         let stride = VertexAttributeStride.stride
-        let readSize = VertexAttributeSize.texcoord
-        var offset = VertexAttributeOffset.texcoord
+        let readSize = VertexAttributeSize.texcoord0
+        var offset = VertexAttributeOffset.texcoord0
         while offset + readSize <= stride * accessor.count {
             let value = vertexData.subdata(in: offset..<offset + readSize)
             actualTexCoordData.append(value)

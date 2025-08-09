@@ -105,6 +105,7 @@ struct VertexIn {
     float3 normal [[attribute(1)]];
     float4 tangent [[attribute(2)]];
     float2 uv [[attribute(3)]];
+    float2 uv1 [[attribute(5)]];
     float4 modulationColor [[attribute(4)]];
 };
 
@@ -114,6 +115,7 @@ struct PBRVertexOut {
     float3 normal;
     float4 tangent;
     float2 uv;
+    float2 uv1;
     float4 modulationColor;
 };
 
@@ -134,6 +136,11 @@ struct PBRFragmentArguments {
     bool hasOcclusionTexture [[id(13)]];
     texture2d<float> occlusionTexture [[id(14)]];
     sampler occlusionSampler [[id(15)]];
+    uint baseColorTexCoord [[id(16)]];
+    uint normalTexCoord [[id(17)]];
+    uint metallicRoughnessTexCoord [[id(18)]];
+    uint emissiveTexCoord [[id(19)]];
+    uint occlusionTexCoord [[id(20)]];
 };
 
 struct PBREnvMapArguments {
@@ -160,6 +167,7 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
     out.normal = normalize(normalTransform * in.normal);
     out.tangent = normalize(float4(normalTransform * in.tangent.xyz, in.tangent.w));
     out.uv = in.uv;
+    out.uv1 = in.uv1;
     out.modulationColor = in.modulationColor;
     return out;
 }
@@ -185,37 +193,53 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     texturecube<float> irradianceMap = envMapArgs.irradianceMap;
     texture2d<float> brdfLUT = envMapArgs.brdfLUT;
 
-    float2 uv = in.uv;
+    float2 uv0 = in.uv;
+    float2 uv1 = in.uv1;
     float4 modulationColor = in.modulationColor;
 
+    // Select UV coordinate for base color
+    uint bcCoord = fragArgs.baseColorTexCoord;
+    float2 uvBC = (bcCoord == 0) ? uv0 : uv1;
     // Apply base color texture, vertex modulation color, and material base color factor
     float3 albedo = fragArgs.hasBaseColorTexture
-    ? baseColorTexture.sample(baseColorSampler, uv).rgb * modulationColor.rgb * mUni.baseColorFactor.rgb
+    ? baseColorTexture.sample(baseColorSampler, uvBC).rgb * modulationColor.rgb * mUni.baseColorFactor.rgb
     : float3(1, 1, 1) * modulationColor.rgb * mUni.baseColorFactor.rgb;
 
-    // Sample metallic-roughness and occlusion, apply material factors
+    // Select UV coordinate for metallic-roughness
+    uint mrCoord = fragArgs.metallicRoughnessTexCoord;
+    float2 uvMR = (mrCoord == 0) ? uv0 : uv1;
+    // Sample metallic-roughness and apply material factors
     float metallic = fragArgs.hasMetallicRoughnessTexture
-    ? metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).b * mUni.metalRoughnessOcclusion.x
+    ? metallicRoughnessTexture.sample(metallicRoughnessSampler, uvMR).b * mUni.metalRoughnessOcclusion.x
     : 1.0 * mUni.metalRoughnessOcclusion.x;
     float roughness = fragArgs.hasMetallicRoughnessTexture
-    ? metallicRoughnessTexture.sample(metallicRoughnessSampler, uv).g * mUni.metalRoughnessOcclusion.y
+    ? metallicRoughnessTexture.sample(metallicRoughnessSampler, uvMR).g * mUni.metalRoughnessOcclusion.y
     : 1.0 * mUni.metalRoughnessOcclusion.y;
 
+    // Select UV coordinate for emissive
+    uint eCoord = fragArgs.emissiveTexCoord;
+    float2 uvE = (eCoord == 0) ? uv0 : uv1;
     // Emissive lighting: apply material emissive factor
     float3 emissive = fragArgs.hasEmissiveTexture
-    ? emissiveTexture.sample(emissiveSampler, uv).rgb * mUni.emissiveFactor.rgb
+    ? emissiveTexture.sample(emissiveSampler, uvE).rgb * mUni.emissiveFactor.rgb
     : float3(1, 1, 1) * mUni.emissiveFactor.rgb;
 
+    // Select UV coordinate for occlusion
+    uint ocCoord = fragArgs.occlusionTexCoord;
+    float2 uvOC = (ocCoord == 0) ? uv0 : uv1;
     // Ambient occlusion: apply material occlusion factor
     float ambientOcclusion = fragArgs.hasOcclusionTexture
-    ? occlusionTexture.sample(occlusionSampler, uv).r * mUni.metalRoughnessOcclusion.z
+    ? occlusionTexture.sample(occlusionSampler, uvOC).r * mUni.metalRoughnessOcclusion.z
     : 1.0 * mUni.metalRoughnessOcclusion.z;
 
     float3 N = normalize(in.normal);
     float3x3 TBN = make_tbn(N, in.tangent.xyz, in.tangent.w);
 
+    // Select UV coordinate for normal map
+    uint nCoord = fragArgs.normalTexCoord;
+    float2 uvN = (nCoord == 0) ? uv0 : uv1;
     float3 normalTexValue = fragArgs.hasNormalTexture
-    ? normalTexture.sample(normalSampler, uv).rgb * 2.0 - 1.0
+    ? normalTexture.sample(normalSampler, uvN).rgb * 2.0 - 1.0
     : float3(0, 0, 1);
     float3 normal = normalize(TBN * normalTexValue);
 

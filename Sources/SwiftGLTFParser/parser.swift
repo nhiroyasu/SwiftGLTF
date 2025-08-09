@@ -165,7 +165,8 @@ public func makeMDLMesh(
         let positionVertex = try makePositionVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
         var normalVertex = try makeNormalVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
         var tangentVertex = try makeTangentVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
-        let texcoordVertex = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
+        let texcoordVertex0 = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
+        let texcoordVertex1 = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader, texCoordIndex: 1)
         let modulationColorVertex = try makeModulationColorVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
 
         if normalVertex == nil,
@@ -173,15 +174,16 @@ public func makeMDLMesh(
             normalVertex = try generateNormalVertex(positionVertex: positionVertex, indexInfo: indexInfo)
         }
 
-        if tangentVertex == nil, let normalVertex, let texcoordVertex, (primitive.mode == .triangles || primitive.mode == .none) {
-            tangentVertex = try generateTangents(positionVertex, normalVertex, texcoordVertex, indexInfo, vertexCount: vertexCount)
+        if tangentVertex == nil, let normalVertex, let texcoordVertex0, (primitive.mode == .triangles || primitive.mode == .none) {
+            tangentVertex = try generateTangents(positionVertex, normalVertex, texcoordVertex0, indexInfo, vertexCount: vertexCount)
         }
 
         let vertexDescriptor = try makeVertexDescriptor(
             positionVertex,
             normalVertex,
             tangentVertex,
-            texcoordVertex,
+            texcoordVertex0,
+            texcoordVertex1,
             modulationColorVertex
         )
 
@@ -189,7 +191,8 @@ public func makeMDLMesh(
             positionVertex,
             normalVertex,
             tangentVertex,
-            texcoordVertex,
+            texcoordVertex0,
+            texcoordVertex1,
             modulationColorVertex,
             vertexCount: vertexCount,
             options: options
@@ -439,18 +442,21 @@ private func makeTangentVertex(
     )
 }
 
+/// Read texcoord vertex for given TEXCOORD_i (i = texCoordIndex)
 private func makeTexcoordVertex(
     for primitive: Primitive,
     accessors: [Accessor],
-    binaryLoader: GLTFBinaryLoader
+    binaryLoader: GLTFBinaryLoader,
+    texCoordIndex: Int = 0
 ) throws -> VertexInfo? {
-    guard let index = primitive.attributes[GLTFAttribute.texcoord(0).rawValue],
-          accessors.indices.contains(index),
-          let format = getMDLVertexFormat(accessor: accessors[index]) else {
+    let key = GLTFAttribute.texcoord(texCoordIndex).rawValue
+    guard let attrIndex = primitive.attributes[key],
+          accessors.indices.contains(attrIndex),
+          let format = getMDLVertexFormat(accessor: accessors[attrIndex]) else {
         return nil
     }
     return VertexInfo(
-        data: try binaryLoader.extractData(accessorIndex: AccessorIndex(index)),
+        data: try binaryLoader.extractData(accessorIndex: AccessorIndex(attrIndex)),
         componentFormat: format.format,
         componentSize: format.byteSize
     )
@@ -522,7 +528,8 @@ private func makeVertexDescriptor(
     _ positionVertex: VertexInfo,
     _ normalVertex: VertexInfo?,
     _ tangentVertex: VertexInfo?,
-    _ texcoordVertex: VertexInfo?,
+    _ texcoordVertex0: VertexInfo?,
+    _ texcoordVertex1: VertexInfo?,
     _ modulationColorVertex: VertexInfo?
 ) throws -> MDLVertexDescriptor {
     let descriptor = MDLVertexDescriptor()
@@ -543,8 +550,13 @@ private func makeVertexDescriptor(
             throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Tangent vertex must be float4"])
         }
     }
-    if let texcoordVertex {
-        if texcoordVertex.componentFormat != .float2 {
+    if let texcoordVertex0 {
+        if texcoordVertex0.componentFormat != .float2 {
+            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Texcoord vertex must be float2"])
+        }
+    }
+    if let texcoordVertex1 {
+        if texcoordVertex1.componentFormat != .float2 {
             throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Texcoord vertex must be float2"])
         }
     }
@@ -594,6 +606,14 @@ private func makeVertexDescriptor(
     )
     offset += MemoryLayout<Float>.size * 4
 
+    descriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_1] = MDLVertexAttribute(
+        name: MDLVertexAttributeTextureCoordinate,
+        format: .float2,
+        offset: offset,
+        bufferIndex: 0
+    )
+    offset += MemoryLayout<Float>.size * 2
+
     descriptor.layouts[0] = MDLVertexBufferLayout(stride: offset)
 
     return descriptor
@@ -603,7 +623,8 @@ private func makeVertexData(
     _ positionVertex: VertexInfo,
     _ normalVertex: VertexInfo?,
     _ tangentVertex: VertexInfo?,
-    _ texcoordVertex: VertexInfo?,
+    _ texcoordVertex0: VertexInfo?,
+    _ texcoordVertex1: VertexInfo?,
     _ modulationColorVertex: VertexInfo?,
     vertexCount: Int,
     options: GLTFDecodeOptions
@@ -653,16 +674,16 @@ private func makeVertexData(
             vertexData.append(Data(bytes: &defaultTangent, count: MemoryLayout<SIMD4<Float>>.size))
         }
 
-        // Texcoord
-        if let texcoordVertex {
-            let stride = texcoordVertex.componentSize
+        // Texcoord0
+        if let tex0 = texcoordVertex0 {
+            let stride = tex0.componentSize
             let base = i * stride
-            let slice = texcoordVertex.data[base..<base+stride]
+            let slice = tex0.data[base..<base+stride]
             vertexData.append(slice)
         } else {
-            // If no texcoord is provided, use default texcoord (0, 0)
-            var defaultTexcoord: SIMD2<Float> = SIMD2<Float>(0, 0)
-            vertexData.append(Data(bytes: &defaultTexcoord, count: MemoryLayout<SIMD2<Float>>.size))
+            // Default texcoord0 (0,0)
+            var defaultTexcoord0: SIMD2<Float> = SIMD2<Float>(0, 0)
+            vertexData.append(Data(bytes: &defaultTexcoord0, count: MemoryLayout<SIMD2<Float>>.size))
         }
 
         // Modulation Color
@@ -681,6 +702,18 @@ private func makeVertexData(
             // If no modulation color is provided, use default color (1, 1, 1, 1)
             var defaultColor: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1)
             vertexData.append(Data(bytes: &defaultColor, count: MemoryLayout<SIMD4<Float>>.size))
+        }
+        
+        // Texcoord1
+        if let tex1 = texcoordVertex1 {
+            let stride = tex1.componentSize
+            let base = i * stride
+            let slice = tex1.data[base..<base+stride]
+            vertexData.append(slice)
+        } else {
+            // Default texcoord1 (0,0)
+            var defaultTexcoord1: SIMD2<Float> = SIMD2<Float>(0, 0)
+            vertexData.append(Data(bytes: &defaultTexcoord1, count: MemoryLayout<SIMD2<Float>>.size))
         }
     }
 
@@ -707,9 +740,18 @@ private func makeMDLMaterial(
                                scatteringFunction: MDLScatteringFunction())
 
     // Normal Texture
-    if let sampler = loadTextureSampler(for: gltfMaterial.normalTexture, from: gltf, binaryLoader: binaryLoader) {
-        let prop = MDLMaterialProperty(name: MaterialPropertyName.normalTexture.rawValue, semantic: .tangentSpaceNormal, textureSampler: sampler)
+    if let normalTexInfo = gltfMaterial.normalTexture,
+       let sampler = loadTextureSampler(for: normalTexInfo, from: gltf, binaryLoader: binaryLoader) {
+        let prop = MDLMaterialProperty(name: MaterialPropertyName.normalTexture.rawValue,
+                                       semantic: .tangentSpaceNormal,
+                                       textureSampler: sampler)
         material.setProperty(prop)
+        // Store texCoord index for shader
+        let coord = normalTexInfo.texCoord ?? 0
+        let coordProp = MDLMaterialProperty(name: MaterialPropertyName.normalTextureTexCoord.rawValue,
+                                            semantic: .userDefined,
+                                            float: Float(coord))
+        material.setProperty(coordProp)
     }
 
     // PBR Metallic Roughness
@@ -735,6 +777,14 @@ private func makeMDLMaterial(
                 textureSampler: sampler
             )
             material.setProperty(colorTextureProp)
+            // Store texCoord index for shader
+            if let texInfo = pbr.baseColorTexture {
+                let coord = texInfo.texCoord ?? 0
+                let coordProp = MDLMaterialProperty(name: MaterialPropertyName.baseColorTextureTexCoord.rawValue,
+                                                    semantic: .userDefined,
+                                                    float: Float(coord))
+                material.setProperty(coordProp)
+            }
         }
 
         // Metallic
@@ -756,6 +806,12 @@ private func makeMDLMaterial(
            let sampler = loadTextureSampler(for: metallicRoughnessTexture, from: gltf, binaryLoader: binaryLoader) {
             let metallicRoughnessProp = MDLMaterialProperty(name: MaterialPropertyName.metallicRoughnessTexture.rawValue, semantic: .userDefined, textureSampler: sampler)
             material.setProperty(metallicRoughnessProp)
+            // Store texCoord index for shader
+            let coord = metallicRoughnessTexture.texCoord ?? 0
+            let coordProp = MDLMaterialProperty(name: MaterialPropertyName.metallicRoughnessTextureTexCoord.rawValue,
+                                                semantic: .userDefined,
+                                                float: Float(coord))
+            material.setProperty(coordProp)
         }
 
         // Emissive (with support for KHR_materials_emissive_strength)
@@ -783,6 +839,12 @@ private func makeMDLMaterial(
                 textureSampler: sampler
             )
             material.setProperty(emissiveTextureProp)
+            // Store texCoord index for shader
+            let coord = emissiveTexture.texCoord ?? 0
+            let coordProp = MDLMaterialProperty(name: MaterialPropertyName.emissiveTextureTexCoord.rawValue,
+                                                semantic: .userDefined,
+                                                float: Float(coord))
+            material.setProperty(coordProp)
         }
 
         // Occlusion
@@ -792,6 +854,14 @@ private func makeMDLMaterial(
             occlusionProp.textureSamplerValue = sampler
         }
         material.setProperty(occlusionProp)
+        // Store texCoord index for shader
+        if let occlTex = gltfMaterial.occlusionTexture {
+            let coord = occlTex.texCoord ?? 0
+            let coordProp = MDLMaterialProperty(name: MaterialPropertyName.occlusionTextureTexCoord.rawValue,
+                                                semantic: .userDefined,
+                                                float: Float(coord))
+            material.setProperty(coordProp)
+        }
 
         let occlusionStrengthProp = MDLMaterialProperty(name: MaterialPropertyName.occlusionStrength.rawValue, semantic: .ambientOcclusionScale, float: 1.0)
         if let occlusionStrength = gltfMaterial.occlusionTexture?.strength {

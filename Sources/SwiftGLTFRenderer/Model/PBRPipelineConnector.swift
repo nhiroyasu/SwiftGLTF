@@ -46,7 +46,13 @@ class PBRPipelineConnector {
         emissiveSampler: MTLSamplerState?,
         hasOcclusionTexture: UnsafePointer<Bool>,
         occlusionTexture: MTLTexture?,
-        occlusionSampler: MTLSamplerState?
+        occlusionSampler: MTLSamplerState?,
+        // Texture coordinate indices
+        baseColorTexCoord: UnsafePointer<UInt32>,
+        normalTexCoord: UnsafePointer<UInt32>,
+        metallicRoughnessTexCoord: UnsafePointer<UInt32>,
+        emissiveTexCoord: UnsafePointer<UInt32>,
+        occlusionTexCoord: UnsafePointer<UInt32>
     ) throws -> MTLBuffer {
         let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 0)
         guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
@@ -76,6 +82,17 @@ class PBRPipelineConnector {
         encoder.setTexture(occlusionTexture, index: 14)
         encoder.setSamplerState(occlusionSampler, index: 15)
 
+        // Write texCoord indices after sampler states
+        let baseColorCoordAddr = encoder.constantData(at: 16)
+        baseColorCoordAddr.copyMemory(from: baseColorTexCoord, byteCount: MemoryLayout<UInt32>.size)
+        let normalCoordAddr = encoder.constantData(at: 17)
+        normalCoordAddr.copyMemory(from: normalTexCoord, byteCount: MemoryLayout<UInt32>.size)
+        let mrcCoordAddr = encoder.constantData(at: 18)
+        mrcCoordAddr.copyMemory(from: metallicRoughnessTexCoord, byteCount: MemoryLayout<UInt32>.size)
+        let emissiveCoordAddr = encoder.constantData(at: 19)
+        emissiveCoordAddr.copyMemory(from: emissiveTexCoord, byteCount: MemoryLayout<UInt32>.size)
+        let occlusionCoordAddr = encoder.constantData(at: 20)
+        occlusionCoordAddr.copyMemory(from: occlusionTexCoord, byteCount: MemoryLayout<UInt32>.size)
         return buffer
     }
 

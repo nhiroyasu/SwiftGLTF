@@ -100,6 +100,17 @@ class PBRMeshLoader {
                 // Occlusion texture and sampler
                 var (hasOcclusionTexture, occlusionTexture, occlusionSamplerState) = retrieveTexture(prop: material?.propertyNamed(.occlusion), textureMap: textureMap)
 
+                // Retrieve texture coordinate indices and cast to UInt32
+                let baseColorTexCoordF: Float = material?.propertyNamed(.baseColorTextureTexCoord)?.floatValue ?? 0.0
+                let normalTexCoordF: Float = material?.propertyNamed(.normalTextureTexCoord)?.floatValue ?? 0.0
+                let metalRoughnessTexCoordF: Float = material?.propertyNamed(.metallicRoughnessTextureTexCoord)?.floatValue ?? 0.0
+                let emissiveTexCoordF: Float = material?.propertyNamed(.emissiveTextureTexCoord)?.floatValue ?? 0.0
+                let occlusionTexCoordF: Float = material?.propertyNamed(.occlusionTextureTexCoord)?.floatValue ?? 0.0
+                var baseColorTexCoord: UInt32 = UInt32(baseColorTexCoordF)
+                var normalTexCoord: UInt32 = UInt32(normalTexCoordF)
+                var metalRoughnessTexCoord: UInt32 = UInt32(metalRoughnessTexCoordF)
+                var emissiveTexCoord: UInt32 = UInt32(emissiveTexCoordF)
+                var occlusionTexCoord: UInt32 = UInt32(occlusionTexCoordF)
                 // Create material uniforms buffer
                 var materialUniforms = PBRMaterialUniforms(
                     baseColorFactor: baseColorFactor,
@@ -131,7 +142,13 @@ class PBRMeshLoader {
                     emissiveSampler: emissiveSamplerState,
                     hasOcclusionTexture: &hasOcclusionTexture,
                     occlusionTexture: occlusionTexture,
-                    occlusionSampler: occlusionSamplerState
+                    occlusionSampler: occlusionSamplerState,
+                    // Pass texCoord indices
+                    baseColorTexCoord: &baseColorTexCoord,
+                    normalTexCoord: &normalTexCoord,
+                    metallicRoughnessTexCoord: &metalRoughnessTexCoord,
+                    emissiveTexCoord: &emissiveTexCoord,
+                    occlusionTexCoord: &occlusionTexCoord
                 )
 
                 let submeshData = PBRMesh.Submesh(
