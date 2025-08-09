@@ -133,64 +133,39 @@ public class PBRRenderer {
 
     /// Load a gltf asset
     public func load(from asset: MDLAsset) async throws {
-        try await loadAsset(asset: asset)
-    }
-
-    /// Set environment from external URL (equirectangular .exr)
-    public func setEnvironment(url: URL) async throws {
-        let (
-            envMapHeap,
-            prefilterEnvMap,
-            irradianceMap,
-            brdfLUT
-        ) = try await envMapLoader.makeEnvMapHeapAndTexture(url: url)
-        try applyEnvironment(
-            heap: envMapHeap,
-            prefiltered: prefilterEnvMap,
-            irradiance: irradianceMap,
-            brdfLUT: brdfLUT
-        )
-    }
-
-    /// Set environment from existing cube texture
-    public func setEnvironment(cubeTexture: MTLTexture) throws {
-        let (
-            envMapHeap,
-            prefilterEnvMap,
-            irradianceMap,
-            brdfLUT
-        ) = try envMapLoader.makeEnvMapHeapAndTexture(fromCube: cubeTexture)
-        try applyEnvironment(
-            heap: envMapHeap,
-            prefiltered: prefilterEnvMap,
-            irradiance: irradianceMap,
-            brdfLUT: brdfLUT
-        )
-    }
-
-    // MARK: - Helper
-
-    private func loadAsset(asset: MDLAsset) async throws {
         let meshContainer = try await meshLoader.loadMeshes(from: asset)
         self.meshes = meshContainer.meshes
         self.vertexResources = meshContainer.vertexResources
         self.fragmentResources = meshContainer.fragmentResources
     }
 
-    private func applyEnvironment(
-        heap: MTLHeap,
-        prefiltered: MTLTexture,
-        irradiance: MTLTexture,
-        brdfLUT: MTLTexture
-    ) throws {
-        self.envMapHeap = heap
-        self._prefilterEnvMap = prefiltered
-        self._irradianceMap = irradiance
-        self._brdfLUT = brdfLUT
+    /// Set environment from external URL (equirectangular .exr)
+    public func setEnvironment(url: URL) async throws {
+        (
+            self.envMapHeap,
+            self._prefilterEnvMap,
+            self._irradianceMap,
+            self._brdfLUT
+        ) = try await envMapLoader.makeEnvMapHeapAndTexture(url: url)
         self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
-            prefilterEnvMap: prefiltered,
-            irradianceMap: irradiance,
-            brdfLUT: brdfLUT
+            prefilterEnvMap: _prefilterEnvMap,
+            irradianceMap: _irradianceMap,
+            brdfLUT: _brdfLUT
+        )
+    }
+
+    /// Set environment from existing cube texture
+    public func setEnvironment(cubeTexture: MTLTexture) throws {
+        (
+            self.envMapHeap,
+            self._prefilterEnvMap,
+            self._irradianceMap,
+            self._brdfLUT
+        ) = try envMapLoader.makeEnvMapHeapAndTexture(fromCube: cubeTexture)
+        self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
+            prefilterEnvMap: _prefilterEnvMap,
+            irradianceMap: _irradianceMap,
+            brdfLUT: _brdfLUT
         )
     }
 }
