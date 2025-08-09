@@ -53,6 +53,22 @@ var body: some View {
 }
 ```
 
+### Override Environment Map (PBR)
+`PBRRenderer` uses a default bundled `env_map.exr`. To replace it with your own HDRI or an existing cube texture, use the following API:
+
+```swift
+let renderer = try PBRRenderer(commandQueue: commandQueue)
+try await renderer.load(from: asset)
+
+// Replace from an equirect (.hdr/.exr)
+let hdrURL: URL = /* file URL */
+try await renderer.setEnvironment(url: hdrURL)
+
+// Use an existing cube map texture (textureType == .typeCube)
+let cubeTexture: MTLTexture = /* prepared cube */
+try renderer.setEnvironment(cubeTexture: cubeTexture)
+```
+
 ## Supported glTF Features
 - Unsupported features are planned to be added in future updates.
 

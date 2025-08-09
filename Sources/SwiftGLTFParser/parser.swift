@@ -339,7 +339,7 @@ func loadTextureSampler(
         if let magFilter = gltfSampler.magFilter {
             filter.magFilter = convertFilterMode(magFilter)
         } else {
-            filter.minFilter = .linear
+            filter.magFilter = .linear
         }
         if let minFilter = gltfSampler.minFilter {
             filter.minFilter = convertFilterMode(minFilter)

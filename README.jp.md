@@ -50,6 +50,22 @@ var body: some View {
 }
 ```
 
+### 環境マップの差し替え（PBR）
+`PBRRenderer` はデフォルトで同梱の `env_map.exr` を利用します。外部のHDRIや既存のキューブテクスチャに差し替えるには以下のAPIを使います。
+
+```swift
+let renderer = try PBRRenderer(commandQueue: commandQueue)
+try await renderer.load(from: asset)
+
+// equirect (.hdr/.exr) から差し替え
+let hdrURL: URL = /* ファイルURL */
+try await renderer.setEnvironment(url: hdrURL)
+
+// 既存のキューブマップテクスチャを使う場合（textureType == .typeCube）
+let cubeTexture: MTLTexture = /* 作成済みキューブ */
+try renderer.setEnvironment(cubeTexture: cubeTexture)
+```
+
 ## Supported glTF features
 - 非対応の機能は今後のアップデートでサポート予定です
 
