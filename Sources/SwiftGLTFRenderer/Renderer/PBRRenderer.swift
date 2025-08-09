@@ -4,8 +4,6 @@ import OSLog
 import simd
 
 public class PBRRenderer {
-    public var isLoaded: Bool = false
-
     private var meshes: [PBRMesh] = []
     private var vertexResources: [MTLHeap] = []
     private var fragmentResources: [MTLHeap] = []
