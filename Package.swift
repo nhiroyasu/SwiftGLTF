@@ -24,7 +24,7 @@ let package = Package(
 
         .target(
             name: "SwiftGLTF",
-            dependencies: ["SwiftGLTFParser", "SwiftGLTFRenderer", "SwiftGLTFCore", "SwiftGLTFShaderTypes"]),
+            dependencies: ["SwiftGLTFRenderer", "SwiftGLTFParser", "SwiftGLTFCore", "SwiftGLTFShaderTypes"]),
 
         .target(
             name: "SwiftGLTFRenderer",
