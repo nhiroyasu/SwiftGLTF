@@ -7,10 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4F2030282E1171AC0047CAE8 /* SwiftGLTF in Frameworks */ = {isa = PBXBuildFile; productRef = 4F2030272E1171AC0047CAE8 /* SwiftGLTF */; };
-		4F20302A2E1171AC0047CAE8 /* SwiftGLTFRenderer in Frameworks */ = {isa = PBXBuildFile; productRef = 4F2030292E1171AC0047CAE8 /* SwiftGLTFRenderer */; };
-		4F20302C2E1171B30047CAE8 /* SwiftGLTF in Frameworks */ = {isa = PBXBuildFile; productRef = 4F20302B2E1171B30047CAE8 /* SwiftGLTF */; };
-		4F20302E2E1171B30047CAE8 /* SwiftGLTFRenderer in Frameworks */ = {isa = PBXBuildFile; productRef = 4F20302D2E1171B30047CAE8 /* SwiftGLTFRenderer */; };
+		4FACEC422E4701040092B8C4 /* SwiftGLTF in Frameworks */ = {isa = PBXBuildFile; productRef = 4FACEC412E4701040092B8C4 /* SwiftGLTF */; };
+		4FACEC442E47010B0092B8C4 /* SwiftGLTF in Frameworks */ = {isa = PBXBuildFile; productRef = 4FACEC432E47010B0092B8C4 /* SwiftGLTF */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -72,8 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4F20302A2E1171AC0047CAE8 /* SwiftGLTFRenderer in Frameworks */,
-				4F2030282E1171AC0047CAE8 /* SwiftGLTF in Frameworks */,
+				4FACEC422E4701040092B8C4 /* SwiftGLTF in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -81,8 +78,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4F20302E2E1171B30047CAE8 /* SwiftGLTFRenderer in Frameworks */,
-				4F20302C2E1171B30047CAE8 /* SwiftGLTF in Frameworks */,
+				4FACEC442E47010B0092B8C4 /* SwiftGLTF in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -135,8 +131,7 @@
 			);
 			name = SwiftGLTFSample_iOS;
 			packageProductDependencies = (
-				4F2030272E1171AC0047CAE8 /* SwiftGLTF */,
-				4F2030292E1171AC0047CAE8 /* SwiftGLTFRenderer */,
+				4FACEC412E4701040092B8C4 /* SwiftGLTF */,
 			);
 			productName = SwiftGLTFPreview;
 			productReference = 4F2EC0552DEBDD26004C76AC /* SwiftGLTFSample.app */;
@@ -156,8 +151,7 @@
 			);
 			name = SwiftGLTFSample_macOS;
 			packageProductDependencies = (
-				4F20302B2E1171B30047CAE8 /* SwiftGLTF */,
-				4F20302D2E1171B30047CAE8 /* SwiftGLTFRenderer */,
+				4FACEC432E47010B0092B8C4 /* SwiftGLTF */,
 			);
 			productName = SwiftGLTFPreviewMacOS;
 			productReference = 4F2EC0C22DEBEFF0004C76AC /* SwiftGLTFSample.app */;
@@ -191,7 +185,7 @@
 			mainGroup = 4F2EC04C2DEBDD26004C76AC;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				4F2030262E1171A30047CAE8 /* XCLocalSwiftPackageReference "../SwiftGLTF" */,
+				4FACEC402E4700FF0092B8C4 /* XCLocalSwiftPackageReference "../SwiftGLTF" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4F2EC0562DEBDD26004C76AC /* Products */;
@@ -505,32 +499,22 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		4F2030262E1171A30047CAE8 /* XCLocalSwiftPackageReference "../SwiftGLTF" */ = {
+		4FACEC402E4700FF0092B8C4 /* XCLocalSwiftPackageReference "../SwiftGLTF" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../SwiftGLTF;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		4F2030272E1171AC0047CAE8 /* SwiftGLTF */ = {
+		4FACEC412E4701040092B8C4 /* SwiftGLTF */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 4F2030262E1171A30047CAE8 /* XCLocalSwiftPackageReference "../SwiftGLTF" */;
+			package = 4FACEC402E4700FF0092B8C4 /* XCLocalSwiftPackageReference "../SwiftGLTF" */;
 			productName = SwiftGLTF;
 		};
-		4F2030292E1171AC0047CAE8 /* SwiftGLTFRenderer */ = {
+		4FACEC432E47010B0092B8C4 /* SwiftGLTF */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 4F2030262E1171A30047CAE8 /* XCLocalSwiftPackageReference "../SwiftGLTF" */;
-			productName = SwiftGLTFRenderer;
-		};
-		4F20302B2E1171B30047CAE8 /* SwiftGLTF */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4F2030262E1171A30047CAE8 /* XCLocalSwiftPackageReference "../SwiftGLTF" */;
+			package = 4FACEC402E4700FF0092B8C4 /* XCLocalSwiftPackageReference "../SwiftGLTF" */;
 			productName = SwiftGLTF;
-		};
-		4F20302D2E1171B30047CAE8 /* SwiftGLTFRenderer */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4F2030262E1171A30047CAE8 /* XCLocalSwiftPackageReference "../SwiftGLTF" */;
-			productName = SwiftGLTFRenderer;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
