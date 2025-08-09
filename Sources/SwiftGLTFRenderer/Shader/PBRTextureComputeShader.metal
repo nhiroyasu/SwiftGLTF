@@ -116,7 +116,7 @@ kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(
     float3 N = normalize(R);
     float3 V = N;
 
-    constexpr sampler sampler(mip_filter::linear);
+    constexpr sampler sampler(filter::linear);
 
     float3 prefilteredColor = float3(0.0);
     float totalWeight = 0.0;
@@ -128,7 +128,7 @@ kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(
 
         float NdotL = max(dot(N, L), 0.0);
         if (NdotL > 0.0) {
-            prefilteredColor += envMap.sample(sampler, L).rgb * NdotL;
+            prefilteredColor += envMap.sample(sampler, L, level(0)).rgb * NdotL;
             totalWeight += NdotL;
         }
     }

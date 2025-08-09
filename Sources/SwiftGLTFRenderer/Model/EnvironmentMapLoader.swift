@@ -105,4 +105,74 @@ class EnvironmentMapLoader {
             results[2]
         )
     }
+
+    func makeEnvMapHeapAndTexture(from color: CGColor) throws -> (MTLHeap, MTLTexture, MTLTexture, MTLTexture) {
+        let size = 1
+        let descriptor = MTLTextureDescriptor.textureCubeDescriptor(
+            pixelFormat: .rgba8Unorm,
+            size: size,
+            mipmapped: false
+        )
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        guard let cubeTexture = device.makeTexture(descriptor: descriptor) else {
+            throw NSError(domain: "EnvironmentMapLoader", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create cube texture"])
+        }
+
+        let red: UInt8
+        let green: UInt8
+        let blue: UInt8
+        if let components = color.components {
+            if color.numberOfComponents >= 3 {
+                red = UInt8(components[0] * 255)
+                green = UInt8(components[1] * 255)
+                blue = UInt8(components[2] * 255)
+            } else if color.numberOfComponents >= 1 {
+                red = UInt8(components[0] * 255)
+                green = red
+                blue = red
+            } else {
+                red = 255
+                green = 255
+                blue = 255
+            }
+        } else {
+            red = 255
+            green = 255
+            blue = 255
+        }
+        let alpha: UInt8 = 255
+        let color = [red, green, blue, alpha]
+        let colorData: [UInt8] = Array(repeating: color, count: size * size).flatMap { $0 }
+        let region = MTLRegionMake2D(0, 0, size, size)
+        for face in 0..<6 {
+            cubeTexture.replace(
+                region: region,
+                mipmapLevel: 0,
+                slice: face,
+                withBytes: colorData,
+                bytesPerRow: size * 4,
+                bytesPerImage: size * size * 4
+            )
+        }
+
+        let heapDescriptor = MTLHeapDescriptor()
+        heapDescriptor.storageMode = .private
+        let texSize = device.heapTextureSizeAndAlign(descriptor: descriptor)
+        heapDescriptor.size = texSize.alignedSize
+
+        let heap = device.makeHeap(descriptor: heapDescriptor)!
+
+        let results = try shaderConnection.moveResourcesToHeap(
+            from: [cubeTexture],
+            use: heap
+        )
+
+        return (
+            heap,
+            results[0],
+            results[0],
+            results[0]
+        )
+    }
 }

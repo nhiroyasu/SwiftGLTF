@@ -10,9 +10,13 @@ public class PBRRenderer {
     private var vertexResources: [MTLHeap] = []
     private var fragmentResources: [MTLHeap] = []
 
-    private var skyboxMesh: SkyboxMesh?
-    private var envMapArgBuffer: MTLBuffer?
-    private var envMapHeap: MTLHeap?
+    private var skyboxMesh: SkyboxMesh
+    private var envMapArgBuffer: MTLBuffer
+    private var envMapHeap: MTLHeap
+    // Variables to prevent deallocation by ARC
+    private var _prefilterEnvMap: MTLTexture
+    private var _irradianceMap: MTLTexture
+    private var _brdfLUT: MTLTexture
 
     private let meshLoader: PBRMeshLoader
     private let pipelineConnector: PBRPipelineConnector
@@ -28,11 +32,6 @@ public class PBRRenderer {
     private let sampleCount: Int
     private let colorPixelFormat: MTLPixelFormat
     private let depthPixelFormat: MTLPixelFormat
-
-    // Variables to prevent deallocation by ARC
-    private var _specularCubeMapTexture: MTLTexture?
-    private var _irradianceCubeMapTexture: MTLTexture?
-    private var _brdfLUT: MTLTexture?
 
     public init(
         commandQueue: MTLCommandQueue,
@@ -79,14 +78,29 @@ public class PBRRenderer {
             device: device
         )
 
-        // Load default environment map if requested
-        Task {
-            _ = try await [
-                loadDefaultEnvMap(),
-                loadSkybox()
-            ]
-            isLoaded = true
-        }
+        let skyboxConfig = SkyboxPipelineConfig(
+            sampleCount: sampleCount,
+            colorPixelFormat: colorPixelFormat,
+            depthPixelFormat: depthPixelFormat
+        )
+        let skyboxLoader = try SkyboxMeshLoader(
+            device: device,
+            library: library,
+            config: skyboxConfig
+        )
+        self.skyboxMesh = skyboxLoader.loadMesh()
+
+        (
+            self.envMapHeap,
+            self._prefilterEnvMap,
+            self._irradianceMap,
+            self._brdfLUT
+        ) = try envMapLoader.makeEnvMapHeapAndTexture(from: CGColor(gray: 0.35, alpha: 1.0))
+        self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
+            prefilterEnvMap: _prefilterEnvMap,
+            irradianceMap: _irradianceMap,
+            brdfLUT: _brdfLUT
+        )
     }
 
     // MARK: - Rendering
@@ -97,33 +111,11 @@ public class PBRRenderer {
         fragmentParams: MTLBuffer,
         skyboxVP: MTLBuffer
     ) {
-        guard let skyboxMesh else {
-            os_log(
-                "Skybox or textures not loaded yet.",
-                log: .default,
-                type: .info
-            )
-            return
-        }
-        guard let _specularCubeMapTexture, let envMapHeap, let envMapArgBuffer
-        else {
-            os_log(
-                "Environment map textures or heap not loaded yet.",
-                log: .default,
-                type: .info
-            )
-            return
-        }
-        guard !meshes.isEmpty else {
-            os_log("No meshes to render.", log: .default, type: .info)
-            return
-        }
-
         drawSkybox(
             renderEncoder: renderEncoder,
             mesh: skyboxMesh,
             vpMatrixBuffer: skyboxVP,
-            specularCubeMapTexture: _specularCubeMapTexture
+            specularCubeMapTexture: _prefilterEnvMap
         )
 
         drawPBR(
@@ -187,58 +179,6 @@ public class PBRRenderer {
         self.fragmentResources = meshContainer.fragmentResources
     }
 
-    private func loadSkybox() async throws {
-        guard skyboxMesh == nil else {
-            // Skybox already loaded
-            return
-        }
-        // Create skybox mesh via loader
-        let skyboxConfig = SkyboxPipelineConfig(
-            sampleCount: sampleCount,
-            colorPixelFormat: colorPixelFormat,
-            depthPixelFormat: depthPixelFormat
-        )
-        let skyboxLoader = try SkyboxMeshLoader(
-            device: device,
-            library: library,
-            config: skyboxConfig
-        )
-        self.skyboxMesh = skyboxLoader.loadMesh()
-    }
-
-    private func loadDefaultEnvMap() async throws {
-        guard envMapHeap == nil else {
-            // Environment map already loaded
-            return
-        }
-        guard
-            let envMapUrl = Bundle.module.url(
-                forResource: "env_map",
-                withExtension: "exr"
-            )
-        else {
-            throw NSError(
-                domain: "MDLAssetMTKView",
-                code: 0,
-                userInfo: [
-                    NSLocalizedDescriptionKey: "Environment map not found"
-                ]
-            )
-        }
-        let (
-            envMapHeap,
-            prefilterEnvMap,
-            irradianceMap,
-            brdfLUT
-        ) = try await envMapLoader.makeEnvMapHeapAndTexture(url: envMapUrl)
-        try applyEnvironment(
-            heap: envMapHeap,
-            prefiltered: prefilterEnvMap,
-            irradiance: irradianceMap,
-            brdfLUT: brdfLUT
-        )
-    }
-
     private func applyEnvironment(
         heap: MTLHeap,
         prefiltered: MTLTexture,
@@ -246,8 +186,8 @@ public class PBRRenderer {
         brdfLUT: MTLTexture
     ) throws {
         self.envMapHeap = heap
-        self._specularCubeMapTexture = prefiltered
-        self._irradianceCubeMapTexture = irradiance
+        self._prefilterEnvMap = prefiltered
+        self._irradianceMap = irradiance
         self._brdfLUT = brdfLUT
         self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
             prefilterEnvMap: prefiltered,

@@ -24,14 +24,16 @@ let package = Package(
 
         .target(
             name: "SwiftGLTF",
-            dependencies: ["SwiftGLTFRenderer", "SwiftGLTFParser", "SwiftGLTFCore", "SwiftGLTFShaderTypes"]),
+            dependencies: ["SwiftGLTFRenderer", "SwiftGLTFParser", "SwiftGLTFCore", "SwiftGLTFShaderTypes"],
+            resources: [
+                .process("Resources/"),
+            ]),
 
         .target(
             name: "SwiftGLTFRenderer",
             dependencies: ["SwiftGLTFParser", "SwiftGLTFShaderTypes", "Img2Cubemap"],
             resources: [
-                .process("Shader/"),
-                .process("Resources/"),
+                .process("Shader/")
             ]),
         .testTarget(
             name: "SwiftGLTFRendererTests",

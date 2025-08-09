@@ -41,6 +41,7 @@ public class GLTFView: MTKView {
     public init(
         frame: CGRect,
         asset: MDLAsset? = nil,
+        environmentMapURL: URL? = nil,
         device: MTLDevice = MTLCreateSystemDefaultDevice()!
     ) throws {
         let device = device
@@ -95,9 +96,11 @@ public class GLTFView: MTKView {
 
         setupUI()
 
-        if let asset {
-            Task.detached(priority: .high) { [weak self] in
-                await self?.load(from: asset)
+        Task {
+            let url = environmentMapURL ?? Bundle.module.url(forResource: "env_map", withExtension: "exr")!
+            try await renderer.setEnvironment(url: url)
+            if let asset {
+                await load(from: asset)
             }
         }
     }
