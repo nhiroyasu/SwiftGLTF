@@ -170,7 +170,8 @@ final class PBRRenderTests {
         "OrientationTest",
         "TextureCoordinateTest",
         "VertexColorTest",
-        "Fox"
+        "Fox",
+        "MultiUVTest"
     ]
 
     // Export baseline textures
