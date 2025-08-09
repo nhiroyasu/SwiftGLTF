@@ -609,14 +609,6 @@ private func makeVertexDescriptor(
     )
     offset += MemoryLayout<Float>.size * 2
 
-    descriptor.attributes[GLTFVertexAttributeIndex.COLOR_0] = MDLVertexAttribute(
-        name: MDLVertexAttributeColor,
-        format: .float4,
-        offset: offset,
-        bufferIndex: 0
-    )
-    offset += MemoryLayout<Float>.size * 4
-
     descriptor.attributes[GLTFVertexAttributeIndex.TEXCOORD_1] = MDLVertexAttribute(
         name: MDLVertexAttributeTextureCoordinate,
         format: .float2,
@@ -624,6 +616,14 @@ private func makeVertexDescriptor(
         bufferIndex: 0
     )
     offset += MemoryLayout<Float>.size * 2
+
+    descriptor.attributes[GLTFVertexAttributeIndex.COLOR_0] = MDLVertexAttribute(
+        name: MDLVertexAttributeColor,
+        format: .float4,
+        offset: offset,
+        bufferIndex: 0
+    )
+    offset += MemoryLayout<Float>.size * 4
 
     descriptor.layouts[0] = MDLVertexBufferLayout(stride: offset)
 
@@ -697,6 +697,18 @@ private func makeVertexData(
             vertexData.append(Data(bytes: &defaultTexcoord0, count: MemoryLayout<SIMD2<Float>>.size))
         }
 
+        // Texcoord1
+        if let tex1 = texcoordVertex1 {
+            let stride = tex1.componentSize
+            let base = i * stride
+            let slice = tex1.data[base..<base+stride]
+            vertexData.append(slice)
+        } else {
+            // Default texcoord1 (0,0)
+            var defaultTexcoord1: SIMD2<Float> = SIMD2<Float>(0, 0)
+            vertexData.append(Data(bytes: &defaultTexcoord1, count: MemoryLayout<SIMD2<Float>>.size))
+        }
+
         // Modulation Color
         if let modulationColorVertex {
             let stride = modulationColorVertex.componentSize
@@ -713,18 +725,6 @@ private func makeVertexData(
             // If no modulation color is provided, use default color (1, 1, 1, 1)
             var defaultColor: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1)
             vertexData.append(Data(bytes: &defaultColor, count: MemoryLayout<SIMD4<Float>>.size))
-        }
-
-        // Texcoord1
-        if let tex1 = texcoordVertex1 {
-            let stride = tex1.componentSize
-            let base = i * stride
-            let slice = tex1.data[base..<base+stride]
-            vertexData.append(slice)
-        } else {
-            // Default texcoord1 (0,0)
-            var defaultTexcoord1: SIMD2<Float> = SIMD2<Float>(0, 0)
-            vertexData.append(Data(bytes: &defaultTexcoord1, count: MemoryLayout<SIMD2<Float>>.size))
         }
     }
 

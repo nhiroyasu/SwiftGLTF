@@ -105,8 +105,8 @@ struct VertexIn {
     float3 normal [[attribute(1)]];
     float4 tangent [[attribute(2)]];
     float2 uv [[attribute(3)]];
-    float2 uv1 [[attribute(5)]];
-    float4 modulationColor [[attribute(4)]];
+    float2 uv1 [[attribute(4)]];
+    float4 modulationColor [[attribute(5)]];
 };
 
 struct PBRVertexOut {
