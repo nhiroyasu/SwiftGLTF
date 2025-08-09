@@ -78,7 +78,7 @@ public class PBRRenderer {
 
     // MARK: - Rendering
 
-    func render(
+    public func render(
         using renderEncoder: MTLRenderCommandEncoder,
         vertexParams: MTLBuffer,
         fragmentParams: MTLBuffer,

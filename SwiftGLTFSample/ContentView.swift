@@ -1,6 +1,6 @@
 import SwiftUI
-import SwiftGLTFRenderer
 import UniformTypeIdentifiers
+import SwiftGLTF
 
 struct ContentView: View {
 

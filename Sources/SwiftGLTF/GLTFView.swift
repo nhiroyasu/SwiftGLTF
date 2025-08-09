@@ -1,5 +1,6 @@
 import SwiftGLTFParser
 import SwiftGLTFShaderTypes
+import SwiftGLTFRenderer
 import MetalKit
 import OSLog
 
@@ -101,7 +102,7 @@ public class GLTFView: MTKView {
         }
     }
 
-    convenience init(
+    public convenience init(
         frame: CGRect,
         url: URL,
         device: MTLDevice = MTLCreateSystemDefaultDevice()!

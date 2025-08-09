@@ -40,8 +40,6 @@
 				macOS/Assets.xcassets,
 				"Resources/sphere-with-color.bin",
 				"Resources/sphere-with-color.gltf",
-				Resources/sphere.bin,
-				Resources/sphere.gltf,
 				SampleApp.swift,
 			);
 			target = 4F2EC0C12DEBEFF0004C76AC /* SwiftGLTFSample_macOS */;

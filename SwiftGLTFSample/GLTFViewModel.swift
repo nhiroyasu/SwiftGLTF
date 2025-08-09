@@ -1,8 +1,8 @@
 import Foundation
 import SwiftUI
-import SwiftGLTFRenderer
 import ModelIO
 import UniformTypeIdentifiers
+import SwiftGLTF
 
 @MainActor
 class GLTFViewModel: ObservableObject, DropDelegate {

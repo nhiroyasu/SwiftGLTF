@@ -1,6 +1,6 @@
 import Testing
 import ModelIO
-@testable import SwiftGLTF
+@testable import SwiftGLTFParser
 @testable import SwiftGLTFCore
 
 // Tests for loading .glb (binary glTF) files, mirrored from CubeTests

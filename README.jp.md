@@ -33,7 +33,7 @@ dependencies: [
 ### Sample Code
 #### UIKit
 ```swift
-import SwiftGLTFRenderer
+import SwiftGLTF
 
 let gltfUrl = // URL to your glTF or GLB file
 let gltfView = GLTFView(frame: view.frame, url: gltfUrl)
@@ -42,7 +42,7 @@ view.addSubview(gltfView)
 
 #### SwiftUI
 ```swift
-import SwiftGLTFRenderer
+import SwiftGLTF
 
 var body: some View {
     @State private var gltfUrl = // URL to your glTF or GLB file
