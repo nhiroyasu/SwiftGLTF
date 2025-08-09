@@ -100,7 +100,7 @@ final class PBRRenderTests {
             self._prefilterEnvMap,
             self._irradianceMap,
             self._brdfLUT
-        ) = try await envMapLoader.makeEnvMapHeapAndTexture(
+        ) = try envMapLoader.makeEnvMapHeapAndTexture(
             url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
         )
         let envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(

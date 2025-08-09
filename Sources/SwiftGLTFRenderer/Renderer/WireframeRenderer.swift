@@ -151,7 +151,7 @@ public class WireframeRenderer {
             prefilterEnvMap,
             irradianceMap,
             brdfLUT
-        ) = try await envMapLoader.makeEnvMapHeapAndTexture(url: envMapUrl)
+        ) = try envMapLoader.makeEnvMapHeapAndTexture(url: envMapUrl)
         self.envMapHeap = envMapHeap
         self._specularCubeMapTexture = prefilterEnvMap
         self._irradianceCubeMapTexture = irradianceMap

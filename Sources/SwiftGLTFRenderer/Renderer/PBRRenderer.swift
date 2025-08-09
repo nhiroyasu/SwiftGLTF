@@ -146,7 +146,7 @@ public class PBRRenderer {
             self._prefilterEnvMap,
             self._irradianceMap,
             self._brdfLUT
-        ) = try await envMapLoader.makeEnvMapHeapAndTexture(url: url)
+        ) = try envMapLoader.makeEnvMapHeapAndTexture(url: url)
         self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
             prefilterEnvMap: _prefilterEnvMap,
             irradianceMap: _irradianceMap,

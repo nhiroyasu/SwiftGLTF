@@ -74,7 +74,7 @@ final class SkyboxRenderTests {
         let pMatrix = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
         var vp = pMatrix * vMatrix
         let vpbuf = device.makeBuffer(bytes: &vp, length: MemoryLayout.size(ofValue: vp), options: [])!
-        let envMap = try await generateCubeTexture(
+        let envMap = try generateCubeTexture(
             device: device,
             exr: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
         )

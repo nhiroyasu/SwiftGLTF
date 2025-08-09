@@ -18,8 +18,8 @@ class EnvironmentMapLoader {
         self.shaderConnection = shaderConnection
     }
 
-    func makeEnvMapHeapAndTexture(url: URL) async throws -> (MTLHeap, MTLTexture, MTLTexture, MTLTexture) {
-        let envMap = try await generateCubeTexture(device: device, exr: url)
+    func makeEnvMapHeapAndTexture(url: URL) throws -> (MTLHeap, MTLTexture, MTLTexture, MTLTexture) {
+        let envMap = try generateCubeTexture(device: device, exr: url)
         let prefilterEnvMapTexture = shaderConnection.generatePrefilterEnvMapTexture(envMap: envMap)
         let irradianceCubeMapTexture = shaderConnection.generateIrradianceTexture(
             envMap: envMap,
