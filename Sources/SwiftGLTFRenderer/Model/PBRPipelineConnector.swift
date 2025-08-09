@@ -1,5 +1,5 @@
 import MetalKit
-import SwiftGLTF
+import SwiftGLTFParser
 
 class PBRPipelineConnector {
     private let device: MTLDevice

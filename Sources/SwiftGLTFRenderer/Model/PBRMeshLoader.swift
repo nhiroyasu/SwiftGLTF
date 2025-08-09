@@ -1,6 +1,6 @@
 import MetalKit
 import Accelerate
-import SwiftGLTF
+import SwiftGLTFParser
 
 class PBRMeshLoader {
     private let device: MTLDevice

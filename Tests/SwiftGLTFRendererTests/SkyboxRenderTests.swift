@@ -10,7 +10,7 @@ import MetalKit
 import CoreGraphics
 import UniformTypeIdentifiers
 import Img2Cubemap
-import SwiftGLTF
+import SwiftGLTFParser
 @testable import SwiftGLTFRenderer
 
 final class SkyboxRenderTests {

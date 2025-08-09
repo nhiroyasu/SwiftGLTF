@@ -3,7 +3,7 @@ import MetalKit
 import CoreGraphics
 import UniformTypeIdentifiers
 import Img2Cubemap
-import SwiftGLTF
+import SwiftGLTFParser
 import SwiftGLTFShaderTypes
 @testable import SwiftGLTFRenderer
 

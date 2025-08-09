@@ -1,5 +1,5 @@
 import MetalKit
-import SwiftGLTF
+import SwiftGLTFParser
 
 class WireframePipelineConnector {
     private let device: MTLDevice

@@ -1,6 +1,6 @@
 import MetalKit
 import Accelerate
-import SwiftGLTF
+import SwiftGLTFParser
 
 class WireframeMeshLoader {
     private let device: MTLDevice

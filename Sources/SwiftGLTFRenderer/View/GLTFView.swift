@@ -1,4 +1,4 @@
-import SwiftGLTF
+import SwiftGLTFParser
 import SwiftGLTFShaderTypes
 import MetalKit
 import OSLog

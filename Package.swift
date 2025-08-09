@@ -12,8 +12,8 @@ let package = Package(
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
-            name: "SwiftGLTF",
-            targets: ["SwiftGLTF"]),
+            name: "SwiftGLTFParser",
+            targets: ["SwiftGLTFParser"]),
         .library(
             name: "SwiftGLTFRenderer",
             targets: ["SwiftGLTFRenderer"])
@@ -26,7 +26,7 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "SwiftGLTFRenderer",
-            dependencies: ["SwiftGLTF", "SwiftGLTFShaderTypes", "Img2Cubemap"],
+            dependencies: ["SwiftGLTFParser", "SwiftGLTFShaderTypes", "Img2Cubemap"],
             resources: [
                 .process("Shader/"),
                 .process("Resources/"),
@@ -40,11 +40,11 @@ let package = Package(
             ]),
 
         .target(
-            name: "SwiftGLTF",
+            name: "SwiftGLTFParser",
             dependencies: ["SwiftGLTFCore", "MikkTSpace"]),
         .testTarget(
-            name: "SwiftGLTFTests",
-            dependencies: ["SwiftGLTF"],
+            name: "SwiftGLTFParserTests",
+            dependencies: ["SwiftGLTFParser"],
             resources: [
                 .process("Cube/Resources/cube.gltf"),
                 .process("Cube/Resources/cube.bin"),
