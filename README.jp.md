@@ -142,8 +142,11 @@ var body: some View {
 #### SwiftGLTFRenderer
 - glTFファイルをMetalでレンダリングするためのライブラリ
 
-#### SwiftGLTF
+#### SwiftGLTFParser
 - glTFを解析し、 `MDLAsset` としてSwiftで扱えるようにするライブラリ
+
+#### SwiftGLTF
+- glTFファイルをViewに表示する機能を提供するライブラリ（UIKitの`GLTFView`およびSwiftUIの`GLTFMetalView`を含む）
 
 #### SwiftGLTFCore
 - glTFの基本的なデータ構造を定義するライブラリ
