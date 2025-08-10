@@ -21,7 +21,8 @@ public class PBRRenderer {
     private let envMapLoader: EnvironmentMapLoader
     private let shaderConnection: ShaderConnection
 
-    private let depthStencilState: MTLDepthStencilState
+    private let depthStencilStateWrite: MTLDepthStencilState
+    private let depthStencilStateNoWrite: MTLDepthStencilState
 
     private let device: MTLDevice
     private let library: MTLLibrary
@@ -72,9 +73,8 @@ public class PBRRenderer {
             shaderConnection: shaderConnection
         )
 
-        self.depthStencilState = try makeLessEqualDepthStencilState(
-            device: device
-        )
+        self.depthStencilStateWrite = try makeLessEqualDepthStencilState(device: device)
+        self.depthStencilStateNoWrite = try makeLessEqualNoWriteDepthStencilState(device: device)
 
         let skyboxConfig = SkyboxPipelineConfig(
             sampleCount: sampleCount,
@@ -118,8 +118,10 @@ public class PBRRenderer {
 
         drawPBR(
             renderEncoder: renderEncoder,
-            pipelineState: pipelineConnector.pipelineState,
-            depthStencilState: depthStencilState,
+            pipelineStateOpaque: pipelineConnector.pipelineStateOpaque,
+            pipelineStateTransparent: pipelineConnector.pipelineStateTransparent,
+            depthStencilStateWrite: depthStencilStateWrite,
+            depthStencilStateNoWrite: depthStencilStateNoWrite,
             vertexResources: vertexResources,
             fragmentResources: fragmentResources + [envMapHeap],
             meshes: meshes,

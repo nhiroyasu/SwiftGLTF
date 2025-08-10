@@ -750,6 +750,25 @@ private func makeMDLMaterial(
     let material = MDLMaterial(name: gltfMaterial.name ?? "Material \(materialIndex)",
                                scatteringFunction: MDLScatteringFunction())
 
+    // Alpha mode / cutoff
+    // glTF defaults: alphaMode = "OPAQUE", alphaCutoff = 0.5 (only for MASK)
+    let alphaModeStr: String = gltfMaterial.alphaMode ?? "OPAQUE"
+    let alphaModeProp = MDLMaterialProperty(
+        name: MaterialPropertyName.alphaMode.rawValue,
+        semantic: .userDefined,
+        string: alphaModeStr
+    )
+    material.setProperty(alphaModeProp)
+
+    let defaultCutoff: Float = 0.5
+    let cutoffValue: Float = gltfMaterial.alphaCutoff ?? defaultCutoff
+    let alphaCutoffProp = MDLMaterialProperty(
+        name: MaterialPropertyName.alphaCutoff.rawValue,
+        semantic: .userDefined,
+        float: cutoffValue
+    )
+    material.setProperty(alphaCutoffProp)
+
     // Normal Texture
     if let normalTexInfo = gltfMaterial.normalTexture,
        let sampler = loadTextureSampler(for: normalTexInfo, from: gltf, binaryLoader: binaryLoader) {

@@ -3,6 +3,12 @@
 #include "includes/metal_helper.h"
 using namespace metal;
 
+enum AlphaMode : uint {
+    AlphaModeOpaque = 0,
+    AlphaModeMask   = 1,
+    AlphaModeBlend  = 2
+};
+
 // MARK: - Compute lighting
 
 float3 compute_direct_lighting(float3 normal,
@@ -146,6 +152,9 @@ struct PBRFragmentArguments {
     texture2d<float> occlusionTexture [[id(18)]];
     sampler occlusionSampler [[id(19)]];
     uint occlusionTexCoord [[id(20)]];
+    // Alpha controls
+    AlphaMode alphaMode [[id(21)]]; // 0: OPAQUE, 1: MASK, 2: BLEND
+    float alphaCutoff [[id(22)]]; // valid when alphaMode == MASK
 };
 
 struct PBREnvMapArguments {
@@ -273,8 +282,28 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                         irradianceMap,
                                                         brdfLUT);
 
+    // Alpha: baseColor.a * modulation.a * materialFactor.a
+    float baseAlpha = 1.0;
+    if (fragArgs.hasBaseColorTexture) {
+        baseAlpha = baseColorTexture.sample(baseColorSampler, uvBC).a;
+    }
+    float alpha = baseAlpha * modulationColor.a * mUni.baseColorFactor.a;
+
+    // Alpha test (MASK)
+    if (fragArgs.alphaMode == AlphaModeMask) {
+        if (alpha < fragArgs.alphaCutoff) {
+            discard_fragment();
+        }
+        alpha = 1.0; // masked surfaces write solid pixels
+    }
+
     // Final color
     float3 color = directLighting + indirectLighting + emissive;
-
-    return float4(color, 1.0);
+    // Premultiply if blending (BLEND)
+    if (fragArgs.alphaMode == AlphaModeBlend) {
+        color *= alpha;
+    } else {
+        alpha = 1.0;
+    }
+    return float4(color, alpha);
 }

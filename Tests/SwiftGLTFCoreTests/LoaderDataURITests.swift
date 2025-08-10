@@ -20,7 +20,8 @@ struct LoaderDataURITests {
         // 1x1 transparent PNG base64
         let b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAABlBMVEUAAAD///+l2Z/dAAAACklEQVQI12NgAAAAAgAB4iG8MwAAAABJRU5ErkJggg=="
         let uri = "data:image/png;base64,\(b64)"
-        let texture = try mdlTextureFromDataURI(uri, name: "TestPNG")
+        let imageData = try dataFromDataURI(uri)
+        let texture = try makeMDLTexture(from: imageData, name: "TestPNG")
         // Expect dimensions 1x1 and 4 channels RGBA
         #expect(texture.dimensions.x == 1)
         #expect(texture.dimensions.y == 1)

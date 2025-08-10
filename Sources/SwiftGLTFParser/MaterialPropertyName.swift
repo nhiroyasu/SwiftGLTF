@@ -11,6 +11,8 @@ public enum MaterialPropertyName: String {
     case emissiveTexture
     case occlusion
     case occlusionStrength
+    case alphaMode
+    case alphaCutoff
     // Texture coordinate indices for UV sets
     case normalTextureTexCoord
     case baseColorTextureTexCoord

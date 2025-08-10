@@ -56,8 +56,8 @@ struct CubeWithTextureTests {
         let expectedBaseColorTexture = MDLURLTexture(url: baseURL.appendingPathComponent(baseColorImage.uri!), name: "BaseColorTexture")
         let expectedNormalTexture = MDLURLTexture(url: baseURL.appendingPathComponent(normalImage.uri!), name: "NormalTexture")
 
-        #expect(baseColorTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data! == expectedBaseColorTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data!)
-        #expect(normalTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data! == expectedNormalTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data!)
+        #expect(baseColorTexture.texelDataWithTopLeftOrigin() == expectedBaseColorTexture.texelDataWithBottomLeftOrigin())
+        #expect(normalTexture.texelDataWithTopLeftOrigin() == expectedNormalTexture.texelDataWithBottomLeftOrigin())
     }
 
     @Test

@@ -7,7 +7,8 @@ class PBRPipelineConnector {
     private let fragmentFunction: MTLFunction
     private let shaderConnection: ShaderConnection
 
-    let pipelineState: MTLRenderPipelineState
+    let pipelineStateOpaque: MTLRenderPipelineState
+    let pipelineStateTransparent: MTLRenderPipelineState
 
     init(
         device: MTLDevice,
@@ -20,14 +21,27 @@ class PBRPipelineConnector {
         self.vertexFunction = library.makeFunction(name: "pbr_vertex_shader")!
         self.fragmentFunction = library.makeFunction(name: "pbr_fragment_shader")!
 
-        let psoDescriptor = MTLRenderPipelineDescriptor()
-        psoDescriptor.vertexFunction = vertexFunction
-        psoDescriptor.fragmentFunction = fragmentFunction
-        psoDescriptor.colorAttachments[0].pixelFormat = config.colorPixelFormat
-        psoDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
-        psoDescriptor.rasterSampleCount = config.sampleCount
-        psoDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()
-        self.pipelineState = try device.makeRenderPipelineState(descriptor: psoDescriptor)
+        // Opaque / Mask (no blending)
+        let opaqueDescriptor = MTLRenderPipelineDescriptor()
+        opaqueDescriptor.vertexFunction = vertexFunction
+        opaqueDescriptor.fragmentFunction = fragmentFunction
+        opaqueDescriptor.colorAttachments[0].pixelFormat = config.colorPixelFormat
+        opaqueDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
+        opaqueDescriptor.rasterSampleCount = config.sampleCount
+        opaqueDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()
+        self.pipelineStateOpaque = try device.makeRenderPipelineState(descriptor: opaqueDescriptor)
+
+        // Transparent (premultiplied alpha blending)
+        let transparentDescriptor = opaqueDescriptor.copy() as! MTLRenderPipelineDescriptor
+        let ca0 = transparentDescriptor.colorAttachments[0]!
+        ca0.isBlendingEnabled = true
+        ca0.sourceRGBBlendFactor = .one
+        ca0.destinationRGBBlendFactor = .oneMinusSourceAlpha
+        ca0.rgbBlendOperation = .add
+        ca0.sourceAlphaBlendFactor = .one
+        ca0.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        ca0.alphaBlendOperation = .add
+        self.pipelineStateTransparent = try device.makeRenderPipelineState(descriptor: transparentDescriptor)
     }
 
     func makeFragmentArgumentBuffer(
@@ -52,7 +66,10 @@ class PBRPipelineConnector {
         normalTexCoord: UnsafePointer<UInt32>,
         metallicRoughnessTexCoord: UnsafePointer<UInt32>,
         emissiveTexCoord: UnsafePointer<UInt32>,
-        occlusionTexCoord: UnsafePointer<UInt32>
+        occlusionTexCoord: UnsafePointer<UInt32>,
+        // Alpha params
+        alphaMode: UnsafePointer<UInt32>,
+        alphaCutoff: UnsafePointer<Float>
     ) throws -> MTLBuffer {
         let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 0)
         guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
@@ -95,6 +112,12 @@ class PBRPipelineConnector {
         encoder.setSamplerState(occlusionSampler, index: 19)
         let occlusionCoordAddr = encoder.constantData(at: 20)
         occlusionCoordAddr.copyMemory(from: occlusionTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        // Alpha params
+        let alphaModeAddr = encoder.constantData(at: 21)
+        alphaModeAddr.copyMemory(from: alphaMode, byteCount: MemoryLayout<UInt32>.size)
+        let alphaCutoffAddr = encoder.constantData(at: 22)
+        alphaCutoffAddr.copyMemory(from: alphaCutoff, byteCount: MemoryLayout<Float>.size)
         return buffer
     }
 

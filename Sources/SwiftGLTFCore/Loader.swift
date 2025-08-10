@@ -1,8 +1,8 @@
 import Foundation
 import ModelIO
-import ImageIO
-import CoreGraphics
+import MetalKit
 import simd
+import Accelerate
 
 /// Extracts the raw Data from a Data URI string (base64 encoded)
 func dataFromDataURI(_ uri: String) throws -> Data {
@@ -19,45 +19,57 @@ func dataFromDataURI(_ uri: String) throws -> Data {
     return data
 }
 
-/// Creates an MDLTexture directly from a Data URI string containing image data
-func mdlTextureFromDataURI(_ uri: String, name: String) throws -> MDLTexture {
-    let imageData = try dataFromDataURI(uri)
-    guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
-          let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
-        throw NSError(domain: "GLTF", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Failed to create image from data URI"])
+func makeMDLTexture(from data: Data, name: String) throws -> MDLTexture {
+    guard
+        let src = CGImageSourceCreateWithData(data as CFData, nil),
+        let cgImage = CGImageSourceCreateImageAtIndex(src, 0, nil)
+    else { throw NSError(domain: "SwiftGLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create CGImage from data"]) }
+
+    let properties = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+    let bitsPerComponent = properties?[kCGImagePropertyDepth] as? Int ?? 8
+    let channelCount = 4 // TODO: handle different formats
+    let bitsPerPixel = bitsPerComponent * channelCount
+
+    guard var format = vImage_CGImageFormat(
+        bitsPerComponent: bitsPerComponent,
+        bitsPerPixel: bitsPerPixel,
+        colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+        renderingIntent: .defaultIntent
+    ) else {
+        throw NSError(domain: "SwiftGLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid CGImage format"])
     }
-    // Render CGImage into raw RGBA8 buffer
-    let width = cgImage.width
-    let height = cgImage.height
-    let bytesPerPixel = 4
-    let bytesPerRow = bytesPerPixel * width
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
-    guard let context = CGContext(data: nil, width: width, height: height,
-                                  bitsPerComponent: 8, bytesPerRow: bytesPerRow,
-                                  space: colorSpace, bitmapInfo: bitmapInfo) else {
-        throw NSError(domain: "GLTF", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Failed to create CGContext for image"])
+
+    var buffer = vImage_Buffer()
+    let kvFlags = vImage_Flags(kvImageNoFlags)
+    let initErr = vImageBuffer_InitWithCGImage(&buffer, &format, nil, cgImage, kvFlags)
+    guard initErr == kvImageNoError else { throw NSError(domain: "SwiftGLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to initialize vImage buffer"]) }
+
+    let bufferRowBytes = Int(buffer.rowBytes)
+    let imageRowBytes = Int(buffer.width * 4)
+    var raw = Data(count: Int(imageRowBytes * Int(buffer.height)))
+    raw.withUnsafeMutableBytes { dstPtr in
+        guard let dstBase = dstPtr.baseAddress else { return }
+        // vImageのデータをDataにコピー
+        for y in 0..<Int(buffer.height) {
+            let srcRow = buffer.data!.advanced(by: y * bufferRowBytes)
+            let dstRow = dstBase.advanced(by: y * imageRowBytes)
+            memcpy(dstRow, srcRow, imageRowBytes)
+        }
     }
-    let rect = CGRect(x: 0, y: 0, width: width, height: height)
-    context.draw(cgImage, in: rect)
-    guard let dataPtr = context.data else {
-        throw NSError(domain: "GLTF", code: -1,
-                      userInfo: [NSLocalizedDescriptionKey: "Failed to access image pixel data"])
-    }
-    let pixelData = Data(bytes: dataPtr, count: bytesPerRow * height)
-    // Create MDLTexture from raw data, flip origin
-    let dims = vector_int2(Int32(width), Int32(height))
-    let texture = MDLTexture(data: pixelData,
-                             topLeftOrigin: false,
-                             name: name,
-                             dimensions: dims,
-                             rowStride: bytesPerRow,
-                             channelCount: bytesPerPixel,
-                             channelEncoding: .uInt8,
-                             isCube: false)
-    return texture
+    free(buffer.data)
+
+    let mdl = MDLTexture(
+        data: raw,
+        topLeftOrigin: true,
+        name: name,
+        dimensions: vector_int2(Int32(buffer.width), Int32(buffer.height)),
+        rowStride: imageRowBytes,
+        channelCount: channelCount,
+        channelEncoding: .uint8,
+        isCube: false
+    )
+    return mdl
 }
 
 // Returns true if the data begins with the glb magic "glTF" header
@@ -141,64 +153,8 @@ private func loadFromGLB(_ data: Data) throws -> GLTFContainer {
                 let start = bv.byteOffset ?? 0
                 let length = bv.byteLength
                 let imageData = binChunk.subdata(in: start..<(start + length))
-
-                if let cgSource = CGImageSourceCreateWithData(imageData as CFData, nil),
-                   let cgImage = CGImageSourceCreateImageAtIndex(cgSource, 0, nil) {
-                    let properties = CGImageSourceCopyPropertiesAtIndex(cgSource, 0, nil) as? [CFString: Any]
-                    let width = properties?[kCGImagePropertyPixelWidth] as? Int ?? 1
-                    let height = properties?[kCGImagePropertyPixelHeight] as? Int ?? 1
-                    let bitsPerComponent = properties?[kCGImagePropertyDepth] as? Int ?? 8
-                    let channelCount = 4 // TODO: handle different formats
-                    let bytesPerRow = Int(width) * channelCount
-
-                    let colorSpace: CGColorSpace = switch properties?[kCGImagePropertyProfileName] as? String {
-                    case "sRGB IEC61966-2.1": CGColorSpace(name: CGColorSpace.sRGB)!
-                    case "Display P3": CGColorSpace(name: CGColorSpace.displayP3)!
-                    case "Adobe RGB (1998)": CGColorSpace(name: CGColorSpace.adobeRGB1998)!
-                    default: CGColorSpaceCreateDeviceRGB()
-                    }
-
-                    var rawData = Data(count: Int(height) * bytesPerRow)
-                    rawData.withUnsafeMutableBytes { ptr in
-                        if let context = CGContext(
-                            data: ptr.baseAddress,
-                            width: width,
-                            height: height,
-                            bitsPerComponent: bitsPerComponent,
-                            bytesPerRow: bytesPerRow,
-                            space: colorSpace,
-                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                        ) {
-                            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-                        }
-                    }
-
-                    let channelEncoding: MDLTextureChannelEncoding = switch image.mimeType {
-                    case "image/png", "image/jpeg", "image/tiff":
-                       switch bitsPerComponent {
-                       case 8: .uInt8
-                       case 16: .uint16
-                       default: throw NSError(domain: "SwiftGLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unsupported bits per component: \(bitsPerComponent)"])
-                       }
-                    default:
-                        throw NSError(domain: "SwiftGLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unsupported image MIME type: \(image.mimeType ?? "unknown")"])
-                    }
-
-                    let texture = MDLTexture(
-                        data: rawData,
-                        topLeftOrigin: false,
-                        name: "Texture_\(idx)",
-                        dimensions: vector_int2(Int32(width), Int32(height)),
-                        rowStride: bytesPerRow, // Assuming RGBA format,
-                        channelCount: channelCount, // TODO: handle different formats
-                        channelEncoding: channelEncoding, // TODO: handle different encodings
-                        isCube: false
-                    )
-                    textures.append(texture)
-                } else {
-                    throw NSError(domain: "SwiftGLTF", code: -1,
-                                  userInfo: [NSLocalizedDescriptionKey: "Failed to create CGImageSource for image \(idx)"])
-                }
+                let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
+                textures.append(texture)
             } else {
                 throw NSError(domain: "SwiftGLTF", code: -1,
                               userInfo: [NSLocalizedDescriptionKey: "Image bufferView is missing for image \(idx)"])
@@ -242,11 +198,14 @@ private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFContainer {
     for (idx, image) in (gltf.images ?? []).enumerated() {
         if let uri = image.uri {
             if uri.hasPrefix("data:") {
-                // Data URI texture
-                let texture = try mdlTextureFromDataURI(uri, name: "Texture_\(idx)")
+                // Make MDLTexture from data URI
+                let imageData = try dataFromDataURI(uri)
+                let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
                 textures.append(texture)
             } else if let url = URL(string: uri, relativeTo: baseURL) {
-                let texture = MDLURLTexture(url: url, name: "Texture_\(idx)")
+                // Make MDLTexture from external file
+                let imageData = try Data(contentsOf: url)
+                let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
                 textures.append(texture)
             } else {
                 throw NSError(domain: "GLTF", code: -1,

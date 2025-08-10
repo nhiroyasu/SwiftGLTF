@@ -111,6 +111,17 @@ class PBRMeshLoader {
                 var metalRoughnessTexCoord: UInt32 = UInt32(metalRoughnessTexCoordF)
                 var emissiveTexCoord: UInt32 = UInt32(emissiveTexCoordF)
                 var occlusionTexCoord: UInt32 = UInt32(occlusionTexCoordF)
+                // Alpha mode & cutoff
+                let alphaModeStr = material?.propertyNamed(.alphaMode)?.stringValue?.uppercased() ?? "OPAQUE"
+                let alphaModeEnum: AlphaMode = {
+                    switch alphaModeStr {
+                    case "MASK": return .mask
+                    case "BLEND": return .blend
+                    default: return .opaque
+                    }
+                }()
+                var alphaModeRaw: UInt32 = alphaModeEnum.rawValue
+                var alphaCutoff: Float = material?.propertyNamed(.alphaCutoff)?.floatValue ?? 0.5
                 // Create material uniforms buffer
                 var materialUniforms = PBRMaterialUniforms(
                     baseColorFactor: baseColorFactor,
@@ -148,7 +159,10 @@ class PBRMeshLoader {
                     normalTexCoord: &normalTexCoord,
                     metallicRoughnessTexCoord: &metalRoughnessTexCoord,
                     emissiveTexCoord: &emissiveTexCoord,
-                    occlusionTexCoord: &occlusionTexCoord
+                    occlusionTexCoord: &occlusionTexCoord,
+                    // Alpha params
+                    alphaMode: &alphaModeRaw,
+                    alphaCutoff: &alphaCutoff
                 )
 
                 let submeshData = PBRMesh.Submesh(
@@ -157,6 +171,8 @@ class PBRMeshLoader {
                     indexType: mtkSubmesh.indexType,
                     indexBuffer: mtkSubmesh.indexBuffer,
                     fragmentArgumentBuffer: argumentBuffer,
+                    alphaMode: alphaModeEnum,
+                    alphaCutoff: alphaCutoff,
                     _storedHeapInstance: [
                         materialUniformsBuffer,
                         baseColorTexture,
@@ -192,6 +208,7 @@ class PBRMeshLoader {
             let pbrMesh = PBRMesh(
                 vertexBuffer: vertexBuffer,
                 modelBuffer: modelBuffer,
+                modelMatrix: model,
                 submeshes: submeshes,
             )
             pbrMeshes.append(pbrMesh)
@@ -375,7 +392,7 @@ class PBRMeshLoader {
         return try textureLoader.newTexture(
             texture: mdlTexture,
             options: [
-                .origin: MTKTextureLoader.Origin.bottomLeft,
+                .origin: MTKTextureLoader.Origin.topLeft,
                 .textureStorageMode: NSNumber(value: MTLStorageMode.private.rawValue),
                 .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue)
             ]

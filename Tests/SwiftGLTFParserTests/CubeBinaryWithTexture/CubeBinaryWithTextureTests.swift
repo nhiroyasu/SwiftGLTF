@@ -54,8 +54,8 @@ struct CubeBinaryWithTextureTests {
         let expectedBaseColorTexture = gltfContainer.binaryTextures[1]
         let expectedNormalTexture = gltfContainer.binaryTextures[0]
 
-        #expect(baseColorTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data! == expectedBaseColorTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data!)
-        #expect(normalTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data! == expectedNormalTexture.imageFromTexture()!.takeUnretainedValue().dataProvider!.data!)
+        #expect(baseColorTexture.texelDataWithTopLeftOrigin() == expectedBaseColorTexture.texelDataWithTopLeftOrigin())
+        #expect(normalTexture.texelDataWithTopLeftOrigin() == expectedNormalTexture.texelDataWithTopLeftOrigin())
     }
 
     @Test

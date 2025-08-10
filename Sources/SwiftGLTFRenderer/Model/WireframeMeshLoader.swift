@@ -46,6 +46,8 @@ class WireframeMeshLoader {
                     indexType: mtkSubmesh.indexType,
                     indexBuffer: mtkSubmesh.indexBuffer,
                     fragmentArgumentBuffer: device.makeBuffer(length: MemoryLayout<Int>.size, options: [])!,
+                    alphaMode: .opaque,
+                    alphaCutoff: 0.5,
                     _storedHeapInstance: []
                 )
                 submeshes.append(submeshData)
@@ -59,6 +61,7 @@ class WireframeMeshLoader {
                     bytes: &model,
                     length: MemoryLayout<float4x4>.size
                 )!,
+                modelMatrix: model,
                 submeshes: submeshes
             )
             pbrMeshes.append(pbrMesh)

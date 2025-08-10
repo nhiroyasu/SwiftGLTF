@@ -1,4 +1,5 @@
 import MetalKit
+import SwiftGLTFShaderTypes
 
 func drawSkybox(
     renderEncoder: MTLRenderCommandEncoder,
@@ -23,8 +24,10 @@ func drawSkybox(
 
 func drawPBR(
     renderEncoder: MTLRenderCommandEncoder,
-    pipelineState: MTLRenderPipelineState,
-    depthStencilState: MTLDepthStencilState,
+    pipelineStateOpaque: MTLRenderPipelineState,
+    pipelineStateTransparent: MTLRenderPipelineState,
+    depthStencilStateWrite: MTLDepthStencilState,
+    depthStencilStateNoWrite: MTLDepthStencilState,
     vertexResources: [MTLHeap],
     fragmentResources: [MTLHeap],
     meshes: [PBRMesh],
@@ -32,20 +35,23 @@ func drawPBR(
     envMapArgBuffer: MTLBuffer,
     fragmentParams: MTLBuffer
 ) {
-    renderEncoder.setRenderPipelineState(pipelineState)
-    renderEncoder.setDepthStencilState(depthStencilState)
     renderEncoder.useHeaps(vertexResources, stages: .vertex)
     renderEncoder.useHeaps(fragmentResources, stages: .fragment)
     renderEncoder.setVertexBuffer(vertexParams, offset: 0, index: 2)
     renderEncoder.setFragmentBuffer(envMapArgBuffer, offset: 0, index: 1)
     renderEncoder.setFragmentBuffer(fragmentParams, offset: 0, index: 2)
+    // Read camera position for sorting
+    let fragParamsPtr = fragmentParams.contents().bindMemory(to: PBRFragmentVariableParameters.self, capacity: 1)
+    let cameraPos = fragParamsPtr.pointee.viewPosition
+
+    // Opaque pass
+    renderEncoder.setRenderPipelineState(pipelineStateOpaque)
+    renderEncoder.setDepthStencilState(depthStencilStateWrite)
     for mesh in meshes {
         renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
         renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
-
-        for submesh in mesh.submeshes {
+        for submesh in mesh.submeshes where submesh.alphaMode == .opaque {
             renderEncoder.setFragmentBuffer(submesh.fragmentArgumentBuffer, offset: 0, index: 0)
-
             renderEncoder.drawIndexedPrimitives(
                 type: submesh.primitiveType,
                 indexCount: submesh.indexCount,
@@ -54,6 +60,56 @@ func drawPBR(
                 indexBufferOffset: submesh.indexBuffer.offset
             )
         }
+    }
+
+    // Masked (cutout) pass
+    renderEncoder.setRenderPipelineState(pipelineStateOpaque)
+    renderEncoder.setDepthStencilState(depthStencilStateWrite)
+    for mesh in meshes {
+        renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
+        renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
+        for submesh in mesh.submeshes where submesh.alphaMode == .mask {
+            renderEncoder.setFragmentBuffer(submesh.fragmentArgumentBuffer, offset: 0, index: 0)
+            renderEncoder.drawIndexedPrimitives(
+                type: submesh.primitiveType,
+                indexCount: submesh.indexCount,
+                indexType: submesh.indexType,
+                indexBuffer: submesh.indexBuffer.buffer,
+                indexBufferOffset: submesh.indexBuffer.offset
+            )
+        }
+    }
+
+    // Transparent pass (sort back-to-front per mesh)
+    struct TransparentDrawItem { let distanceSq: Float; let meshIndex: Int; let submeshIndex: Int }
+    var transparentItems: [TransparentDrawItem] = []
+    for (mi, mesh) in meshes.enumerated() {
+        // approximate mesh position by translation part of model matrix
+        let model = mesh.modelMatrix
+        // TODO: 多分ちゃんと距離計算できてない
+        let meshPos = SIMD3<Float>(model.columns.3.x, model.columns.3.y, model.columns.3.z)
+        let d = meshPos - cameraPos
+        let distSq = simd_dot(d, d)
+        for (si, submesh) in mesh.submeshes.enumerated() where submesh.alphaMode == .blend {
+            transparentItems.append(TransparentDrawItem(distanceSq: distSq, meshIndex: mi, submeshIndex: si))
+        }
+    }
+    transparentItems.sort { $0.distanceSq > $1.distanceSq } // back-to-front
+    renderEncoder.setRenderPipelineState(pipelineStateTransparent)
+    renderEncoder.setDepthStencilState(depthStencilStateNoWrite)
+    for item in transparentItems {
+        let mesh = meshes[item.meshIndex]
+        let submesh = mesh.submeshes[item.submeshIndex]
+        renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
+        renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
+        renderEncoder.setFragmentBuffer(submesh.fragmentArgumentBuffer, offset: 0, index: 0)
+        renderEncoder.drawIndexedPrimitives(
+            type: submesh.primitiveType,
+            indexCount: submesh.indexCount,
+            indexType: submesh.indexType,
+            indexBuffer: submesh.indexBuffer.buffer,
+            indexBufferOffset: submesh.indexBuffer.offset
+        )
     }
 
 }

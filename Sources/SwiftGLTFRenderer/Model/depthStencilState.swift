@@ -11,3 +11,15 @@ func makeLessEqualDepthStencilState(device: MTLDevice) throws -> MTLDepthStencil
     }
     return depthStencilState
 }
+
+func makeLessEqualNoWriteDepthStencilState(device: MTLDevice) throws -> MTLDepthStencilState {
+    let descriptor = MTLDepthStencilDescriptor()
+    descriptor.label = "[SwiftGLTF] lessEqualNoWriteDepthStencilState"
+    descriptor.depthCompareFunction = .lessEqual
+    descriptor.isDepthWriteEnabled = false
+
+    guard let depthStencilState = device.makeDepthStencilState(descriptor: descriptor) else {
+        throw NSError(domain: "SwiftGLTFRenderer", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create depth stencil state (no write)"])
+    }
+    return depthStencilState
+}

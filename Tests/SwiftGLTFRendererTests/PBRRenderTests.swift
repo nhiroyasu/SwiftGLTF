@@ -12,7 +12,8 @@ final class PBRRenderTests {
     let library: MTLLibrary
     let commandQueue: MTLCommandQueue
     let shaderConnection: ShaderConnection
-    let depthStencilState: MTLDepthStencilState
+    let depthStencilStateWrite: MTLDepthStencilState
+    let depthStencilStateNoWrite: MTLDepthStencilState
 
     var _prefilterEnvMap: MTLTexture!
     var _irradianceMap: MTLTexture!
@@ -31,7 +32,8 @@ final class PBRRenderTests {
             library: library,
             commandQueue: commandQueue
         )
-        self.depthStencilState = try! makeLessEqualDepthStencilState(device: device)
+        self.depthStencilStateWrite = try! makeLessEqualDepthStencilState(device: device)
+        self.depthStencilStateNoWrite = try! makeLessEqualNoWriteDepthStencilState(device: device)
     }
 
     // Helper to create a render target texture
@@ -141,8 +143,10 @@ final class PBRRenderTests {
         // Draw the mesh
         drawPBR(
             renderEncoder: encoder,
-            pipelineState: pipelineConnector.pipelineState,
-            depthStencilState: depthStencilState,
+            pipelineStateOpaque: pipelineConnector.pipelineStateOpaque,
+            pipelineStateTransparent: pipelineConnector.pipelineStateTransparent,
+            depthStencilStateWrite: depthStencilStateWrite,
+            depthStencilStateNoWrite: depthStencilStateNoWrite,
             vertexResources: _pbrMeshContainer.vertexResources,
             fragmentResources: _pbrMeshContainer.fragmentResources + [envMapHeap],
             meshes: _pbrMeshContainer.meshes,
