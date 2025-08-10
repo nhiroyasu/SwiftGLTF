@@ -214,6 +214,28 @@ public func makeMDLMesh(
         // Create a MDLMaterial
         let mdlMaterial = try makeMDLMaterial(for: primitive, gltf, binaryLoader)
 
+        // Calculate mesh center from POSITION accessor min/max and store to material property
+        if let positionAccessorIndex = primitive.attributes[GLTFAttribute.position.rawValue],
+           (gltf.accessors?.indices.contains(positionAccessorIndex) ?? false),
+           let accessor = gltf.accessors?[positionAccessorIndex],
+           let minVals = accessor.min, minVals.count >= 3,
+           let maxVals = accessor.max, maxVals.count >= 3 {
+            var center = SIMD3<Float>(
+                (minVals[0] + maxVals[0]) * 0.5,
+                (minVals[1] + maxVals[1]) * 0.5,
+                (minVals[2] + maxVals[2]) * 0.5
+            )
+            if options.convertToLeftHanded {
+                center.z = -center.z
+            }
+            let centerProp = MDLMaterialProperty(
+                name: MaterialPropertyName.meshCenter.rawValue,
+                semantic: .userDefined,
+                float3: center
+            )
+            mdlMaterial?.setProperty(centerProp)
+        }
+
         // Generate a submesh
         let submesh: MDLSubmesh
         submesh = MDLSubmesh(

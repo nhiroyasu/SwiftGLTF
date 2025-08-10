@@ -48,6 +48,7 @@ class WireframeMeshLoader {
                     fragmentArgumentBuffer: device.makeBuffer(length: MemoryLayout<Int>.size, options: [])!,
                     alphaMode: .opaque,
                     alphaCutoff: 0.5,
+                    centerModelSpace: .zero,
                     _storedHeapInstance: []
                 )
                 submeshes.append(submeshData)

@@ -40,9 +40,6 @@ func drawPBR(
     renderEncoder.setVertexBuffer(vertexParams, offset: 0, index: 2)
     renderEncoder.setFragmentBuffer(envMapArgBuffer, offset: 0, index: 1)
     renderEncoder.setFragmentBuffer(fragmentParams, offset: 0, index: 2)
-    // Read camera position for sorting
-    let fragParamsPtr = fragmentParams.contents().bindMemory(to: PBRFragmentVariableParameters.self, capacity: 1)
-    let cameraPos = fragParamsPtr.pointee.viewPosition
 
     // Opaque pass
     renderEncoder.setRenderPipelineState(pipelineStateOpaque)
@@ -80,17 +77,21 @@ func drawPBR(
         }
     }
 
-    // Transparent pass (sort back-to-front per mesh)
+    // Read camera position for sorting
+    let fragParamsPtr = fragmentParams.contents().bindMemory(to: PBRFragmentVariableParameters.self, capacity: 1)
+    let cameraPos = fragParamsPtr.pointee.viewPosition
+
+    // Transparent pass (sort back-to-front per submesh using mesh center)
     struct TransparentDrawItem { let distanceSq: Float; let meshIndex: Int; let submeshIndex: Int }
     var transparentItems: [TransparentDrawItem] = []
     for (mi, mesh) in meshes.enumerated() {
-        // approximate mesh position by translation part of model matrix
         let model = mesh.modelMatrix
-        // TODO: 多分ちゃんと距離計算できてない
-        let meshPos = SIMD3<Float>(model.columns.3.x, model.columns.3.y, model.columns.3.z)
-        let d = meshPos - cameraPos
-        let distSq = simd_dot(d, d)
         for (si, submesh) in mesh.submeshes.enumerated() where submesh.alphaMode == .blend {
+            let center = submesh.centerModelSpace
+            let worldPos4 = model * SIMD4<Float>(center.x, center.y, center.z, 1.0)
+            let worldPos = SIMD3<Float>(worldPos4.x, worldPos4.y, worldPos4.z)
+            let d = worldPos - cameraPos
+            let distSq = simd_dot(d, d)
             transparentItems.append(TransparentDrawItem(distanceSq: distSq, meshIndex: mi, submeshIndex: si))
         }
     }

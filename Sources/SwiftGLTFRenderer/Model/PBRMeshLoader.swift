@@ -165,6 +165,9 @@ class PBRMeshLoader {
                     alphaCutoff: &alphaCutoff
                 )
 
+                // Mesh center in model space (from parser via MDLMaterial property)
+                let centerModelSpace: SIMD3<Float> = material?.propertyNamed(.meshCenter)?.float3Value ?? SIMD3<Float>(0, 0, 0)
+
                 let submeshData = PBRMesh.Submesh(
                     primitiveType: mtkSubmesh.primitiveType,
                     indexCount: mtkSubmesh.indexCount,
@@ -173,6 +176,7 @@ class PBRMeshLoader {
                     fragmentArgumentBuffer: argumentBuffer,
                     alphaMode: alphaModeEnum,
                     alphaCutoff: alphaCutoff,
+                    centerModelSpace: centerModelSpace,
                     _storedHeapInstance: [
                         materialUniformsBuffer,
                         baseColorTexture,

@@ -14,6 +14,8 @@ struct PBRMesh {
         let fragmentArgumentBuffer: MTLBuffer
         let alphaMode: AlphaMode
         let alphaCutoff: Float
+        // Center of the mesh primitive in model space
+        let centerModelSpace: SIMD3<Float>
         let _storedHeapInstance: [Any?]
     }
 }

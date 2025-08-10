@@ -205,6 +205,28 @@ struct CubeTests {
         #expect(roughness?.floatValue == 0.5)
     }
 
+    @Test
+    func testMeshCenterProperty() async throws {
+        let (gltf, asset) = try await loadGLTFAndAsset()
+        let mdlMesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mdlSubmesh = mdlMesh.submeshes?.firstObject as! MDLSubmesh
+        let material = mdlSubmesh.material!
+
+        // Expected center from POSITION accessor min/max
+        let expectedCenter = SIMD3<Float>(
+            0, 0, 0 // max:1.0, min:-1.0 → center: 0.0
+        )
+
+        // Actual center stored on MDLMaterial
+        let centerProp = material.propertyNamed(.meshCenter)
+        #expect(centerProp != nil)
+        let actualCenter = centerProp!.float3Value
+
+        #expect(actualCenter.x == expectedCenter.x)
+        #expect(actualCenter.y == expectedCenter.y)
+        #expect(actualCenter.z == expectedCenter.z)
+    }
+
     // MARK: - Helper Methods
 
     private func loadGLTFAndAsset() async throws -> (GLTF, MDLAsset) {
