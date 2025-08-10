@@ -102,7 +102,7 @@ func assertEqual(output: MTLTexture, goldenName: String) {
             mismatchCount += 1
         }
     }
-    let maxAllowedMismatchedPixels = Int(Double(byteCount) * 0.01) // 1% tolerance
+    let maxAllowedMismatchedPixels = Int(Double(byteCount) * 0.005) // 0.5% tolerance
 
     #expect(
         mismatchCount <= maxAllowedMismatchedPixels,

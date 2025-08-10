@@ -189,7 +189,8 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
 fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                     constant PBRFragmentArguments &fragArgs [[buffer(0)]],
                                     constant PBREnvMapArguments &envMapArgs [[buffer(1)]],
-                                    constant PBRFragmentVariableParameters &params [[buffer(2)]])
+                                    constant PBRFragmentVariableParameters &params [[buffer(2)]],
+                                    bool isFrontFacing [[front_facing]])
 {
     constant PBRMaterialUniforms &mUni = fragArgs.material;
     texture2d<float> baseColorTexture = fragArgs.baseColorTexture;
@@ -256,6 +257,10 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     ? normalTexture.sample(normalSampler, uvN).rgb * 2.0 - 1.0
     : float3(0, 0, 1);
     float3 normal = normalize(TBN * normalTexValue);
+    // Flip normal for back faces when double-sided
+    if (fragArgs.material.doubleSided != 0 && !isFrontFacing) {
+        normal = -normal;
+    }
 
     float3 worldPosition = in.worldPosition;
     float3 viewPosition = params.viewPosition;

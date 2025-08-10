@@ -40,6 +40,7 @@ class WireframeMeshLoader {
             var submeshes: [PBRMesh.Submesh] = []
             for mtkSubmesh in mtkMesh.submeshes {
                 // Create a dummy material uniforms buffer (unused in wireframe rendering)
+                
                 let submeshData = PBRMesh.Submesh(
                     primitiveType: mtkSubmesh.primitiveType,
                     indexCount: mtkSubmesh.indexCount,
@@ -49,6 +50,7 @@ class WireframeMeshLoader {
                     alphaMode: .opaque,
                     alphaCutoff: 0.5,
                     centerModelSpace: .zero,
+                    doubleSided: true,
                     _storedHeapInstance: []
                 )
                 submeshes.append(submeshData)

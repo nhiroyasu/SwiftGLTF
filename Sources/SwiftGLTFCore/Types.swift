@@ -44,9 +44,59 @@ public struct Material: Codable {
     public let emissiveFactor: [Float]?
     public let alphaMode: String?
     public let alphaCutoff: Float?
-    public let doubleSided: Bool?
+    /// If true, back-face culling is disabled. Defaults to false.
+    public let doubleSided: Bool
     /// Optional glTF extensions for Material
     public let extensions: MaterialExtensions?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case pbrMetallicRoughness
+        case normalTexture
+        case occlusionTexture
+        case emissiveTexture
+        case emissiveFactor
+        case alphaMode
+        case alphaCutoff
+        case doubleSided
+        case extensions
+    }
+
+    public init(name: String?,
+                pbrMetallicRoughness: PBRMetallicRoughness?,
+                normalTexture: TextureInfo?,
+                occlusionTexture: OcclusionTextureInfo?,
+                emissiveTexture: TextureInfo?,
+                emissiveFactor: [Float]?,
+                alphaMode: String?,
+                alphaCutoff: Float?,
+                doubleSided: Bool = false,
+                extensions: MaterialExtensions?) {
+        self.name = name
+        self.pbrMetallicRoughness = pbrMetallicRoughness
+        self.normalTexture = normalTexture
+        self.occlusionTexture = occlusionTexture
+        self.emissiveTexture = emissiveTexture
+        self.emissiveFactor = emissiveFactor
+        self.alphaMode = alphaMode
+        self.alphaCutoff = alphaCutoff
+        self.doubleSided = doubleSided
+        self.extensions = extensions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.pbrMetallicRoughness = try container.decodeIfPresent(PBRMetallicRoughness.self, forKey: .pbrMetallicRoughness)
+        self.normalTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .normalTexture)
+        self.occlusionTexture = try container.decodeIfPresent(OcclusionTextureInfo.self, forKey: .occlusionTexture)
+        self.emissiveTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .emissiveTexture)
+        self.emissiveFactor = try container.decodeIfPresent([Float].self, forKey: .emissiveFactor)
+        self.alphaMode = try container.decodeIfPresent(String.self, forKey: .alphaMode)
+        self.alphaCutoff = try container.decodeIfPresent(Float.self, forKey: .alphaCutoff)
+        self.doubleSided = try container.decodeIfPresent(Bool.self, forKey: .doubleSided) ?? false
+        self.extensions = try container.decodeIfPresent(MaterialExtensions.self, forKey: .extensions)
+    }
 }
 
 public struct PBRMetallicRoughness: Codable {

@@ -791,6 +791,14 @@ private func makeMDLMaterial(
     )
     material.setProperty(alphaCutoffProp)
 
+    // Double-sided flag (store for renderer)
+    let doubleSidedProp = MDLMaterialProperty(
+        name: MaterialPropertyName.doubleSided.rawValue,
+        semantic: .userDefined,
+        float: gltfMaterial.doubleSided ? 1.0 : 0.0
+    )
+    material.setProperty(doubleSidedProp)
+
     // Normal Texture
     if let normalTexInfo = gltfMaterial.normalTexture,
        let sampler = loadTextureSampler(for: normalTexInfo, from: gltf, binaryLoader: binaryLoader) {

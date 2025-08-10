@@ -122,11 +122,14 @@ class PBRMeshLoader {
                 }()
                 var alphaModeRaw: UInt32 = alphaModeEnum.rawValue
                 var alphaCutoff: Float = material?.propertyNamed(.alphaCutoff)?.floatValue ?? 0.5
+                // Double sided flag
+                let isDoubleSided: Bool = (material?.propertyNamed(.doubleSided)?.floatValue ?? 0) != 0
                 // Create material uniforms buffer
                 var materialUniforms = PBRMaterialUniforms(
                     baseColorFactor: baseColorFactor,
                     metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
-                    emissiveFactor: SIMD4<Float>(emissiveFactor.x, emissiveFactor.y, emissiveFactor.z, 0)
+                    emissiveFactor: SIMD4<Float>(emissiveFactor.x, emissiveFactor.y, emissiveFactor.z, 0),
+                    doubleSided: isDoubleSided ? 1 : 0
                 )
                 let tmpMaterialUniformsBuffer = device.makeBuffer(
                     bytes: &materialUniforms,
@@ -177,6 +180,7 @@ class PBRMeshLoader {
                     alphaMode: alphaModeEnum,
                     alphaCutoff: alphaCutoff,
                     centerModelSpace: centerModelSpace,
+                    doubleSided: isDoubleSided,
                     _storedHeapInstance: [
                         materialUniformsBuffer,
                         baseColorTexture,

@@ -21,4 +21,5 @@ public enum MaterialPropertyName: String {
     case metallicRoughnessTextureTexCoord
     case emissiveTextureTexCoord
     case occlusionTextureTexCoord
+    case doubleSided
 }

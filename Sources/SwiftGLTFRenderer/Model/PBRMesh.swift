@@ -16,6 +16,7 @@ struct PBRMesh {
         let alphaCutoff: Float
         // Center of the mesh primitive in model space
         let centerModelSpace: SIMD3<Float>
+        let doubleSided: Bool
         let _storedHeapInstance: [Any?]
     }
 }
