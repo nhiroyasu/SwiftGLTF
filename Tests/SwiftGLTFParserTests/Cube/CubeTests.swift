@@ -207,7 +207,7 @@ struct CubeTests {
 
     @Test
     func testMeshCenterProperty() async throws {
-        let (gltf, asset) = try await loadGLTFAndAsset()
+        let (_, asset) = try await loadGLTFAndAsset()
         let mdlMesh = asset.object(at: 0).children.objects[0] as! MDLMesh
         let mdlSubmesh = mdlMesh.submeshes?.firstObject as! MDLSubmesh
         let material = mdlSubmesh.material!
