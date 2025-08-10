@@ -93,8 +93,8 @@ var body: some View {
 | occlusionTexture     | ✅         |
 | emissiveTexture      | ✅         |
 | emissiveFactor       | ✅         |
-| alphaMode            | ❌         |
-| alphaCutoff          | ❌         |
+| alphaMode            | ✅         |
+| alphaCutoff          | ✅         |
 | doubleSided          | ❌         |
 
 ### Vertex Attributes
