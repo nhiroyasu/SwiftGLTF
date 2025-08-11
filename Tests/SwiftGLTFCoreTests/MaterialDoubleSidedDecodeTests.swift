@@ -29,4 +29,3 @@ final class MaterialDoubleSidedDecodeTests {
         #expect(gltf.materials?.first?.doubleSided == true)
     }
 }
-

@@ -22,12 +22,43 @@ public struct GLTF: Codable {
     public let accessors: [Accessor]?
     public let meshes: [Mesh]?
     public let scenes: [Scene]?
-    public let scene: Int?
+    public let scene: Int? // spec: default undefined
     public let nodes: [Node]?
     public let materials: [Material]?
     public let images: [Image]?
     public let textures: [Texture]?
     public let samplers: [Sampler]?
+
+    enum CodingKeys: String, CodingKey {
+        case asset
+        case buffers
+        case bufferViews
+        case accessors
+        case meshes
+        case scenes
+        case scene
+        case nodes
+        case materials
+        case images
+        case textures
+        case samplers
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.asset = try container.decode(Asset.self, forKey: .asset)
+        self.buffers = try container.decodeIfPresent([Buffer].self, forKey: .buffers)
+        self.bufferViews = try container.decodeIfPresent([BufferView].self, forKey: .bufferViews)
+        self.accessors = try container.decodeIfPresent([Accessor].self, forKey: .accessors)
+        self.meshes = try container.decodeIfPresent([Mesh].self, forKey: .meshes)
+        self.scenes = try container.decodeIfPresent([Scene].self, forKey: .scenes)
+        self.scene = try container.decodeIfPresent(Int.self, forKey: .scene)
+        self.nodes = try container.decodeIfPresent([Node].self, forKey: .nodes)
+        self.materials = try container.decodeIfPresent([Material].self, forKey: .materials)
+        self.images = try container.decodeIfPresent([Image].self, forKey: .images)
+        self.textures = try container.decodeIfPresent([Texture].self, forKey: .textures)
+        self.samplers = try container.decodeIfPresent([Sampler].self, forKey: .samplers)
+    }
 }
 
 public struct Scene: Codable {
@@ -38,12 +69,12 @@ public struct Scene: Codable {
 public struct Material: Codable {
     public let name: String?
     public let pbrMetallicRoughness: PBRMetallicRoughness?
-    public let normalTexture: TextureInfo?
+    public let normalTexture: NormalTextureInfo?
     public let occlusionTexture: OcclusionTextureInfo?
     public let emissiveTexture: TextureInfo?
-    public let emissiveFactor: [Float]?
-    public let alphaMode: String?
-    public let alphaCutoff: Float?
+    public let emissiveFactor: [Float]
+    public let alphaMode: AlphaMode
+    public let alphaCutoff: Float
     /// If true, back-face culling is disabled. Defaults to false.
     public let doubleSided: Bool
     /// Optional glTF extensions for Material
@@ -62,49 +93,44 @@ public struct Material: Codable {
         case extensions
     }
 
-    public init(name: String?,
-                pbrMetallicRoughness: PBRMetallicRoughness?,
-                normalTexture: TextureInfo?,
-                occlusionTexture: OcclusionTextureInfo?,
-                emissiveTexture: TextureInfo?,
-                emissiveFactor: [Float]?,
-                alphaMode: String?,
-                alphaCutoff: Float?,
-                doubleSided: Bool = false,
-                extensions: MaterialExtensions?) {
-        self.name = name
-        self.pbrMetallicRoughness = pbrMetallicRoughness
-        self.normalTexture = normalTexture
-        self.occlusionTexture = occlusionTexture
-        self.emissiveTexture = emissiveTexture
-        self.emissiveFactor = emissiveFactor
-        self.alphaMode = alphaMode
-        self.alphaCutoff = alphaCutoff
-        self.doubleSided = doubleSided
-        self.extensions = extensions
-    }
-
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.name = try container.decodeIfPresent(String.self, forKey: .name)
         self.pbrMetallicRoughness = try container.decodeIfPresent(PBRMetallicRoughness.self, forKey: .pbrMetallicRoughness)
-        self.normalTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .normalTexture)
+        self.normalTexture = try container.decodeIfPresent(NormalTextureInfo.self, forKey: .normalTexture)
         self.occlusionTexture = try container.decodeIfPresent(OcclusionTextureInfo.self, forKey: .occlusionTexture)
         self.emissiveTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .emissiveTexture)
-        self.emissiveFactor = try container.decodeIfPresent([Float].self, forKey: .emissiveFactor)
-        self.alphaMode = try container.decodeIfPresent(String.self, forKey: .alphaMode)
-        self.alphaCutoff = try container.decodeIfPresent(Float.self, forKey: .alphaCutoff)
+        self.emissiveFactor = try container.decodeIfPresent([Float].self, forKey: .emissiveFactor) ?? [0, 0, 0]
+        self.alphaMode = try container.decodeIfPresent(AlphaMode.self, forKey: .alphaMode) ?? .opaque
+        self.alphaCutoff = try container.decodeIfPresent(Float.self, forKey: .alphaCutoff) ?? 0.5
         self.doubleSided = try container.decodeIfPresent(Bool.self, forKey: .doubleSided) ?? false
         self.extensions = try container.decodeIfPresent(MaterialExtensions.self, forKey: .extensions)
     }
 }
 
 public struct PBRMetallicRoughness: Codable {
-    public let baseColorFactor: [Float]?
+    public let baseColorFactor: [Float]
     public let baseColorTexture: TextureInfo?
-    public let metallicFactor: Float?
-    public let roughnessFactor: Float?
+    public let metallicFactor: Float
+    public let roughnessFactor: Float
     public let metallicRoughnessTexture: TextureInfo?
+
+    enum CodingKeys: String, CodingKey {
+        case baseColorFactor
+        case baseColorTexture
+        case metallicFactor
+        case roughnessFactor
+        case metallicRoughnessTexture
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.baseColorFactor = try container.decodeIfPresent([Float].self, forKey: .baseColorFactor) ?? [1, 1, 1, 1]
+        self.baseColorTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .baseColorTexture)
+        self.metallicFactor = try container.decodeIfPresent(Float.self, forKey: .metallicFactor) ?? 1.0
+        self.roughnessFactor = try container.decodeIfPresent(Float.self, forKey: .roughnessFactor) ?? 1.0
+        self.metallicRoughnessTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .metallicRoughnessTexture)
+    }
 }
 
 public struct TextureIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
@@ -153,13 +179,56 @@ public struct AccessorIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
 
 public struct TextureInfo: Codable {
     public let index: TextureIndex
-    public let texCoord: Int?
+    public let texCoord: Int
+
+    enum CodingKeys: String, CodingKey {
+        case index
+        case texCoord
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.index = try container.decode(TextureIndex.self, forKey: .index)
+        self.texCoord = try container.decodeIfPresent(Int.self, forKey: .texCoord) ?? 0
+    }
+}
+
+public struct NormalTextureInfo: Codable {
+    public let index: TextureIndex
+    public let texCoord: Int
+    public let scale: Float
+
+    enum CodingKeys: String, CodingKey {
+        case index
+        case texCoord
+        case scale
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.index = try container.decode(TextureIndex.self, forKey: .index)
+        self.texCoord = try container.decodeIfPresent(Int.self, forKey: .texCoord) ?? 0
+        self.scale = try container.decodeIfPresent(Float.self, forKey: .scale) ?? 1.0
+    }
 }
 
 public struct OcclusionTextureInfo: Codable {
     public let index: TextureIndex
-    public let texCoord: Int?
-    public let strength: Float?
+    public let texCoord: Int
+    public let strength: Float
+
+    enum CodingKeys: String, CodingKey {
+        case index
+        case texCoord
+        case strength
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.index = try container.decode(TextureIndex.self, forKey: .index)
+        self.texCoord = try container.decodeIfPresent(Int.self, forKey: .texCoord) ?? 0
+        self.strength = try container.decodeIfPresent(Float.self, forKey: .strength) ?? 1.0
+    }
 }
 
 public struct Node: Codable {
@@ -170,6 +239,16 @@ public struct Node: Codable {
     public let rotation: [Float]?
     public let scale: [Float]?
     public let matrix: [Float]?
+
+    public init(name: String?, mesh: Int?, children: [Int]?, translation: [Float]?, rotation: [Float]?, scale: [Float]?, matrix: [Float]?) {
+        self.name = name
+        self.mesh = mesh
+        self.children = children
+        self.translation = translation
+        self.rotation = rotation
+        self.scale = scale
+        self.matrix = matrix
+    }
 }
 
 public struct Asset: Codable {
@@ -206,10 +285,27 @@ public struct BufferIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
 
 public struct BufferView: Codable {
     public let buffer: BufferIndex
-    public let byteOffset: Int?
+    public let byteOffset: Int
     public let byteLength: Int
     public let byteStride: Int?
     public let target: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case buffer
+        case byteOffset
+        case byteLength
+        case byteStride
+        case target
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.buffer = try container.decode(BufferIndex.self, forKey: .buffer)
+        self.byteOffset = try container.decodeIfPresent(Int.self, forKey: .byteOffset) ?? 0
+        self.byteLength = try container.decode(Int.self, forKey: .byteLength)
+        self.byteStride = try container.decodeIfPresent(Int.self, forKey: .byteStride)
+        self.target = try container.decodeIfPresent(Int.self, forKey: .target)
+    }
 }
 
 public struct BufferViewIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
@@ -236,12 +332,33 @@ public struct BufferViewIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
 
 public struct Accessor: Codable {
     public let bufferView: BufferViewIndex?
-    public let byteOffset: Int?
+    public let byteOffset: Int
     public let componentType: GLTFComponentType
     public let count: Int
     public let type: GLTFDataType
     public let max: [Float]?
     public let min: [Float]?
+
+    enum CodingKeys: String, CodingKey {
+        case bufferView
+        case byteOffset
+        case componentType
+        case count
+        case type
+        case max
+        case min
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.bufferView = try container.decodeIfPresent(BufferViewIndex.self, forKey: .bufferView)
+        self.byteOffset = try container.decodeIfPresent(Int.self, forKey: .byteOffset) ?? 0
+        self.componentType = try container.decode(GLTFComponentType.self, forKey: .componentType)
+        self.count = try container.decode(Int.self, forKey: .count)
+        self.type = try container.decode(GLTFDataType.self, forKey: .type)
+        self.max = try container.decodeIfPresent([Float].self, forKey: .max)
+        self.min = try container.decodeIfPresent([Float].self, forKey: .min)
+    }
 }
 
 public struct Mesh: Codable {
@@ -252,7 +369,22 @@ public struct Primitive: Codable {
     public let attributes: [String: Int]
     public let indices: AccessorIndex?
     public let material: Int?
-    public let mode: GLTFPrimitiveMode?
+    public let mode: GLTFPrimitiveMode
+
+    enum CodingKeys: String, CodingKey {
+        case attributes
+        case indices
+        case material
+        case mode
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.attributes = try container.decode([String: Int].self, forKey: .attributes)
+        self.indices = try container.decodeIfPresent(AccessorIndex.self, forKey: .indices)
+        self.material = try container.decodeIfPresent(Int.self, forKey: .material)
+        self.mode = try container.decodeIfPresent(GLTFPrimitiveMode.self, forKey: .mode) ?? .triangles
+    }
 }
 
 public struct Image: Codable {
@@ -293,9 +425,26 @@ public struct Texture: Codable {
 public struct Sampler: Codable {
     public let magFilter: GLTFFilterMode?
     public let minFilter: GLTFFilterMode?
-    public let wrapS: GLTFWrapMode?
-    public let wrapT: GLTFWrapMode?
+    public let wrapS: GLTFWrapMode
+    public let wrapT: GLTFWrapMode
     public let name: String?
+
+    enum CodingKeys: String, CodingKey {
+        case magFilter
+        case minFilter
+        case wrapS
+        case wrapT
+        case name
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.magFilter = try container.decodeIfPresent(GLTFFilterMode.self, forKey: .magFilter)
+        self.minFilter = try container.decodeIfPresent(GLTFFilterMode.self, forKey: .minFilter)
+        self.wrapS = try container.decodeIfPresent(GLTFWrapMode.self, forKey: .wrapS) ?? .repeatWrap
+        self.wrapT = try container.decodeIfPresent(GLTFWrapMode.self, forKey: .wrapT) ?? .repeatWrap
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+    }
 }
 
 // MARK: - glTF-specific values
@@ -462,6 +611,10 @@ public struct KHRMaterialsEmissiveStrength: Codable {
     enum CodingKeys: String, CodingKey {
         case emissiveStrength = "emissiveStrength"
     }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.emissiveStrength = try container.decodeIfPresent(Float.self, forKey: .emissiveStrength) ?? 1.0
+    }
 }
 
 /// Container for material-specific extensions
@@ -471,4 +624,11 @@ public struct MaterialExtensions: Codable {
     enum CodingKeys: String, CodingKey {
         case khrMaterialsEmissiveStrength = "KHR_materials_emissive_strength"
     }
+}
+
+// MARK: - AlphaMode (glTF Material.alphaMode)
+public enum AlphaMode: String, Codable {
+    case opaque = "OPAQUE"
+    case mask = "MASK"
+    case blend = "BLEND"
 }

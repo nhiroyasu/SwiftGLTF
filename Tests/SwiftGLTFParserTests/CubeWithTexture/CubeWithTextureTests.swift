@@ -16,7 +16,7 @@ struct CubeWithTextureTests {
         let posAccessorIndex = gltf.meshes![0].primitives[0].attributes["TEXCOORD_0"]!
         let accessor = gltf.accessors![posAccessorIndex]
         let bufferView = gltf.bufferViews![accessor.bufferView!.value]
-        let start = bufferView.byteOffset ?? 0
+        let start = bufferView.byteOffset
         let length = bufferView.byteLength
         let expectedTexCoordData = originalData.subdata(in: start..<(start + length))
 
@@ -85,14 +85,10 @@ struct CubeWithTextureTests {
         }
 
         // compare wrap modes
-        if let gltfWrapS = gltfSampler.wrapS {
-            let expected = convertWrapMode(gltfWrapS)
-            #expect(sampler.hardwareFilter?.sWrapMode == expected)
-        }
-        if let gltfWrapT = gltfSampler.wrapT {
-            let expected = convertWrapMode(gltfWrapT)
-            #expect(sampler.hardwareFilter?.tWrapMode == expected)
-        }
+        let expectedWrapS = convertWrapMode(gltfSampler.wrapS)
+        #expect(sampler.hardwareFilter?.sWrapMode == expectedWrapS)
+        let expectedWrapT = convertWrapMode(gltfSampler.wrapT)
+        #expect(sampler.hardwareFilter?.tWrapMode == expectedWrapT)
     }
 
     @Test

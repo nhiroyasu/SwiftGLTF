@@ -85,7 +85,7 @@ struct CubeTests {
         let posAccessorIndex = gltf.meshes![0].primitives[0].indices!
         let accessor = gltf.accessors![posAccessorIndex.value]
         let bufferView = gltf.bufferViews![accessor.bufferView!.value]
-        let start = bufferView.byteOffset ?? 0
+        let start = bufferView.byteOffset
         let length = bufferView.byteLength
         let expectedIndexData = originalData.subdata(in: start..<(start + length))
 
@@ -106,7 +106,7 @@ struct CubeTests {
         let posAccessorIndex = gltf.meshes![0].primitives[0].attributes["POSITION"]!
         let accessor = gltf.accessors![posAccessorIndex]
         let bufferView = gltf.bufferViews![accessor.bufferView!.value]
-        let start = bufferView.byteOffset ?? 0
+        let start = bufferView.byteOffset
         let length = bufferView.byteLength
         let expectedPositionData = originalData.subdata(in: start..<(start + length))
 
@@ -135,7 +135,7 @@ struct CubeTests {
         let posAccessorIndex = gltf.meshes![0].primitives[0].attributes["NORMAL"]!
         let accessor = gltf.accessors![posAccessorIndex]
         let bufferView = gltf.bufferViews![accessor.bufferView!.value]
-        let start = bufferView.byteOffset ?? 0
+        let start = bufferView.byteOffset
         let length = bufferView.byteLength
         let expectedNormalData = originalData.subdata(in: start..<(start + length))
 
@@ -164,7 +164,7 @@ struct CubeTests {
         let posAccessorIndex = gltf.meshes![0].primitives[0].attributes["TEXCOORD_0"]!
         let accessor = gltf.accessors![posAccessorIndex]
         let bufferView = gltf.bufferViews![accessor.bufferView!.value]
-        let start = bufferView.byteOffset ?? 0
+        let start = bufferView.byteOffset
         let length = bufferView.byteLength
         let expectedTexCoordData = originalData.subdata(in: start..<(start + length))
 

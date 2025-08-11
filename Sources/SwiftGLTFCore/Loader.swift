@@ -136,12 +136,15 @@ private func loadFromGLB(_ data: Data) throws -> GLTFContainer {
 
     // Extract embedded images from bufferViews
     var textures: [MDLTexture] = []
-    if let bufferViews = gltf.bufferViews, let images = gltf.images {
+    if let images = gltf.images {
+        guard let bufferViews = gltf.bufferViews else {
+            throw SwiftGLTFError.makeIO(.imageBufferViewMissing(index: 0), context: .capture(stage: .decode))
+        }
         for (idx, image) in images.enumerated() {
             if let bvIndex = image.bufferView?.value {
                 let bv = bufferViews[bvIndex]
 
-                let start = bv.byteOffset ?? 0
+                let start = bv.byteOffset
                 let length = bv.byteLength
                 let imageData = binChunk.subdata(in: start..<(start + length))
                 let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
@@ -159,7 +162,7 @@ private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFContainer {
     let gltf = try decoder.decode(GLTF.self, from: data)
 
     var buffers: [Data] = []
-    for buffer in gltf.buffers ?? [] {
+    for buffer in (gltf.buffers ?? []) {
         // Load buffer data (data URI or external file)
         let data: Data
         if let uri = buffer.uri, let url = URL(string: uri, relativeTo: baseURL) {
@@ -229,11 +232,12 @@ public class GLTFBinaryLoader {
         let gltf = gltfContainer.gltf
         let binaryBuffers = gltfContainer.binaryBuffers
 
-        guard let accessor = gltf.accessors?[accessorIndex.value] else {
+        guard let accessors = gltf.accessors, accessorIndex.value < accessors.count else {
             throw SwiftGLTFError.makeIO(.bufferIndexOutOfRange, context: .capture(stage: .decode))
         }
-        guard let bvIndex = accessor.bufferView?.value,
-              let bufferViews = gltf.bufferViews,
+        let accessor = accessors[accessorIndex.value]
+        guard let bufferViews = gltf.bufferViews,
+              let bvIndex = accessor.bufferView?.value,
               bvIndex < bufferViews.count else {
             throw SwiftGLTFError.makeIO(.bufferIndexOutOfRange, context: .capture(stage: .decode))
         }
@@ -243,7 +247,7 @@ public class GLTFBinaryLoader {
             throw SwiftGLTFError.makeIO(.bufferIndexOutOfRange, context: .capture(stage: .decode))
         }
         let bufferData = binaryBuffers[bufIdx]
-        let baseOffset = (accessor.byteOffset ?? 0) + (bv.byteOffset ?? 0)
+        let baseOffset = accessor.byteOffset + bv.byteOffset
         let accessorStride = accessor.type.components * accessor.componentType.size
         let bufferStride = bv.byteStride ?? accessorStride
         let totalLength = accessor.count * bufferStride

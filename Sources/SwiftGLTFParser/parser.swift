@@ -96,8 +96,7 @@ public func makeMDLAsset(
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
     let mdlMeshMap = try await withThrowingTaskGroup(of: (Int, [MDLMesh]).self) { group in
-        for index in 0..<(gltf.meshes?.count ?? 0) {
-            let mesh = gltf.meshes![index]
+        for (index, mesh) in (gltf.meshes ?? []).enumerated() {
             group.addTask {
                 let meshes = try makeMDLMesh(
                     from: mesh,
@@ -129,16 +128,22 @@ public func makeMDLAsset(
         asset.add(root)
     }
 
-    if options.autoScale,
-       let positionAccessorIndex = gltf.meshes?.flatMap({ $0.primitives.map({ $0.attributes[GLTFAttribute.position.rawValue]}) }).first?.flatMap({ $0 }),
-       let positionAccessor = gltf.accessors?[positionAccessorIndex],
-       let max = positionAccessor.max?.max() {
-        let scale = 1 / max
-        for i in 0..<asset.count {
-            let matrix = asset.object(at: i).transform?.matrix ?? matrix_identity_float4x4
-            asset.object(at: i).transform = GLTFTransform(matrix: scaleMatrix(scale, scale, scale) * matrix)
+    if options.autoScale {
+        let meshes = gltf.meshes ?? []
+        let accessors = gltf.accessors ?? []
+        let positionAccessorIndexOpt: Int? = meshes
+            .flatMap { $0.primitives.map { $0.attributes[GLTFAttribute.position.rawValue] } }
+            .first ?? nil
+        if let positionAccessorIndex = positionAccessorIndexOpt,
+           positionAccessorIndex < accessors.count,
+           let max = accessors[positionAccessorIndex].max?.max() {
+            let scale = 1 / max
+            for i in 0..<asset.count {
+                let matrix = asset.object(at: i).transform?.matrix ?? matrix_identity_float4x4
+                asset.object(at: i).transform = GLTFTransform(matrix: scaleMatrix(scale, scale, scale) * matrix)
+            }
+            os_log("Scaling asset by factor: %{public}f", log: .default, type: .info, scale)
         }
-        os_log("Scaling asset by factor: %{public}f", log: .default, type: .info, scale)
     }
 
     return asset
@@ -155,32 +160,35 @@ public func makeMDLMesh(
 
     var mdlMeshes: [MDLMesh] = []
     for primitive in mesh.primitives {
-        let vertexCount = retrieveVertexCount(for: primitive, accessors: gltf.accessors ?? [])
+        let accessors = gltf.accessors ?? []
+        let materials = gltf.materials ?? []
+        let vertexCount = retrieveVertexCount(for: primitive, accessors: accessors)
 
         // Make an index buffer
-        let indexInfo = try makeIndexInfo(for: primitive, accessors: gltf.accessors ?? [], vertexCount: vertexCount, binaryLoader: binaryLoader)
+        let indexInfo = try makeIndexInfo(for: primitive, accessors: accessors, vertexCount: vertexCount, binaryLoader: binaryLoader)
         let indexBuffer = allocator.newBuffer(with: indexInfo.data, type: .index)
 
         // Make a vertex buffer
-        let positionVertex = try makePositionVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
-        var normalVertex = try makeNormalVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
-        var tangentVertex = try makeTangentVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
-        let texcoordVertex0 = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader, texCoordIndex: 0)
-        let texcoordVertex1 = try makeTexcoordVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader, texCoordIndex: 1)
-        let modulationColorVertex = try makeModulationColorVertex(for: primitive, accessors: gltf.accessors ?? [], binaryLoader: binaryLoader)
+        let positionVertex = try makePositionVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
+        var normalVertex = try makeNormalVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
+        var tangentVertex = try makeTangentVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
+        let texcoordVertex0 = try makeTexcoordVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader, texCoordIndex: 0)
+        let texcoordVertex1 = try makeTexcoordVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader, texCoordIndex: 1)
+        let modulationColorVertex = try makeModulationColorVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
 
         if normalVertex == nil,
-           (primitive.mode == .triangles || primitive.mode == .none) {
+           primitive.mode == .triangles {
             normalVertex = try generateNormalVertex(positionVertex: positionVertex, indexInfo: indexInfo)
         }
 
         if tangentVertex == nil,
            let normalVertex,
            let materialIndex = primitive.material,
-           let normalTexture = gltf.materials?[materialIndex].normalTexture,
-           (primitive.mode == .triangles || primitive.mode == .none) {
+           materials.indices.contains(materialIndex),
+           let normalTexture = materials[materialIndex].normalTexture,
+           primitive.mode == .triangles {
             let texCoord: VertexInfo? = switch normalTexture.texCoord {
-            case 0, .none: texcoordVertex0
+            case 0: texcoordVertex0
             case 1: texcoordVertex1
             default: nil
             }
@@ -215,25 +223,28 @@ public func makeMDLMesh(
         let mdlMaterial = try makeMDLMaterial(for: primitive, gltf, binaryLoader)
 
         // Calculate mesh center from POSITION accessor min/max and store to material property
-        if let positionAccessorIndex = primitive.attributes[GLTFAttribute.position.rawValue],
-           (gltf.accessors?.indices.contains(positionAccessorIndex) ?? false),
-           let accessor = gltf.accessors?[positionAccessorIndex],
-           let minVals = accessor.min, minVals.count >= 3,
-           let maxVals = accessor.max, maxVals.count >= 3 {
-            var center = SIMD3<Float>(
-                (minVals[0] + maxVals[0]) * 0.5,
-                (minVals[1] + maxVals[1]) * 0.5,
-                (minVals[2] + maxVals[2]) * 0.5
-            )
-            if options.convertToLeftHanded {
-                center.z = -center.z
+        if let positionAccessorIndex = primitive.attributes[GLTFAttribute.position.rawValue] {
+            let accessors = gltf.accessors ?? []
+            if accessors.indices.contains(positionAccessorIndex) {
+                let accessor = accessors[positionAccessorIndex]
+                if let minVals = accessor.min, minVals.count >= 3,
+                   let maxVals = accessor.max, maxVals.count >= 3 {
+                    var center = SIMD3<Float>(
+                        (minVals[0] + maxVals[0]) * 0.5,
+                        (minVals[1] + maxVals[1]) * 0.5,
+                        (minVals[2] + maxVals[2]) * 0.5
+                    )
+                    if options.convertToLeftHanded {
+                        center.z = -center.z
+                    }
+                    let centerProp = MDLMaterialProperty(
+                        name: MaterialPropertyName.meshCenter.rawValue,
+                        semantic: .userDefined,
+                        float3: center
+                    )
+                    mdlMaterial?.setProperty(centerProp)
+                }
             }
-            let centerProp = MDLMaterialProperty(
-                name: MaterialPropertyName.meshCenter.rawValue,
-                semantic: .userDefined,
-                float3: center
-            )
-            mdlMaterial?.setProperty(centerProp)
         }
 
         // Generate a submesh
@@ -266,7 +277,11 @@ func buildNodeTree(
     nodeIndex: Int,
     options: GLTFDecodeOptions = .default
 ) -> MDLObject {
-    let node = gltf.nodes![nodeIndex]
+    let nodes = gltf.nodes ?? []
+    let node: Node = {
+        if nodes.indices.contains(nodeIndex) { return nodes[nodeIndex] }
+        return Node(name: nil, mesh: nil, children: nil, translation: nil, rotation: nil, scale: nil, matrix: nil)
+    }()
     let object = MDLObject()
     object.name = node.name ?? "Node \(nodeIndex)" // ノード名が無ければデフォルト名を設定. en: Set default name if node name is missing
 
@@ -325,6 +340,15 @@ func loadTextureSampler(
 }
 
 func loadTextureSampler(
+    for textureInfo: NormalTextureInfo?,
+    from gltf: GLTF,
+    binaryLoader: GLTFBinaryLoader
+) -> MDLTextureSampler? {
+    guard let textureIndex = textureInfo?.index else { return nil }
+    return loadTextureSampler(textureIndex: textureIndex, from: gltf, binaryLoader: binaryLoader)
+}
+
+func loadTextureSampler(
     for textureInfo: OcclusionTextureInfo?,
     from gltf: GLTF,
     binaryLoader: GLTFBinaryLoader
@@ -341,10 +365,12 @@ func loadTextureSampler(
     binaryLoader: GLTFBinaryLoader
 ) -> MDLTextureSampler? {
     // Load texture data via binaryLoader
-    guard let gltfTexture = gltf.textures?[textureIndex.value],
-          let sourceIndex = gltfTexture.source else {
+    let textures = gltf.textures ?? []
+    guard textureIndex.value < textures.count,
+          let sourceIndex = textures[textureIndex.value].source else {
         return nil
     }
+    let gltfTexture = textures[textureIndex.value]
     let mdlTexture: MDLTexture
     do {
         mdlTexture = try binaryLoader.extractTexture(textureIndex: sourceIndex)
@@ -355,8 +381,10 @@ func loadTextureSampler(
     let sampler = MDLTextureSampler()
     sampler.texture = mdlTexture
     // Configure sampler filtering and wrapping if specified
-    if let samplerIndex = gltfTexture.sampler,
-       let gltfSampler = gltf.samplers?[samplerIndex] {
+    if let samplerIndex = gltfTexture.sampler {
+        let samplers = gltf.samplers ?? []
+        guard samplers.indices.contains(samplerIndex) else { return sampler }
+        let gltfSampler = samplers[samplerIndex]
         let filter = MDLTextureFilter()
         if let magFilter = gltfSampler.magFilter {
             filter.magFilter = convertFilterMode(magFilter)
@@ -368,16 +396,8 @@ func loadTextureSampler(
         } else {
             filter.minFilter = .linear
         }
-        if let wrapS = gltfSampler.wrapS {
-            filter.sWrapMode = convertWrapMode(wrapS)
-        } else {
-            filter.sWrapMode = .repeat
-        }
-        if let wrapT = gltfSampler.wrapT {
-            filter.tWrapMode = convertWrapMode(wrapT)
-        } else {
-            filter.tWrapMode = .repeat
-        }
+        filter.sWrapMode = convertWrapMode(gltfSampler.wrapS)
+        filter.tWrapMode = convertWrapMode(gltfSampler.wrapT)
         sampler.hardwareFilter = filter
     }
     return sampler
@@ -768,8 +788,8 @@ private func makeMDLMaterial(
         return nil
     }
 
-    guard let materials = gltf.materials,
-          materials.count > materialIndex else {
+    let materials = gltf.materials ?? []
+    guard materials.count > materialIndex else {
         throw SwiftGLTFError.makeParse(.noValidMaterial, context: .capture(stage: .parse, jsonPointer: "/materials"))
     }
 
@@ -780,7 +800,7 @@ private func makeMDLMaterial(
 
     // Alpha mode / cutoff
     // glTF defaults: alphaMode = "OPAQUE", alphaCutoff = 0.5 (only for MASK)
-    let alphaModeStr: String = gltfMaterial.alphaMode ?? "OPAQUE"
+    let alphaModeStr: String = gltfMaterial.alphaMode.rawValue
     let alphaModeProp = MDLMaterialProperty(
         name: MaterialPropertyName.alphaMode.rawValue,
         semantic: .userDefined,
@@ -788,8 +808,7 @@ private func makeMDLMaterial(
     )
     material.setProperty(alphaModeProp)
 
-    let defaultCutoff: Float = 0.5
-    let cutoffValue: Float = gltfMaterial.alphaCutoff ?? defaultCutoff
+    let cutoffValue: Float = gltfMaterial.alphaCutoff
     let alphaCutoffProp = MDLMaterialProperty(
         name: MaterialPropertyName.alphaCutoff.rawValue,
         semantic: .userDefined,
@@ -813,7 +832,7 @@ private func makeMDLMaterial(
                                        textureSampler: sampler)
         material.setProperty(prop)
         // Store texCoord index for shader
-        let coord = normalTexInfo.texCoord ?? 0
+        let coord = normalTexInfo.texCoord
         let coordProp = MDLMaterialProperty(name: MaterialPropertyName.normalTextureTexCoord.rawValue,
                                             semantic: .userDefined,
                                             float: Float(coord))
@@ -824,11 +843,10 @@ private func makeMDLMaterial(
     if let pbr = gltfMaterial.pbrMetallicRoughness {
 
         // Base Color
-        let baseColor: SIMD4<Float> = if let baseColor = pbr.baseColorFactor, baseColor.count == 4 {
-            SIMD4<Float>(baseColor[0], baseColor[1], baseColor[2], baseColor[3])
-        } else {
-            SIMD4<Float>(1.0, 1.0, 1.0, 1.0) // The default is white according to the GLTF specification.
-        }
+        let baseColorArr = pbr.baseColorFactor
+        let baseColor: SIMD4<Float> = baseColorArr.count == 4
+            ? SIMD4<Float>(baseColorArr[0], baseColorArr[1], baseColorArr[2], baseColorArr[3])
+            : SIMD4<Float>(1.0, 1.0, 1.0, 1.0)
         let colorFactorProp = MDLMaterialProperty(
             name: MaterialPropertyName.baseColorFactor.rawValue,
             semantic: .baseColor,
@@ -845,7 +863,7 @@ private func makeMDLMaterial(
             material.setProperty(colorTextureProp)
             // Store texCoord index for shader
             if let texInfo = pbr.baseColorTexture {
-                let coord = texInfo.texCoord ?? 0
+                let coord = texInfo.texCoord
                 let coordProp = MDLMaterialProperty(name: MaterialPropertyName.baseColorTextureTexCoord.rawValue,
                                                     semantic: .userDefined,
                                                     float: Float(coord))
@@ -855,16 +873,12 @@ private func makeMDLMaterial(
 
         // Metallic
         let metallicProp = MDLMaterialProperty(name: MaterialPropertyName.metallic.rawValue, semantic: .metallic, float: 1.0)
-        if let metallic = pbr.metallicFactor {
-            metallicProp.floatValue = metallic
-        }
+        metallicProp.floatValue = pbr.metallicFactor
         material.setProperty(metallicProp)
 
         // Roughness
         let roughnessProp = MDLMaterialProperty(name: MaterialPropertyName.roughness.rawValue, semantic: .roughness, float: 1.0)
-        if let roughness = pbr.roughnessFactor {
-            roughnessProp.floatValue = roughness
-        }
+        roughnessProp.floatValue = pbr.roughnessFactor
         material.setProperty(roughnessProp)
 
         // Metallic Roughness Texture
@@ -873,7 +887,7 @@ private func makeMDLMaterial(
             let metallicRoughnessProp = MDLMaterialProperty(name: MaterialPropertyName.metallicRoughnessTexture.rawValue, semantic: .userDefined, textureSampler: sampler)
             material.setProperty(metallicRoughnessProp)
             // Store texCoord index for shader
-            let coord = metallicRoughnessTexture.texCoord ?? 0
+            let coord = metallicRoughnessTexture.texCoord
             let coordProp = MDLMaterialProperty(name: MaterialPropertyName.metallicRoughnessTextureTexCoord.rawValue,
                                                 semantic: .userDefined,
                                                 float: Float(coord))
@@ -883,8 +897,9 @@ private func makeMDLMaterial(
         // Emissive (with support for KHR_materials_emissive_strength)
         // Compute base emissive color
         var emissiveColor = simd_float3(0, 0, 0)
-        if let emissiveFactor = gltfMaterial.emissiveFactor, emissiveFactor.count == 3 {
-            emissiveColor = simd_float3(emissiveFactor[0], emissiveFactor[1], emissiveFactor[2])
+        let ef = gltfMaterial.emissiveFactor
+        if ef.count == 3 {
+            emissiveColor = simd_float3(ef[0], ef[1], ef[2])
         }
         // Apply emissive strength extension if present
         let emissiveStrength: Float = gltfMaterial.extensions?.khrMaterialsEmissiveStrength?.emissiveStrength ?? 1.0
@@ -906,7 +921,7 @@ private func makeMDLMaterial(
             )
             material.setProperty(emissiveTextureProp)
             // Store texCoord index for shader
-            let coord = emissiveTexture.texCoord ?? 0
+            let coord = emissiveTexture.texCoord
             let coordProp = MDLMaterialProperty(name: MaterialPropertyName.emissiveTextureTexCoord.rawValue,
                                                 semantic: .userDefined,
                                                 float: Float(coord))
@@ -922,17 +937,14 @@ private func makeMDLMaterial(
         material.setProperty(occlusionProp)
         // Store texCoord index for shader
         if let occlTex = gltfMaterial.occlusionTexture {
-            let coord = occlTex.texCoord ?? 0
+            let coord = occlTex.texCoord
             let coordProp = MDLMaterialProperty(name: MaterialPropertyName.occlusionTextureTexCoord.rawValue,
                                                 semantic: .userDefined,
                                                 float: Float(coord))
             material.setProperty(coordProp)
         }
 
-        let occlusionStrengthProp = MDLMaterialProperty(name: MaterialPropertyName.occlusionStrength.rawValue, semantic: .ambientOcclusionScale, float: 1.0)
-        if let occlusionStrength = gltfMaterial.occlusionTexture?.strength {
-            occlusionStrengthProp.floatValue = occlusionStrength
-        }
+        let occlusionStrengthProp = MDLMaterialProperty(name: MaterialPropertyName.occlusionStrength.rawValue, semantic: .ambientOcclusionScale, float: gltfMaterial.occlusionTexture?.strength ?? 1.0)
         material.setProperty(occlusionStrengthProp)
     }
 
