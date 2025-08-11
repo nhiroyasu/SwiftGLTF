@@ -99,6 +99,7 @@ var body: some View {
 | alphaMode            | ✅         |
 | alphaCutoff          | ✅         |
 | doubleSided          | ✅         |
+| extensions           | ❌         |
 
 ### Vertex Attributes
 | Attribute     | Supported |
