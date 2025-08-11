@@ -1,5 +1,6 @@
 import MetalKit
 import Img2Cubemap
+import SwiftGLTFCore
 
 class EnvironmentMapLoader {
     private let device: MTLDevice
@@ -62,11 +63,7 @@ class EnvironmentMapLoader {
     /// - Returns: `(heap, prefilteredSpecular, irradiance, brdfLUT)`
     func makeEnvMapHeapAndTexture(fromCube cubeTexture: MTLTexture) throws -> (MTLHeap, MTLTexture, MTLTexture, MTLTexture) {
         guard cubeTexture.textureType == .typeCube else {
-            throw NSError(
-                domain: "EnvironmentMapLoader",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Provided texture is not a cube texture."]
-            )
+            throw SwiftGLTFError.makeRender(.cubeTextureExpected, context: .capture(stage: .render))
         }
         
         let prefilterEnvMapTexture = shaderConnection.generatePrefilterEnvMapTexture(envMap: cubeTexture)
@@ -116,7 +113,7 @@ class EnvironmentMapLoader {
         descriptor.usage = [.shaderRead, .shaderWrite]
         descriptor.storageMode = .shared
         guard let cubeTexture = device.makeTexture(descriptor: descriptor) else {
-            throw NSError(domain: "EnvironmentMapLoader", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create cube texture"])
+            throw SwiftGLTFError.makeRender(.cubeTextureCreateFailed, context: .capture(stage: .render))
         }
 
         let red: UInt8

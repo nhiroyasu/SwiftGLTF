@@ -1,5 +1,6 @@
 import MetalKit
 import SwiftGLTFShaderTypes
+import SwiftGLTFCore
 
 class ShaderConnection {
     let device: MTLDevice
@@ -15,11 +16,7 @@ class ShaderConnection {
     func convertSrgb2Linear(textures: [MTLTexture]) throws -> [MTLTexture] {
         let commandBuffer = commandQueue.makeCommandBuffer()!
         guard let convertShader = library.makeFunction(name: "texture_srgb_2_linear_shader") else {
-            throw NSError(
-                domain: "MDLAssetLoader",
-                code: 3,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to create convert shader"]
-            )
+            throw SwiftGLTFError.makeRender(.convertShaderCreationFailed, context: .capture(stage: .render))
         }
         let pso = try device.makeComputePipelineState(function: convertShader)
 
@@ -31,11 +28,7 @@ class ShaderConnection {
             outputTextureDescriptor.height = texture.height
             outputTextureDescriptor.usage = [.shaderRead, .shaderWrite]
             guard let outputTexture = texture.device.makeTexture(descriptor: outputTextureDescriptor) else {
-                throw NSError(
-                    domain: "MDLAssetLoader",
-                    code: 2,
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to create output texture"]
-                )
+                throw SwiftGLTFError.makeRender(.outputTextureCreateFailed, context: .capture(stage: .render))
             }
 
             let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
@@ -65,7 +58,7 @@ class ShaderConnection {
     ) throws -> MTLTexture {
         let results = try moveResourcesToHeap(from: [texture], use: heap)
         guard let firstTexture = results.first else {
-            throw NSError(domain: "ShaderConnection", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to move texture to heap"])
+            throw SwiftGLTFError.makeRender(.moveTextureToHeapFailed, context: .capture(stage: .render))
         }
         return firstTexture
     }
@@ -75,10 +68,10 @@ class ShaderConnection {
         use heap: MTLHeap
     ) throws -> [MTLTexture] {
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
-            throw NSError(domain: "ShaderConnection", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to create command buffer"])
+            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
         }
         guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw NSError(domain: "ShaderConnection", code: 4, userInfo: [NSLocalizedDescriptionKey: "Failed to create blit command encoder"])
+            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
         }
 
         var output: [MTLTexture] = []
@@ -127,10 +120,10 @@ class ShaderConnection {
         use heap: MTLHeap
     ) throws -> MTLBuffer {
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
-            throw NSError(domain: "ShaderConnection", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to create command buffer"])
+            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
         }
         guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw NSError(domain: "ShaderConnection", code: 4, userInfo: [NSLocalizedDescriptionKey: "Failed to create blit command encoder"])
+            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
         }
 
         let heapBuffer = heap.makeBuffer(
@@ -268,4 +261,3 @@ class ShaderConnection {
         return lut
     }
 }
-

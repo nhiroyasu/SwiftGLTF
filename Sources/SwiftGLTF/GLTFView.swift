@@ -1,6 +1,7 @@
 import SwiftGLTFParser
 import SwiftGLTFShaderTypes
 import SwiftGLTFRenderer
+import SwiftGLTFCore
 import MetalKit
 import OSLog
 
@@ -48,7 +49,7 @@ public class GLTFView: MTKView {
         if let commandQueue = device.makeCommandQueue() {
             self.commandQueue = commandQueue
         } else {
-            throw NSError(domain: "PBRRenderer", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create command queue"])
+            throw SwiftGLTFError.makeRender(.commandQueueCreateFailed, context: .capture(stage: .render))
         }
 
         let sampleCount = 4

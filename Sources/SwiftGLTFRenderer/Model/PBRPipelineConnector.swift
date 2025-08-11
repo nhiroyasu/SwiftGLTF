@@ -1,5 +1,6 @@
 import MetalKit
 import SwiftGLTFParser
+import SwiftGLTFCore
 
 class PBRPipelineConnector {
     private let device: MTLDevice
@@ -73,7 +74,7 @@ class PBRPipelineConnector {
     ) throws -> MTLBuffer {
         let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 0)
         guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
-            throw NSError(domain: "PBRPipelineStateLoader", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create argument buffer"])
+            throw SwiftGLTFError.makeRender(.argumentBufferCreateFailed, context: .capture(stage: .render))
         }
         encoder.setArgumentBuffer(buffer, offset: 0)
 

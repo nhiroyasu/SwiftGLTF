@@ -62,7 +62,7 @@ struct IndexInfo {
                }
                return intArray
            default:
-               throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unsupported index type for normal generation"])
+               throw SwiftGLTFError.makeParse(.unsupportedIndexTypeForNormalGeneration, context: .capture(stage: .parse))
            }
        }
     }
@@ -121,7 +121,7 @@ public func makeMDLAsset(
     // en: Get the default scene
     let sceneIndex = gltf.scene ?? 0
     guard let scene = gltf.scenes?[sceneIndex] else {
-        throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "No valid scene found"])
+        throw SwiftGLTFError.makeParse(.noValidScene, context: .capture(stage: .parse, jsonPointer: "/scene"))
     }
 
     for rootNodeIndex in scene.nodes ?? [] {
@@ -423,15 +423,21 @@ private func makePositionVertex(
     binaryLoader: GLTFBinaryLoader
 ) throws -> VertexInfo {
     guard let positionAccessorIndex = primitive.attributes[GLTFAttribute.position.rawValue] else {
-        throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing POSITION attribute"])
+        throw SwiftGLTFError.makeParse(
+            .missingAttribute(name: "POSITION"),
+            context: .capture(stage: .parse, jsonPointer: "/meshes/*/primitives/*/attributes/POSITION")
+        )
     }
     guard accessors.count > positionAccessorIndex else {
-        throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid POSITION accessor index"])
+        throw SwiftGLTFError.makeParse(
+            .invalidAccessorIndex(name: "POSITION", index: positionAccessorIndex),
+            context: .capture(stage: .parse)
+        )
     }
 
     let positionAccessor = accessors[positionAccessorIndex]
     guard let positionVertexFormat = getMDLVertexFormat(accessor: positionAccessor) else {
-        throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid POSITION accessor"])
+        throw SwiftGLTFError.makeParse(.invalidAccessor(name: "POSITION"), context: .capture(stage: .parse))
     }
     let positionVertex = VertexInfo(
         data: try binaryLoader.extractData(accessorIndex: AccessorIndex(positionAccessorIndex)),
@@ -520,7 +526,7 @@ private func makeIndexInfo(
 ) throws -> IndexInfo {
     if let indexAccessorIndex = primitive.indices {
         guard accessors.count > indexAccessorIndex.value else {
-            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid indices reference"])
+            throw SwiftGLTFError.makeParse(.invalidIndicesReference, context: .capture(stage: .parse))
         }
 
         let accessor = accessors[indexAccessorIndex.value]
@@ -533,7 +539,7 @@ private func makeIndexInfo(
         case .unsignedShort: indexType = .uInt16
         case .unsignedInt: indexType = .uInt32
         default:
-            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unsupported index type"])
+            throw SwiftGLTFError.makeParse(.unsupportedIndexType, context: .capture(stage: .parse))
         }
 
         return IndexInfo(
@@ -570,32 +576,32 @@ private func makeVertexDescriptor(
 
     let positionIsFloat3 = positionVertex.componentFormat == .float3
     if !positionIsFloat3 {
-        throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Position vertex must be float3"])
+        throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "POSITION", expected: "float3"), context: .capture(stage: .parse))
     }
     if let normalVertex {
         let normalIsFloat3 = normalVertex.componentFormat == .float3
         if !normalIsFloat3 {
-            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Normal vertex must be float3"])
+            throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "NORMAL", expected: "float3"), context: .capture(stage: .parse))
         }
     }
     if let tangentVertex {
         if tangentVertex.componentFormat != .float4 {
-            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Tangent vertex must be float4"])
+            throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "TANGENT", expected: "float4"), context: .capture(stage: .parse))
         }
     }
     if let texcoordVertex0 {
         if texcoordVertex0.componentFormat != .float2 {
-            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Texcoord vertex must be float2"])
+            throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "TEXCOORD", expected: "float2"), context: .capture(stage: .parse))
         }
     }
     if let texcoordVertex1 {
         if texcoordVertex1.componentFormat != .float2 {
-            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Texcoord vertex must be float2"])
+            throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "TEXCOORD", expected: "float2"), context: .capture(stage: .parse))
         }
     }
     if let modulationColorVertex {
         if modulationColorVertex.componentFormat != .float3 && modulationColorVertex.componentFormat != .float4 {
-            throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Modulation color vertex must be float3 or float4"])
+            throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "COLOR", expected: "float3 or float4"), context: .capture(stage: .parse))
         }
     }
 
@@ -764,7 +770,7 @@ private func makeMDLMaterial(
 
     guard let materials = gltf.materials,
           materials.count > materialIndex else {
-        throw NSError(domain: "GLTF", code: -1, userInfo: [NSLocalizedDescriptionKey: "No valid material found for materials \(String(describing: gltf.materials))"])
+        throw SwiftGLTFError.makeParse(.noValidMaterial, context: .capture(stage: .parse, jsonPointer: "/materials"))
     }
 
     let gltfMaterial = materials[materialIndex]

@@ -1,4 +1,5 @@
 import MetalKit
+import SwiftGLTFCore
 
 func makeLessEqualDepthStencilState(device: MTLDevice) throws -> MTLDepthStencilState {
     let descriptor = MTLDepthStencilDescriptor()
@@ -7,7 +8,7 @@ func makeLessEqualDepthStencilState(device: MTLDevice) throws -> MTLDepthStencil
     descriptor.isDepthWriteEnabled = true
 
     guard let depthStencilState = device.makeDepthStencilState(descriptor: descriptor) else {
-        throw NSError(domain: "SwiftGLTFRenderer", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create depth stencil state"])
+        throw SwiftGLTFError.makeRender(.depthStencilStateCreateFailed(writeEnabled: true), context: .capture(stage: .render))
     }
     return depthStencilState
 }
@@ -19,7 +20,7 @@ func makeLessEqualNoWriteDepthStencilState(device: MTLDevice) throws -> MTLDepth
     descriptor.isDepthWriteEnabled = false
 
     guard let depthStencilState = device.makeDepthStencilState(descriptor: descriptor) else {
-        throw NSError(domain: "SwiftGLTFRenderer", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create depth stencil state (no write)"])
+        throw SwiftGLTFError.makeRender(.depthStencilStateCreateFailed(writeEnabled: false), context: .capture(stage: .render))
     }
     return depthStencilState
 }

@@ -1,6 +1,7 @@
 import MetalKit
 import Accelerate
 import SwiftGLTFParser
+import SwiftGLTFCore
 
 class PBRMeshLoader {
     private let device: MTLDevice
@@ -333,7 +334,7 @@ class PBRMeshLoader {
         heapDescriptor.storageMode = .private
 
         guard let texturesHeap = device.makeHeap(descriptor: heapDescriptor) else {
-            throw NSError(domain: "PBRMeshLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create textures heap"])
+            throw SwiftGLTFError.makeRender(.texturesHeapCreateFailed, context: .capture(stage: .render))
         }
         return texturesHeap
     }
@@ -346,7 +347,7 @@ class PBRMeshLoader {
         heapDescriptor.storageMode = .private
 
         guard let fragmentArgumentHeap = device.makeHeap(descriptor: heapDescriptor) else {
-            throw NSError(domain: "PBRMeshLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create fragment argument heap"])
+            throw SwiftGLTFError.makeRender(.fragmentArgumentHeapCreateFailed, context: .capture(stage: .render))
         }
         return fragmentArgumentHeap
     }
@@ -366,7 +367,7 @@ class PBRMeshLoader {
         heapDescriptor.storageMode = .private
 
         guard let vertexModelHeap = device.makeHeap(descriptor: heapDescriptor) else {
-            throw NSError(domain: "PBRMeshLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create vertex model heap"])
+            throw SwiftGLTFError.makeRender(.vertexModelHeapCreateFailed, context: .capture(stage: .render))
         }
         return vertexModelHeap
     }
@@ -440,11 +441,7 @@ class PBRMeshLoader {
         if let samplerState = device.makeSamplerState(descriptor: descriptor) {
             return samplerState
         } else {
-            throw NSError(
-                domain: "MDLAssetLoader",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to create sampler state"]
-            )
+            throw SwiftGLTFError.makeRender(.argumentBufferCreateFailed, context: .capture(stage: .render))
         }
     }
 }

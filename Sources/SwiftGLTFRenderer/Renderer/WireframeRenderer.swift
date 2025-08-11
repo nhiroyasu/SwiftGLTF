@@ -1,6 +1,7 @@
 import MetalKit
 import simd
 import OSLog
+import SwiftGLTFCore
 
 public class WireframeRenderer {
     private var meshes: [PBRMesh] = []
@@ -144,7 +145,7 @@ public class WireframeRenderer {
 
         // TODO: env map loading should be optional
         guard let envMapUrl = Bundle.module.url(forResource: "env_map", withExtension: "exr") else {
-            throw NSError(domain: "MDLAssetMTKView", code: 0, userInfo: [NSLocalizedDescriptionKey: "Environment map not found"])
+            throw SwiftGLTFError.makeRender(.environmentMapNotFound, context: .capture(stage: .render))
         }
         let (
             envMapHeap,

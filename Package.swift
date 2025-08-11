@@ -31,7 +31,7 @@ let package = Package(
 
         .target(
             name: "SwiftGLTFRenderer",
-            dependencies: ["SwiftGLTFParser", "SwiftGLTFShaderTypes", "Img2Cubemap"],
+            dependencies: ["SwiftGLTFParser", "SwiftGLTFShaderTypes", "Img2Cubemap", "SwiftGLTFCore"],
             resources: [
                 .process("Shader/")
             ]),
