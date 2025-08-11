@@ -95,7 +95,7 @@ var body: some View {
 | emissiveFactor       | ✅         |
 | alphaMode            | ✅         |
 | alphaCutoff          | ✅         |
-| doubleSided          | ❌         |
+| doubleSided          | ✅         |
 
 ### Vertex Attributes
 | Attribute     | Supported |
