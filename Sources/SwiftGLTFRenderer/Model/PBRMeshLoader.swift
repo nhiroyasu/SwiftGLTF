@@ -2,6 +2,7 @@ import MetalKit
 import Accelerate
 import SwiftGLTFParser
 import SwiftGLTFCore
+import SwiftGLTFShaderTypes
 
 class PBRMeshLoader {
     private let device: MTLDevice
@@ -35,6 +36,12 @@ class PBRMeshLoader {
             textureMap = try convertHeapTexture(from: textureMap, use: texturesHeap)
         }
 
+        var skeletonMap: [GLTFSkeleton: MTLBuffer] = try extractAllSkeletonMap(from: asset)
+        let skeletonHeap = makeSkeletonHeap(skeletonBuffers: Array(skeletonMap.values))
+        if let skeletonHeap {
+            skeletonMap = try convertHeapSkeleton(from: skeletonMap, use: skeletonHeap)
+        }
+
         let meshCount = extractAllMeshCounts(from: asset)
         let vertexBuffers = extractAllMeshVertexBuffer(from: asset)
         let vertexHeap = try makeVertexHeap(from: meshCount, vertexBuffers: vertexBuffers)
@@ -47,6 +54,7 @@ class PBRMeshLoader {
                 device: device,
                 obj: rootObj,
                 textureMap: textureMap,
+                skeletonMap: skeletonMap,
                 vertexHeap: vertexHeap,
                 fragmentHeap: fragmentHeap,
                 parentTransform: simd_float4x4(1)
@@ -56,7 +64,7 @@ class PBRMeshLoader {
 
         return PBRMeshContainer(
             meshes: pbrMeshes,
-            vertexResources: [vertexHeap],
+            vertexResources: [vertexHeap, skeletonHeap].compactMap { $0 },
             fragmentResources: [texturesHeap, fragmentHeap].compactMap { $0 }
         )
     }
@@ -65,6 +73,7 @@ class PBRMeshLoader {
         device: MTLDevice,
         obj: MDLObject,
         textureMap: [MDLTexture: MTLTexture],
+        skeletonMap: [GLTFSkeleton: MTLBuffer],
         vertexHeap: MTLHeap,
         fragmentHeap: MTLHeap,
         parentTransform: simd_float4x4
@@ -75,6 +84,13 @@ class PBRMeshLoader {
 
         if let mdlMesh = obj as? MDLMesh {
             let mtkMesh = try MTKMesh(mesh: mdlMesh, device: device)
+
+            var hasSkinning = false
+            var globalJointMatricesBuffer: MTLBuffer?
+            if let skeleton = obj.parent?.parent?.children.objects.compactMap({ $0 as? GLTFSkeleton }).first  {
+                hasSkinning = true
+                globalJointMatricesBuffer = skeletonMap[skeleton]
+            }
 
             var submeshes: [PBRMesh.Submesh] = []
             for (mtkSubmesh, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
@@ -136,7 +152,7 @@ class PBRMeshLoader {
                     bytes: &materialUniforms,
                     length: MemoryLayout<PBRMaterialUniforms>.size
                 )!
-                let materialUniformsBuffer = try shaderConnection.moveResourcesToHeap(
+                let materialUniformsBuffer = try shaderConnection.moveBufferToHeap(
                     from: tmpMaterialUniformsBuffer,
                     use: fragmentHeap
                 )
@@ -199,26 +215,27 @@ class PBRMeshLoader {
                 submeshes.append(submeshData)
             }
 
-            var model = transform
-            let tmpModelBuffer = device.makeBuffer(
-                bytes: &model,
-                length: MemoryLayout<float4x4>.size
-            )!
-            let modelBuffer = try shaderConnection.moveResourcesToHeap(
-                from: tmpModelBuffer,
-                use: vertexHeap
-            )
-
-            let vertexBuffer = try shaderConnection.moveResourcesToHeap(
+            let vertexBuffer = try shaderConnection.moveBufferToHeap(
                 from: mtkMesh.vertexBuffers[0].buffer,
                 use: vertexHeap
             )
 
+            var model = transform
+            var inverseModel = model.inverse
+
+            let vertexArgumentBuffer = try pipelineConnector.makeVertexArgumentsBuffer(
+                model: &model,
+                inverseModel: &inverseModel,
+                hasSkinning: &hasSkinning,
+                globalJointMatricesBuffer: globalJointMatricesBuffer
+            )
+
             let pbrMesh = PBRMesh(
                 vertexBuffer: vertexBuffer,
-                modelBuffer: modelBuffer,
                 modelMatrix: model,
+                vertexArgumentBuffer: vertexArgumentBuffer,
                 submeshes: submeshes,
+                _storedHeapInstance: []
             )
             pbrMeshes.append(pbrMesh)
         }
@@ -228,6 +245,7 @@ class PBRMeshLoader {
                 device: device,
                 obj: childObj,
                 textureMap: textureMap,
+                skeletonMap: skeletonMap,
                 vertexHeap: vertexHeap,
                 fragmentHeap: fragmentHeap,
                 parentTransform: transform
@@ -278,6 +296,47 @@ class PBRMeshLoader {
         }
 
         return textureMap
+    }
+
+    func extractAllSkeletonMap(from asset: MDLAsset) throws -> [GLTFSkeleton: MTLBuffer] {
+        var skeletonMap: [GLTFSkeleton: MTLBuffer] = [:]
+
+        func traverse(object: MDLObject) throws {
+            if let skeleton = object as? GLTFSkeleton {
+                var globalJointMatrices: [float4x4] = Array(repeating: float4x4(1), count: skeleton.jointObjects.count)
+                for (index, jointObject) in skeleton.jointObjects.enumerated() {
+                    let inverseBindMatrix = skeleton.inverseBindMatrices.float4x4Array[index]
+                    let globalJointTransform = {
+                        var skinNode = jointObject
+                        var transform = skinNode.transform?.matrix ?? float4x4(1)
+                        while let parent = skinNode.parent {
+                            transform = (parent.transform?.matrix ?? float4x4(1)) * transform
+                            skinNode = parent
+                        }
+                        return transform
+                    }()
+                    let globalJointMatrix = globalJointTransform * inverseBindMatrix
+                    globalJointMatrices[index] = globalJointMatrix
+                }
+                let buffer = device.makeBuffer(
+                    bytes: globalJointMatrices,
+                    length: MemoryLayout<float4x4>.size * globalJointMatrices.count,
+                    options: []
+                )!
+                skeletonMap[skeleton] = buffer
+            }
+
+            for child in object.children.objects {
+                try traverse(object: child)
+            }
+        }
+
+        for objectIndex in 0..<asset.count {
+            guard let object = asset[objectIndex] else { continue }
+            try traverse(object: object)
+        }
+
+        return skeletonMap
     }
 
     func extractAllMeshCounts(from asset: MDLAsset) -> Int {
@@ -346,10 +405,30 @@ class PBRMeshLoader {
         heapDescriptor.size = size * meshCount
         heapDescriptor.storageMode = .private
 
+        guard heapDescriptor.size > 0 else {
+            throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+        }
         guard let fragmentArgumentHeap = device.makeHeap(descriptor: heapDescriptor) else {
             throw SwiftGLTFError.makeRender(.fragmentArgumentHeapCreateFailed, context: .capture(stage: .render))
         }
         return fragmentArgumentHeap
+    }
+
+    func makeSkeletonHeap(skeletonBuffers: [MTLBuffer]) -> MTLHeap? {
+        let heapDescriptor = MTLHeapDescriptor()
+
+        let modelSize = device
+            .heapBufferSizeAndAlign(length: skeletonBuffers.map({ $0.length }).reduce(0, +))
+            .alignedSize
+
+        heapDescriptor.size = modelSize
+        heapDescriptor.storageMode = .private
+
+        guard heapDescriptor.size > 0 else { return nil }
+        guard let skeletonHeap = device.makeHeap(descriptor: heapDescriptor) else {
+            return nil
+        }
+        return skeletonHeap
     }
 
     func makeVertexHeap(from meshCount: Int, vertexBuffers: [MDLMeshBuffer]) throws -> MTLHeap {
@@ -366,6 +445,9 @@ class PBRMeshLoader {
         heapDescriptor.size = modelSize + bufferSize
         heapDescriptor.storageMode = .private
 
+        guard heapDescriptor.size > 0 else {
+            throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+        }
         guard let vertexModelHeap = device.makeHeap(descriptor: heapDescriptor) else {
             throw SwiftGLTFError.makeRender(.vertexModelHeapCreateFailed, context: .capture(stage: .render))
         }
@@ -377,6 +459,15 @@ class PBRMeshLoader {
         for (mdlTexture, mtlTexture) in textureMap {
             let heapTexture = try shaderConnection.moveResourceToHeap(from: mtlTexture, use: heap)
             convertedMap[mdlTexture] = heapTexture
+        }
+        return convertedMap
+    }
+
+    func convertHeapSkeleton(from skeletonMap: [GLTFSkeleton: MTLBuffer], use heap: MTLHeap) throws -> [GLTFSkeleton: MTLBuffer] {
+        var convertedMap: [GLTFSkeleton: MTLBuffer] = [:]
+        let heapBuffers = try shaderConnection.moveBuffersToHeap(from: Array(skeletonMap.values), use: heap)
+        for (index, skeleton) in skeletonMap.keys.enumerated() {
+            convertedMap[skeleton] = heapBuffers[index]
         }
         return convertedMap
     }

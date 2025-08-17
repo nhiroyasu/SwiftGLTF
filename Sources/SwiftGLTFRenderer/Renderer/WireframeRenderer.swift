@@ -62,7 +62,7 @@ public class WireframeRenderer {
             config: pipelineStateConfig,
             shaderConnection: shaderConnection
         )
-        self.meshLoader = WireframeMeshLoader(device: device)
+        self.meshLoader = WireframeMeshLoader(device: device, pipelineConnector: pipelineConnector)
         self.envMapLoader = EnvironmentMapLoader(
             device: device,
             library: library,

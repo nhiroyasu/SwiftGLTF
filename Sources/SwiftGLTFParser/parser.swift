@@ -3,71 +3,6 @@ import MetalKit
 import SwiftGLTFCore
 import OSLog
 
-public struct GLTFDecodeOptions: Sendable {
-    /// Converts the model to left-handed coordinate system if true.
-    public let convertToLeftHanded: Bool
-    /// Automatically scales the model based on the maximum position value.
-    public let autoScale: Bool
-
-    public static let `default` = GLTFDecodeOptions()
-
-    public init(
-        convertToLeftHanded: Bool = true,
-        autoScale: Bool = true
-    ) {
-        self.convertToLeftHanded = convertToLeftHanded
-        self.autoScale = autoScale
-    }
-}
-
-struct VertexInfo {
-    let data: Data
-    let componentFormat: MDLVertexFormat
-    let componentSize: Int
-}
-
-struct IndexInfo {
-    let data: Data
-    let count: Int
-    let type: MDLIndexBitDepth
-
-    func getIndices() throws -> [Int] {
-        try data.withUnsafeBytes {
-           switch type {
-           case .uInt8:
-               let uint8Array = Array($0.bindMemory(to: UInt8.self))
-               let intArray = Array<Int>(unsafeUninitializedCapacity: uint8Array.count) { buffer, initializedCount in
-                   for (i, value) in uint8Array.enumerated() {
-                       buffer[i] = Int(value)
-                   }
-                   initializedCount = uint8Array.count
-               }
-               return intArray
-           case .uInt16:
-               let uint16Array = Array($0.bindMemory(to: UInt16.self))
-               let intArray = Array<Int>(unsafeUninitializedCapacity: uint16Array.count) { buffer, initializedCount in
-                   for (i, value) in uint16Array.enumerated() {
-                       buffer[i] = Int(value)
-                   }
-                   initializedCount = uint16Array.count
-               }
-               return intArray
-           case .uInt32:
-               let uint32Array = Array($0.bindMemory(to: UInt32.self))
-               let intArray = Array<Int>(unsafeUninitializedCapacity: uint32Array.count) { buffer, initializedCount in
-                   for (i, value) in uint32Array.enumerated() {
-                       buffer[i] = Int(value)
-                   }
-                   initializedCount = uint32Array.count
-               }
-               return intArray
-           default:
-               throw SwiftGLTFError.makeParse(.unsupportedIndexTypeForNormalGeneration, context: .capture(stage: .parse))
-           }
-       }
-    }
-}
-
 public func makeMDLAsset(from url: URL, options: GLTFDecodeOptions = .default) async throws -> MDLAsset {
     let data = try Data(contentsOf: url)
     let gltfContainer = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
@@ -95,25 +30,55 @@ public func makeMDLAsset(
 
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
-    let mdlMeshMap = try await withThrowingTaskGroup(of: (Int, [MDLMesh]).self) { group in
+    let mdlMeshMap = try await withThrowingTaskGroup(of: (MeshIndex, MDLObject).self) { group in
         for (index, mesh) in (gltf.meshes ?? []).enumerated() {
             group.addTask {
                 let meshes = try makeMDLMesh(
                     from: mesh,
+                    name: mesh.name ?? "Mesh_\(index)",
                     using: gltf,
                     allocator: allocator,
                     binaryLoader: binaryLoader,
                     options: options
                 )
-                return (index, meshes)
+                return (MeshIndex(index), meshes)
             }
         }
 
-        var result: [Int: [MDLMesh]] = [:]
+        var result: [MeshIndex: MDLObject] = [:]
         for try await (index, meshes) in group {
             result[index] = meshes
         }
         return result
+    }
+
+    // 全ての skins を先に変換して保持
+    // en: Convert all skins first and keep them for reuse
+    var skinMap: [SkinIndex: GLTFSkeleton] = [:]
+    for (index, skin) in (gltf.skins ?? []).enumerated() {
+        let inverseBindTransforms = try {
+            if let accessoryIndex = skin.inverseBindMatrices, let accessor = gltf.accessors?[accessoryIndex.value] {
+                let data = try binaryLoader.extractData(accessorIndex: accessoryIndex)
+                let matrixArray = MDLMatrix4x4Array(elementCount: accessor.count)
+                matrixArray.float4x4Array = data.withUnsafeBytes { bytes in
+                    Array(bytes.bindMemory(to: float4x4.self))
+                }
+                if options.convertToLeftHanded {
+                     matrixArray.float4x4Array = matrixArray.float4x4Array.map { flipToLeftHanded($0) }
+                }
+                return matrixArray
+            } else {
+                let matrixArray = MDLMatrix4x4Array(elementCount: skin.joints.count)
+                matrixArray.float4x4Array = [float4x4(1.0)]
+                return matrixArray
+            }
+        }()
+        let skeleton = GLTFSkeleton(
+            name: skin.name ?? "Skin_\(index)",
+            joins: skin.joints,
+            inverseBindMatrices: inverseBindTransforms
+        )
+        skinMap[SkinIndex(index)] = skeleton
     }
 
     // デフォルトシーンを取得
@@ -123,8 +88,9 @@ public func makeMDLAsset(
         throw SwiftGLTFError.makeParse(.noValidScene, context: .capture(stage: .parse, jsonPointer: "/scene"))
     }
 
+    // Build the node tree
     for rootNodeIndex in scene.nodes ?? [] {
-        let root = buildNodeTree(gltf: gltf, mdlMeshMap: mdlMeshMap, nodeIndex: rootNodeIndex, options: options)
+        let root = buildNodeTree(nodeIndex: rootNodeIndex, meshMap: mdlMeshMap, skinMap: skinMap, gltf: gltf, options: options)
         asset.add(root)
     }
 
@@ -151,15 +117,17 @@ public func makeMDLAsset(
 
 public func makeMDLMesh(
     from mesh: Mesh,
+    name: String,
     using gltf: GLTF,
     allocator: MTKMeshBufferAllocator,
     binaryLoader: GLTFBinaryLoader,
     options: GLTFDecodeOptions = .default
-) throws -> [MDLMesh] {
+) throws -> MDLObject {
     let allocator = MTKMeshBufferAllocator(device: MTLCreateSystemDefaultDevice()!) // TODO: Metal device should be passed from outside
 
-    var mdlMeshes: [MDLMesh] = []
-    for primitive in mesh.primitives {
+    let meshesObject = MDLObject()
+    meshesObject.name = name
+    for (index, primitive) in mesh.primitives.enumerated() {
         let accessors = gltf.accessors ?? []
         let materials = gltf.materials ?? []
         let vertexCount = retrieveVertexCount(for: primitive, accessors: accessors)
@@ -175,6 +143,15 @@ public func makeMDLMesh(
         let texcoordVertex0 = try makeTexcoordVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader, texCoordIndex: 0)
         let texcoordVertex1 = try makeTexcoordVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader, texCoordIndex: 1)
         let modulationColorVertex = try makeModulationColorVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
+        var jointsVertex = try makeJointVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
+        var weightsVertex = try makeWeightVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
+
+        // If JOINTS_0/WEIGHTS_0 are not both present, disable skinning
+        if (jointsVertex == nil) != (weightsVertex == nil) {
+            os_log("JOINTS_0/WEIGHTS_0 mismatch: disabling skinning for this primitive", log: .default, type: .info)
+            jointsVertex = nil
+            weightsVertex = nil
+        }
 
         if normalVertex == nil,
            primitive.mode == .triangles {
@@ -203,7 +180,9 @@ public func makeMDLMesh(
             tangentVertex,
             texcoordVertex0,
             texcoordVertex1,
-            modulationColorVertex
+            modulationColorVertex,
+            jointsVertex,
+            weightsVertex
         )
 
         let vertexData = makeVertexData(
@@ -213,6 +192,8 @@ public func makeMDLMesh(
             texcoordVertex0,
             texcoordVertex1,
             modulationColorVertex,
+            jointsVertex,
+            weightsVertex,
             vertexCount: vertexCount,
             options: options
         )
@@ -264,32 +245,46 @@ public func makeMDLMesh(
             descriptor: vertexDescriptor,
             submeshes: [submesh]
         )
-        mdlMeshes.append(mesh)
+        mesh.name = "Primitive_\(index)"
+
+        meshesObject.addChild(mesh)
     }
-    return mdlMeshes
+
+    return meshesObject
 }
 
 // 各ノードを再帰的に MDLObject に変換
 // en: Recursively convert each node to MDLObject
 func buildNodeTree(
-    gltf: GLTF,
-    mdlMeshMap: [Int: [MDLMesh]],
     nodeIndex: Int,
+    meshMap: [MeshIndex: MDLObject],
+    skinMap: [SkinIndex: GLTFSkeleton],
+    gltf: GLTF,
     options: GLTFDecodeOptions = .default
 ) -> MDLObject {
     let nodes = gltf.nodes ?? []
     let node: Node = {
         if nodes.indices.contains(nodeIndex) { return nodes[nodeIndex] }
-        return Node(name: nil, mesh: nil, children: nil, translation: nil, rotation: nil, scale: nil, matrix: nil)
+        return Node(name: nil, mesh: nil, skin: nil, children: nil, translation: nil, rotation: nil, scale: nil, matrix: nil)
     }()
     let object = MDLObject()
-    object.name = node.name ?? "Node \(nodeIndex)" // ノード名が無ければデフォルト名を設定. en: Set default name if node name is missing
+    object.name = node.name ?? "Node_\(nodeIndex)" // ノード名が無ければデフォルト名を設定. en: Set default name if node name is missing
 
-    // メッシュがあれば追加
-    // en: Add mesh if available
-    if let meshIndex = node.mesh, let mdlMeshes = mdlMeshMap[meshIndex] {
-        for mesh in mdlMeshes {
-            object.addChild(mesh)
+    // Add mesh if available
+    if let meshIndex = node.mesh, let mesh = meshMap[meshIndex] {
+        object.addChild(mesh)
+    }
+
+    // Add skin if available
+    if let skinIndex = node.skin, let skin = skinMap[skinIndex] {
+        object.addChild(skin)
+    }
+
+    for skin in skinMap.values {
+        for (i, jointNodeIndex) in skin.joins.enumerated() {
+            if nodeIndex == jointNodeIndex.value {
+                skin.setJointObject(object, for: i)
+            }
         }
     }
 
@@ -322,7 +317,7 @@ func buildNodeTree(
     // en: Recursively add child nodes
     if let children = node.children {
         for childIndex in children {
-            let child = buildNodeTree(gltf: gltf, mdlMeshMap: mdlMeshMap, nodeIndex: childIndex, options: options)
+            let child = buildNodeTree(nodeIndex: childIndex, meshMap: meshMap, skinMap: skinMap, gltf: gltf, options: options)
             object.addChild(child)
         }
     }
@@ -538,6 +533,117 @@ private func makeModulationColorVertex(
     )
 }
 
+private func makeJointVertex(
+    for primitive: Primitive,
+    accessors: [Accessor],
+    binaryLoader: GLTFBinaryLoader
+) throws -> VertexInfo? {
+    guard let attrIndex = primitive.attributes["JOINTS_0"], accessors.indices.contains(attrIndex) else {
+        return nil
+    }
+    let accessor = accessors[attrIndex]
+    guard accessor.type == .vec4 else {
+        throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "JOINTS_0", expected: "VEC4"), context: .capture(stage: .parse))
+    }
+    switch accessor.componentType {
+    case .unsignedByte, .unsignedShort:
+        let raw = try binaryLoader.extractData(accessorIndex: AccessorIndex(attrIndex))
+        if accessor.componentType == .unsignedShort {
+            return VertexInfo(data: raw, componentFormat: .uShort4, componentSize: MemoryLayout<UInt16>.size * 4)
+        } else {
+            // Expand uChar4 -> uShort4
+            var out = Data(capacity: accessor.count * MemoryLayout<UInt16>.size * 4)
+            raw.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+                let src = ptr.bindMemory(to: UInt8.self)
+                var i = 0
+                while i < src.count {
+                    let a = UInt16(src[i])
+                    let b = UInt16(src[i+1])
+                    let c = UInt16(src[i+2])
+                    let d = UInt16(src[i+3])
+                    var vals: [UInt16] = [a,b,c,d]
+                    out.append(Data(bytes: &vals, count: MemoryLayout<UInt16>.size * 4))
+                    i += 4
+                }
+            }
+            return VertexInfo(data: out, componentFormat: .uShort4, componentSize: MemoryLayout<UInt16>.size * 4)
+        }
+    default:
+        throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "JOINTS_0", expected: "uByte4 or uShort4"), context: .capture(stage: .parse))
+    }
+}
+
+private func makeWeightVertex(
+    for primitive: Primitive,
+    accessors: [Accessor],
+    binaryLoader: GLTFBinaryLoader
+) throws -> VertexInfo? {
+    guard let attrIndex = primitive.attributes["WEIGHTS_0"], accessors.indices.contains(attrIndex) else {
+        return nil
+    }
+    let accessor = accessors[attrIndex]
+    guard accessor.type == .vec4 else {
+        throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "WEIGHTS_0", expected: "VEC4"), context: .capture(stage: .parse))
+    }
+    let count = accessor.count
+    switch accessor.componentType {
+    case .float:
+        let raw = try binaryLoader.extractData(accessorIndex: AccessorIndex(attrIndex))
+        // Ensure float4 stride
+        return VertexInfo(data: raw, componentFormat: .float4, componentSize: MemoryLayout<Float>.size * 4)
+    case .unsignedByte, .unsignedShort:
+        let raw = try binaryLoader.extractData(accessorIndex: AccessorIndex(attrIndex))
+        var out = Data(count: count * MemoryLayout<Float>.size * 4)
+        out.withUnsafeMutableBytes { (dstPtr: UnsafeMutableRawBufferPointer) in
+            let dst = dstPtr.bindMemory(to: Float.self)
+            if accessor.componentType == .unsignedByte {
+                raw.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) in
+                    let src = srcPtr.bindMemory(to: UInt8.self)
+                    var i = 0
+                    var o = 0
+                    while i < src.count {
+                        let a = Float(src[i]) / 255.0
+                        let b = Float(src[i+1]) / 255.0
+                        let c = Float(src[i+2]) / 255.0
+                        let d = Float(src[i+3]) / 255.0
+                        let sum = a + b + c + d
+                        if sum > 0 {
+                            let inv = 1.0 / sum
+                            dst[o] = a * inv; dst[o+1] = b * inv; dst[o+2] = c * inv; dst[o+3] = d * inv
+                        } else {
+                            dst[o] = 0; dst[o+1] = 0; dst[o+2] = 0; dst[o+3] = 0
+                        }
+                        i += 4; o += 4
+                    }
+                }
+            } else {
+                raw.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) in
+                    let src = srcPtr.bindMemory(to: UInt16.self)
+                    var i = 0
+                    var o = 0
+                    while i < src.count {
+                        let a = Float(src[i]) / 65535.0
+                        let b = Float(src[i+1]) / 65535.0
+                        let c = Float(src[i+2]) / 65535.0
+                        let d = Float(src[i+3]) / 65535.0
+                        let sum = a + b + c + d
+                        if sum > 0 {
+                            let inv = 1.0 / sum
+                            dst[o] = a * inv; dst[o+1] = b * inv; dst[o+2] = c * inv; dst[o+3] = d * inv
+                        } else {
+                            dst[o] = 0; dst[o+1] = 0; dst[o+2] = 0; dst[o+3] = 0
+                        }
+                        i += 4; o += 4
+                    }
+                }
+            }
+        }
+        return VertexInfo(data: out, componentFormat: .float4, componentSize: MemoryLayout<Float>.size * 4)
+    default:
+        throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "WEIGHTS_0", expected: "float4|uByte4|uShort4"), context: .capture(stage: .parse))
+    }
+}
+
 private func makeIndexInfo(
     for primitive: Primitive,
     accessors: [Accessor],
@@ -589,7 +695,9 @@ private func makeVertexDescriptor(
     _ tangentVertex: VertexInfo?,
     _ texcoordVertex0: VertexInfo?,
     _ texcoordVertex1: VertexInfo?,
-    _ modulationColorVertex: VertexInfo?
+    _ modulationColorVertex: VertexInfo?,
+    _ jointsVertex: VertexInfo?,
+    _ weightsVertex: VertexInfo?
 ) throws -> MDLVertexDescriptor {
     let descriptor = MDLVertexDescriptor()
     var offset = 0
@@ -622,6 +730,16 @@ private func makeVertexDescriptor(
     if let modulationColorVertex {
         if modulationColorVertex.componentFormat != .float3 && modulationColorVertex.componentFormat != .float4 {
             throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "COLOR", expected: "float3 or float4"), context: .capture(stage: .parse))
+        }
+    }
+    if let jointsVertex {
+        if jointsVertex.componentFormat != .uShort4 {
+            throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "JOINTS_0", expected: "uShort4"), context: .capture(stage: .parse))
+        }
+    }
+    if let weightsVertex {
+        if weightsVertex.componentFormat != .float4 {
+            throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "WEIGHTS_0", expected: "float4"), context: .capture(stage: .parse))
         }
     }
 
@@ -673,6 +791,22 @@ private func makeVertexDescriptor(
     )
     offset += MemoryLayout<Float>.size * 4
 
+    descriptor.attributes[GLTFVertexAttributeIndex.JOINTS_0] = MDLVertexAttribute(
+        name: MDLVertexAttributeJointIndices,
+        format: .uShort4,
+        offset: offset,
+        bufferIndex: 0
+    )
+    offset += MemoryLayout<UInt16>.size * 4
+
+    descriptor.attributes[GLTFVertexAttributeIndex.WEIGHTS_0] = MDLVertexAttribute(
+        name: MDLVertexAttributeJointWeights,
+        format: .float4,
+        offset: offset,
+        bufferIndex: 0
+    )
+    offset += MemoryLayout<Float>.size * 4
+
     descriptor.layouts[0] = MDLVertexBufferLayout(stride: offset)
 
     return descriptor
@@ -685,6 +819,8 @@ private func makeVertexData(
     _ texcoordVertex0: VertexInfo?,
     _ texcoordVertex1: VertexInfo?,
     _ modulationColorVertex: VertexInfo?,
+    _ jointsVertex: VertexInfo?,
+    _ weightsVertex: VertexInfo?,
     vertexCount: Int,
     options: GLTFDecodeOptions
 ) -> Data {
@@ -773,6 +909,28 @@ private func makeVertexData(
             // If no modulation color is provided, use default color (1, 1, 1, 1)
             var defaultColor: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1)
             vertexData.append(Data(bytes: &defaultColor, count: MemoryLayout<SIMD4<Float>>.size))
+        }
+
+        // Joints
+        if let jointsVertex {
+            let stride = jointsVertex.componentSize
+            let base = i * stride
+            let slice = jointsVertex.data[base..<base+stride]
+            vertexData.append(slice)
+        } else {
+            var defaultJoints: [UInt16] = [0, 0, 0, 0]
+            vertexData.append(Data(bytes: &defaultJoints, count: MemoryLayout<UInt16>.size * 4))
+        }
+
+        // Weights
+        if let weightsVertex {
+            let stride = weightsVertex.componentSize
+            let base = i * stride
+            let slice = weightsVertex.data[base..<base+stride]
+            vertexData.append(slice)
+        } else {
+            var defaultWeights: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0)
+            vertexData.append(Data(bytes: &defaultWeights, count: MemoryLayout<SIMD4<Float>>.size))
         }
     }
 

@@ -7,6 +7,8 @@ public enum GLTFVertexAttributeIndex {
     public static let TEXCOORD_0 = 3
     public static let TEXCOORD_1 = 4
     public static let COLOR_0 = 5
+    public static let JOINTS_0 = 6
+    public static let WEIGHTS_0 = 7
 }
 
 public func makeGLTFVertexDescriptor() -> MTLVertexDescriptor {
@@ -47,6 +49,18 @@ public func makeGLTFVertexDescriptor() -> MTLVertexDescriptor {
     mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.COLOR_0].format = .float4
     mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.COLOR_0].offset = offset
     mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.COLOR_0].bufferIndex = 0
+    offset += 16
+
+    // joint indices
+    mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.JOINTS_0].format = .ushort4
+    mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.JOINTS_0].offset = offset
+    mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.JOINTS_0].bufferIndex = 0
+    offset += 8
+
+    // joint weights
+    mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.WEIGHTS_0].format = .float4
+    mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.WEIGHTS_0].offset = offset
+    mtlVertexDescriptor.attributes[GLTFVertexAttributeIndex.WEIGHTS_0].bufferIndex = 0
     offset += 16
 
     // Set the layout stride

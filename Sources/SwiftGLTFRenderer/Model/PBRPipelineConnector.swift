@@ -1,6 +1,7 @@
 import MetalKit
 import SwiftGLTFParser
 import SwiftGLTFCore
+import SwiftGLTFShaderTypes
 
 class PBRPipelineConnector {
     private let device: MTLDevice
@@ -134,6 +135,36 @@ class PBRPipelineConnector {
         encoder.setTexture(irradianceMap, index: 1)
         encoder.setTexture(brdfLUT, index: 2)
 
+        return buffer
+    }
+
+    func getVertexArgumentsSize() -> Int {
+        let encoder = vertexFunction.makeArgumentEncoder(bufferIndex: 1)
+        return encoder.encodedLength
+    }
+
+    func makeVertexArgumentsBuffer(
+        model: UnsafePointer<simd_float4x4>,
+        inverseModel: UnsafePointer<simd_float4x4>,
+        hasSkinning: UnsafePointer<Bool>,
+        globalJointMatricesBuffer: MTLBuffer?
+    ) throws -> MTLBuffer {
+        let encoder = vertexFunction.makeArgumentEncoder(bufferIndex: 1)
+        guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
+            throw SwiftGLTFError.makeRender(.argumentBufferCreateFailed, context: .capture(stage: .render))
+        }
+        encoder.setArgumentBuffer(buffer, offset: 0)
+
+        let modelAddr = encoder.constantData(at: 0)
+        modelAddr.copyMemory(from: model, byteCount: MemoryLayout<simd_float4x4>.size)
+
+        let inverseModelAddr = encoder.constantData(at: 1)
+        inverseModelAddr.copyMemory(from: inverseModel, byteCount: MemoryLayout<simd_float4x4>.size)
+
+        let hasSkinningAddr = encoder.constantData(at: 2)
+        hasSkinningAddr.copyMemory(from: hasSkinning, byteCount: MemoryLayout<Bool>.size)
+
+        encoder.setBuffer(globalJointMatricesBuffer, offset: 0, index: 3)
         return buffer
     }
 }

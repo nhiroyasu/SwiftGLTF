@@ -4,9 +4,11 @@ import SwiftGLTFParser
 
 class WireframeMeshLoader {
     private let device: MTLDevice
+    private let pipelineConnector: WireframePipelineConnector
 
-    init(device: MTLDevice) {
+    init(device: MTLDevice, pipelineConnector: WireframePipelineConnector) {
         self.device = device
+        self.pipelineConnector = pipelineConnector
     }
 
     func loadMeshes(from asset: MDLAsset) throws -> [PBRMesh] {
@@ -57,15 +59,16 @@ class WireframeMeshLoader {
             }
 
             var model = transform
+            let vertexArgumentBuffer = try pipelineConnector.makeVertexArgumentsBuffer(
+                model: &model
+            )
 
             let pbrMesh = PBRMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
-                modelBuffer: device.makeBuffer(
-                    bytes: &model,
-                    length: MemoryLayout<float4x4>.size
-                )!,
                 modelMatrix: model,
-                submeshes: submeshes
+                vertexArgumentBuffer: vertexArgumentBuffer,
+                submeshes: submeshes,
+                _storedHeapInstance: []
             )
             pbrMeshes.append(pbrMesh)
         }

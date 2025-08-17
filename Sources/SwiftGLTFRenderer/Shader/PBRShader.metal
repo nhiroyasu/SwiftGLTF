@@ -104,6 +104,17 @@ float3 compute_indirect_lighting(float3 normal,
     return result;
 }
 
+float4x4 compute_skin_matrix(constant float4x4 *globalJointMatrices,
+                             float4x4 inverseGlobalTransform,
+                             ushort4 joints,
+                             float4 weights) {
+    float4x4 skinMatrix = weights.x * inverseGlobalTransform * globalJointMatrices[joints.x] +
+                          weights.y * inverseGlobalTransform * globalJointMatrices[joints.y] +
+                          weights.z * inverseGlobalTransform * globalJointMatrices[joints.z] +
+                          weights.w * inverseGlobalTransform * globalJointMatrices[joints.w];
+    return skinMatrix;
+}
+
 // MARK: - Shader Structures
 
 struct VertexIn {
@@ -113,6 +124,8 @@ struct VertexIn {
     float2 uv [[attribute(3)]];
     float2 uv1 [[attribute(4)]];
     float4 modulationColor [[attribute(5)]];
+    ushort4 joints [[attribute(6)]];
+    float4 weights [[attribute(7)]];
 };
 
 struct PBRVertexOut {
@@ -123,6 +136,13 @@ struct PBRVertexOut {
     float2 uv;
     float2 uv1;
     float4 modulationColor;
+};
+
+struct PBRVertexArguments {
+    float4x4 model [[id(0)]];
+    float4x4 inverseModel [[id(1)]];
+    bool hasSkinning [[id(2)]];
+    constant float4x4 *globalJointMatrices [[id(3)]];
 };
 
 struct PBRFragmentArguments {
@@ -166,12 +186,15 @@ struct PBREnvMapArguments {
 // MARK: - PBR Shader
 
 vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
-                                      constant float4x4 &model [[buffer(1)]],
+                                      constant PBRVertexArguments &args [[buffer(1)]],
                                       constant PBRVertexVariableParameters &params [[buffer(2)]])
 {
     PBRVertexOut out;
 
-    float4x4 modelTransform = params.externalTransform * model;
+    float4x4 skinMatrix = args.hasSkinning
+    ? compute_skin_matrix(args.globalJointMatrices, args.inverseModel, in.joints, in.weights)
+    : float4x4(1.0);
+    float4x4 modelTransform = params.externalTransform * args.model * skinMatrix;
     float4x4 mvpTransform = params.projection * params.view * modelTransform;
 
     float3x3 normalTransform = transpose(inverse(_float3x3(modelTransform)));

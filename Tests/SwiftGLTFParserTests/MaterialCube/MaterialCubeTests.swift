@@ -7,7 +7,7 @@ struct MaterialCubeTests {
     @Test
     func testMetallicRoughnessFactor() async throws {
         let (_, asset) = try await loadGLTFAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
         let metallicFactor = material.property(with: .metallic)!
@@ -20,7 +20,7 @@ struct MaterialCubeTests {
     @Test
     func testBaseColorFactor() async throws {
         let (_, asset) = try await loadGLTFAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
         let baseColorFactor = material.property(with: .baseColor)!

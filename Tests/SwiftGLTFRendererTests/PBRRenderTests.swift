@@ -164,19 +164,20 @@ final class PBRRenderTests {
 
     let goldenFilePrefix = "golden_pbr_mesh_"
     let outputFilePrefix = "wireframe_mesh_"
-    let meshNames: [String] = [
-        "BoxTextured",
-        "CompareBaseColor",
-        "CompareEmissiveStrength",
-        "CompareMetallic",
-        "CompareNormal",
-        "CompareRoughness",
-        "OrientationTest",
-        "TextureCoordinateTest",
-        "VertexColorTest",
-        "Fox",
-        "MultiUVTest",
-        "TextureSettingsTest"
+    let meshFiles: [(String, String)] = [
+        ("BoxTextured", "glb"),
+        ("CompareBaseColor", "glb"),
+        ("CompareEmissiveStrength", "glb"),
+        ("CompareMetallic", "glb"),
+        ("CompareNormal", "glb"),
+        ("CompareRoughness", "glb"),
+        ("OrientationTest", "glb"),
+        ("TextureCoordinateTest", "glb"),
+        ("VertexColorTest", "glb"),
+        ("Fox", "glb"),
+        ("MultiUVTest", "glb"),
+        ("TextureSettingsTest", "glb"),
+        ("SimpleSkin", "gltf")
     ]
 
     // Export baseline textures
@@ -185,9 +186,9 @@ final class PBRRenderTests {
     func ExportGoldenImages() async throws {
         guard EXPORT_GOLDEN_IMAGES_FLAG, !isCI() else { return }
 
-        for meshName in meshNames {
+        for (meshName, ext) in meshFiles {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
-            let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
+            let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
             try await renderMesh(to: meshTarget, meshURL: meshURL)
             try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName).png")
         }
@@ -200,9 +201,9 @@ final class PBRRenderTests {
         // This rendering test is not run on CI because it depends on the GPU and the supported Metal version.
         guard !isCI() else { return }
 
-        for meshName in meshNames {
+        for (meshName, ext) in meshFiles {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
-            let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
+            let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
             try await renderMesh(to: meshTarget, meshURL: meshURL)
 
             assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")

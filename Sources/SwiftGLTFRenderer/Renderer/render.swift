@@ -47,7 +47,7 @@ func drawPBR(
     renderEncoder.setDepthStencilState(depthStencilStateWrite)
     for mesh in meshes {
         renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-        renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
+        renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: 1)
         for submesh in mesh.submeshes where submesh.alphaMode == .opaque {
             renderEncoder.setFragmentBuffer(submesh.fragmentArgumentBuffer, offset: 0, index: 0)
             // Culling control per material
@@ -67,7 +67,7 @@ func drawPBR(
     renderEncoder.setDepthStencilState(depthStencilStateWrite)
     for mesh in meshes {
         renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-        renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
+        renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: 1)
         for submesh in mesh.submeshes where submesh.alphaMode == .mask {
             renderEncoder.setFragmentBuffer(submesh.fragmentArgumentBuffer, offset: 0, index: 0)
             renderEncoder.setCullMode(submesh.doubleSided ? .none : .back)
@@ -106,7 +106,7 @@ func drawPBR(
         let mesh = meshes[item.meshIndex]
         let submesh = mesh.submeshes[item.submeshIndex]
         renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-        renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
+        renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: 1)
         renderEncoder.setFragmentBuffer(submesh.fragmentArgumentBuffer, offset: 0, index: 0)
         renderEncoder.setCullMode(submesh.doubleSided ? .none : .back)
         renderEncoder.drawIndexedPrimitives(
@@ -133,7 +133,7 @@ func drawWireframe(
     renderEncoder.setVertexBuffer(vertexParams, offset: 0, index: 2)
     for mesh in meshes {
         renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-        renderEncoder.setVertexBuffer(mesh.modelBuffer, offset: 0, index: 1)
+        renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: 1)
         for submesh in mesh.submeshes {
             renderEncoder.setCullMode(submesh.doubleSided ? .none : .back)
             renderEncoder.drawIndexedPrimitives(
