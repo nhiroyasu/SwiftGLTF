@@ -2,9 +2,10 @@ import MetalKit
 
 struct PBRMesh {
     let vertexBuffer: MTLBuffer
-    let modelBuffer: MTLBuffer
     let modelMatrix: simd_float4x4
+    let vertexArgumentBuffer: MTLBuffer
     let submeshes: [Submesh]
+    let _storedHeapInstance: [MTLResource?]
 
     struct Submesh {
         let primitiveType: MTLPrimitiveType

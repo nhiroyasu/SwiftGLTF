@@ -19,7 +19,7 @@ struct CubeBinaryTests {
         // Root object should contain one mesh
         #expect(asset.count == 1)
         let scene = asset.object(at: 0)
-        let mesh = scene.children.objects[0] as! MDLMesh
+        let mesh = scene.children[0].children[0] as! MDLMesh
         // Cube has 24 vertices and 36 indices
         #expect(mesh.vertexCount == 24)
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
@@ -29,7 +29,7 @@ struct CubeBinaryTests {
     @Test
     func testVertexData() async throws {
         let (_, asset) = try await loadGLBAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         #expect(mesh.vertexCount == 24)
         #expect(mesh.vertexBuffers[0].length == 24 * VertexAttributeStride.stride)
     }
@@ -37,7 +37,7 @@ struct CubeBinaryTests {
     @Test
     func testIndexData() async throws {
         let (_, asset) = try await loadGLBAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         #expect(submesh.indexCount == 36)
         #expect(submesh.indexType == .uInt16)
@@ -46,7 +46,7 @@ struct CubeBinaryTests {
     @Test
     func testGeometryType() async throws {
         let (_, asset) = try await loadGLBAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         #expect(submesh.geometryType == .triangles)
     }
@@ -63,7 +63,7 @@ struct CubeBinaryTests {
     @Test
     func testVertexDescriptor() async throws {
         let (_, asset) = try await loadGLBAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let descriptor = mesh.vertexDescriptor
 
         let position = descriptor.attributes[0] as! MDLVertexAttribute
@@ -91,7 +91,7 @@ struct CubeBinaryTests {
     @Test
     func testIndexBufferMatchesOriginalBinary() async throws {
         let (gltf, asset) = try await loadGLBAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let indicesData = (mesh.submeshes?.firstObject as! MDLSubmesh).indexBuffer.map().bytes.assumingMemoryBound(to: UInt8.self)
 
         let binURL = Bundle.module.url(forResource: "cube", withExtension: "bin")!
@@ -112,7 +112,7 @@ struct CubeBinaryTests {
     @Test
     func testPositionBufferMatchesOriginalBinary() async throws {
         let (gltf, asset) = try await loadGLBAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
         let binURL = Bundle.module.url(forResource: "cube", withExtension: "bin")!
@@ -141,7 +141,7 @@ struct CubeBinaryTests {
     @Test
     func testNormalBufferMatchesOriginalBinary() async throws {
         let (gltf, asset) = try await loadGLBAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
         let binURL = Bundle.module.url(forResource: "cube", withExtension: "bin")!
@@ -170,7 +170,7 @@ struct CubeBinaryTests {
     @Test
     func testTexCoordBufferMatchesOriginalBinary() async throws {
         let (gltf, asset) = try await loadGLBAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
         let binURL = Bundle.module.url(forResource: "cube", withExtension: "bin")!
@@ -199,7 +199,7 @@ struct CubeBinaryTests {
     @Test
     func testMaterialProperties() async throws {
         let (_, asset) = try await loadGLBAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
 
@@ -240,8 +240,8 @@ struct CubeBinaryTests {
 }
 
 enum VertexAttributeStride {
-    // 12 (position) + 12 (normal) + 16 (tangent) + 8 (texcoord0) + 8 (texcoord1) + 16 (color)
-    static let stride = 72
+    // 12 (position) + 12 (normal) + 16 (tangent) + 8 (texcoord0) + 8 (texcoord1) + 16 (color) + 8 (joints) + 16 (weights)
+    static let stride = 96
 }
 
 enum VertexAttributeSize: CaseIterable {
@@ -251,6 +251,8 @@ enum VertexAttributeSize: CaseIterable {
     static let texcoord0 = 8 // float2
     static let texcoord1 = 8 // float2
     static let color = 16 // float4
+    static let joints = 8 // float4
+    static let weights = 16 // float4
 }
 
 enum VertexAttributeOffset {
@@ -258,6 +260,8 @@ enum VertexAttributeOffset {
     static let normal = 12
     static let tangent = 24
     static let texcoord0 = 40
-    static let color = 48
-    static let texcoord1 = 64
+    static let texcoord1 = 48
+    static let color = 56
+    static let joints = 72
+    static let weights = 80
 }

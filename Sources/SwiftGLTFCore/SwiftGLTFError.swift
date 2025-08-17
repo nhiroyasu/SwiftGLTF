@@ -118,6 +118,9 @@ public enum ParseErrorCode: Sendable, Equatable {
     case unsupportedIndexTypeForNormalGeneration
     case invalidVertexFormat(attribute: String, expected: String)
     case noValidMaterial
+    case skinJointsCountMismatch
+    case missingSkin(index: Int)
+    case invalidSkinReference(node: Int)
 }
 
 public enum IOErrorCode: Sendable, Equatable {
@@ -156,6 +159,8 @@ public enum RenderErrorCode: Sendable, Equatable {
     case fragmentArgumentHeapCreateFailed
     case vertexModelHeapCreateFailed
     case argumentBufferCreateFailed
+    case skeletonHeapCreateFailed
+    case heapBufferCreateFailed
 }
 
 public enum ValidateErrorCode: Sendable, Equatable {
@@ -269,6 +274,9 @@ extension SwiftGLTFError: LocalizedError {
         case .unsupportedIndexType: return "Unsupported index type"
         case let .invalidVertexFormat(attribute, expected): return "\(attribute) vertex must be \(expected)"
         case .noValidMaterial: return "No valid material found"
+        case .skinJointsCountMismatch: return "skin.joints count and inverseBindMatrices length mismatch"
+        case let .missingSkin(index): return "Skin not found at index \(index)"
+        case let .invalidSkinReference(node): return "Invalid skin reference on node \(node)"
         }
     }
 
@@ -311,6 +319,8 @@ extension SwiftGLTFError: LocalizedError {
         case .fragmentArgumentHeapCreateFailed: return "Failed to create fragment argument heap"
         case .vertexModelHeapCreateFailed: return "Failed to create vertex model heap"
         case .argumentBufferCreateFailed: return "Failed to create argument buffer"
+        case .skeletonHeapCreateFailed: return "Failed to create skeleton heap"
+        case .heapBufferCreateFailed: return "Failed to create heap buffer"
         }
     }
 
@@ -366,6 +376,9 @@ extension SwiftGLTFError: CustomNSError {
         case .unsupportedIndexType: return 7
         case .invalidVertexFormat: return 8
         case .noValidMaterial: return 9
+        case .skinJointsCountMismatch: return 10
+        case .missingSkin: return 11
+        case .invalidSkinReference: return 12
         }
     }
 
@@ -408,6 +421,8 @@ extension SwiftGLTFError: CustomNSError {
         case .fragmentArgumentHeapCreateFailed: return 12
         case .vertexModelHeapCreateFailed: return 13
         case .argumentBufferCreateFailed: return 14
+        case .skeletonHeapCreateFailed: return 15
+        case .heapBufferCreateFailed: return 16
         }
     }
 
@@ -439,4 +454,3 @@ public extension SwiftGLTFError {
         }
     }
 }
-

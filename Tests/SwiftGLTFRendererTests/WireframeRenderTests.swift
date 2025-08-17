@@ -39,8 +39,19 @@ final class WireframeRenderTests {
     }
 
     func renderMesh(to output: MTLTexture, meshURL: URL) async throws {
+        let pipelineConnector = try WireframePipelineConnector(
+            device: device,
+            library: library,
+            config: PipelineStateLoaderConfig(
+                sampleCount: 1,
+                colorPixelFormat: output.pixelFormat,
+                depthPixelFormat: .depth32Float
+            ),
+            shaderConnection: shaderConnection
+        )
         let loader = WireframeMeshLoader(
-            device: device
+            device: device,
+            pipelineConnector: pipelineConnector
         )
         
         // Create view-projection matrix buffer

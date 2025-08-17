@@ -115,7 +115,43 @@ class ShaderConnection {
         return output
     }
 
-    func moveResourcesToHeap(
+    func moveBuffersToHeap(
+        from buffers: [MTLBuffer],
+        use heap: MTLHeap
+    ) throws -> [MTLBuffer] {
+        guard let commandBuffer = commandQueue.makeCommandBuffer() else {
+            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
+        }
+        guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
+            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+        }
+
+        var heapBuffers: [MTLBuffer] = []
+
+        for sourceBuffer in buffers {
+            guard let heapBuffer = heap.makeBuffer(
+                length: sourceBuffer.length,
+                options: [.storageModePrivate]
+            ) else {
+                throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+            }
+            encoder.copy(
+                from: sourceBuffer,
+                sourceOffset: 0,
+                to: heapBuffer,
+                destinationOffset: 0,
+                size: sourceBuffer.length
+            )
+            heapBuffers.append(heapBuffer)
+        }
+
+        encoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        return heapBuffers
+    }
+
+    func moveBufferToHeap(
         from buffer: MTLBuffer,
         use heap: MTLHeap
     ) throws -> MTLBuffer {

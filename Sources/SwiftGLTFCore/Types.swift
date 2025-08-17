@@ -24,6 +24,7 @@ public struct GLTF: Codable {
     public let scenes: [Scene]?
     public let scene: Int? // spec: default undefined
     public let nodes: [Node]?
+    public let skins: [Skin]?
     public let materials: [Material]?
     public let images: [Image]?
     public let textures: [Texture]?
@@ -38,6 +39,7 @@ public struct GLTF: Codable {
         case scenes
         case scene
         case nodes
+        case skins
         case materials
         case images
         case textures
@@ -54,6 +56,7 @@ public struct GLTF: Codable {
         self.scenes = try container.decodeIfPresent([Scene].self, forKey: .scenes)
         self.scene = try container.decodeIfPresent(Int.self, forKey: .scene)
         self.nodes = try container.decodeIfPresent([Node].self, forKey: .nodes)
+        self.skins = try container.decodeIfPresent([Skin].self, forKey: .skins)
         self.materials = try container.decodeIfPresent([Material].self, forKey: .materials)
         self.images = try container.decodeIfPresent([Image].self, forKey: .images)
         self.textures = try container.decodeIfPresent([Texture].self, forKey: .textures)
@@ -233,21 +236,40 @@ public struct OcclusionTextureInfo: Codable {
 
 public struct Node: Codable {
     public let name: String?
-    public let mesh: Int?
+    public let mesh: MeshIndex?
+    public let skin: SkinIndex?
     public let children: [Int]?
     public let translation: [Float]?
     public let rotation: [Float]?
     public let scale: [Float]?
     public let matrix: [Float]?
 
-    public init(name: String?, mesh: Int?, children: [Int]?, translation: [Float]?, rotation: [Float]?, scale: [Float]?, matrix: [Float]?) {
+    public init(name: String?, mesh: MeshIndex?, skin: SkinIndex?, children: [Int]?, translation: [Float]?, rotation: [Float]?, scale: [Float]?, matrix: [Float]?) {
         self.name = name
         self.mesh = mesh
+        self.skin = skin
         self.children = children
         self.translation = translation
         self.rotation = rotation
         self.scale = scale
         self.matrix = matrix
+    }
+}
+
+public struct NodeIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+    public let value: Int
+
+    public init(_ value: Int) {
+        self.value = value
+    }
+
+    public init(integerLiteral value: Int) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try container.decode(Int.self)
     }
 }
 
@@ -338,6 +360,9 @@ public struct Accessor: Codable {
     public let type: GLTFDataType
     public let max: [Float]?
     public let min: [Float]?
+    /// If true, integer data values should be normalized to [0,1] (unsigned) or [-1,1] (signed)
+    /// For WEIGHTS_0, this allows decoding ubyte4/ushort4 as float4 via normalization.
+    public let normalized: Bool
 
     enum CodingKeys: String, CodingKey {
         case bufferView
@@ -347,6 +372,7 @@ public struct Accessor: Codable {
         case type
         case max
         case min
+        case normalized
     }
 
     public init(from decoder: Decoder) throws {
@@ -358,11 +384,56 @@ public struct Accessor: Codable {
         self.type = try container.decode(GLTFDataType.self, forKey: .type)
         self.max = try container.decodeIfPresent([Float].self, forKey: .max)
         self.min = try container.decodeIfPresent([Float].self, forKey: .min)
+        self.normalized = try container.decodeIfPresent(Bool.self, forKey: .normalized) ?? false
+    }
+}
+
+public struct Skin: Codable {
+    public let name: String?
+    public let inverseBindMatrices: AccessorIndex?
+    /// Skeleton root node index
+    public let skeleton: Int?
+    /// Joint node indices
+    public let joints: [NodeIndex]
+}
+
+public struct SkinIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+    public let value: Int
+
+    public init(_ value: Int) {
+        self.value = value
+    }
+
+    public init(integerLiteral value: Int) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try container.decode(Int.self)
     }
 }
 
 public struct Mesh: Codable {
+    public let name: String?
     public let primitives: [Primitive]
+}
+
+public struct MeshIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+    public let value: Int
+
+    public init(_ value: Int) {
+        self.value = value
+    }
+
+    public init(integerLiteral value: Int) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try container.decode(Int.self)
+    }
 }
 
 public struct Primitive: Codable {

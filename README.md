@@ -110,8 +110,8 @@ var body: some View {
 | TEXCOORD_0    | ✅         |
 | TEXCOORD_1    | ✅         |
 | COLOR_0       | ✅         |
-| JOINTS_0      | ❌         |
-| WEIGHTS_0     | ❌         |
+| JOINTS_0      | ✅         |
+| WEIGHTS_0     | ✅         |
 
 ### Node Hierarchy and Transforms
 | Feature                                 | Supported |

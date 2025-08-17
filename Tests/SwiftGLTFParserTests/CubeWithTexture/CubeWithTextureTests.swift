@@ -7,7 +7,7 @@ struct CubeWithTextureTests {
     @Test
     func testTexCoordBufferMatchesOriginalBinary() async throws {
         let (gltf, asset) = try await loadGLTFAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
         let binURL = Bundle.module.url(forResource: "bricks_cube", withExtension: "bin")!
@@ -36,7 +36,7 @@ struct CubeWithTextureTests {
     @Test
     func testMaterialBaseColorAndNormalTexture() async throws {
         let (gltf, asset) = try await loadGLTFAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
 
@@ -63,7 +63,7 @@ struct CubeWithTextureTests {
     @Test
     func testSamplerFilterAndWrapSettings() async throws {
         let (gltf, asset) = try await loadGLTFAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
 
@@ -95,7 +95,7 @@ struct CubeWithTextureTests {
     func testMetallicRoughnessProperties() async throws {
         // Please write a test for metallic and roughness properties
         let (_, asset) = try await loadGLTFAndAsset()
-        let mesh = asset.object(at: 0).children.objects[0] as! MDLMesh
+        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
         let metallic = material.property(with: .metallic)!
