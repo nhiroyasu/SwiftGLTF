@@ -239,15 +239,30 @@ public func makeMDLMesh(
         )
 
         // Add the mesh to the list
-        let mesh = MDLMesh(
+        let mdlMesh = MDLMesh(
             vertexBuffer: vertexBuffer,
             vertexCount: vertexCount,
             descriptor: vertexDescriptor,
             submeshes: [submesh]
         )
-        mesh.name = "Primitive_\(index)"
+        mdlMesh.name = "Primitive_\(index)"
 
-        meshesObject.addChild(mesh)
+        let morphTargets = try makeMorphTargets(
+            for: primitive,
+            accessors: accessors,
+            allocator: allocator,
+            binaryLoader: binaryLoader,
+            vertexCount: vertexCount,
+            options: options
+        )
+        if !morphTargets.isEmpty {
+            let morpher = MDLMorphDeformer(targetShapes: morphTargets)
+            let defaultWeights = mesh.weights ?? Array(repeating: 0.0, count: morphTargets.count)
+            morpher.weights = defaultWeights.map { NSNumber(value: $0) }
+            mdlMesh.morpher = morpher
+        }
+
+        meshesObject.addChild(mdlMesh)
     }
 
     return meshesObject
@@ -265,14 +280,22 @@ func buildNodeTree(
     let nodes = gltf.nodes ?? []
     let node: Node = {
         if nodes.indices.contains(nodeIndex) { return nodes[nodeIndex] }
-        return Node(name: nil, mesh: nil, skin: nil, children: nil, translation: nil, rotation: nil, scale: nil, matrix: nil)
+        return Node(name: nil, mesh: nil, skin: nil, children: nil, translation: nil, rotation: nil, scale: nil, matrix: nil, weights: nil)
     }()
     let object = MDLObject()
     object.name = node.name ?? "Node_\(nodeIndex)" // ノード名が無ければデフォルト名を設定. en: Set default name if node name is missing
 
     // Add mesh if available
     if let meshIndex = node.mesh, let mesh = meshMap[meshIndex] {
-        object.addChild(mesh)
+        let meshToAdd: MDLObject
+        if let weights = node.weights {
+            let copied = mesh.copy() as! MDLObject
+            applyMorphWeights(weights, to: copied)
+            meshToAdd = copied
+        } else {
+            meshToAdd = mesh
+        }
+        object.addChild(meshToAdd)
     }
 
     // Add skin if available
@@ -323,6 +346,15 @@ func buildNodeTree(
     }
 
     return object
+}
+
+private func applyMorphWeights(_ weights: [Float], to object: MDLObject) {
+    if let mesh = object as? MDLMesh, let morpher = mesh.morpher {
+        morpher.weights = weights.map { NSNumber(value: $0) }
+    }
+    for case let child as MDLObject in object.children.objects {
+        applyMorphWeights(weights, to: child)
+    }
 }
 
 func loadTextureSampler(
@@ -1107,6 +1139,120 @@ private func makeMDLMaterial(
     }
 
     return material
+}
+
+private func makeMorphTargets(
+    for primitive: Primitive,
+    accessors: [Accessor],
+    allocator: MTKMeshBufferAllocator,
+    binaryLoader: GLTFBinaryLoader,
+    vertexCount: Int,
+    options: GLTFDecodeOptions
+) throws -> [MDLMesh] {
+    guard let targets = primitive.targets else { return [] }
+    var meshes: [MDLMesh] = []
+    for target in targets {
+        let positionVertex = try makeTargetVertexInfo(target: target, attribute: .position, accessors: accessors, binaryLoader: binaryLoader)
+        let normalVertex = try? makeTargetVertexInfo(target: target, attribute: .normal, accessors: accessors, binaryLoader: binaryLoader)
+        let tangentVertex = try? makeTargetVertexInfo(target: target, attribute: .tangent, accessors: accessors, binaryLoader: binaryLoader)
+
+        let descriptor = try makeMorphVertexDescriptor(positionVertex, normalVertex, tangentVertex)
+        let data = makeMorphVertexData(positionVertex: positionVertex, normalVertex: normalVertex, tangentVertex: tangentVertex, vertexCount: vertexCount, options: options)
+        let buffer = allocator.newBuffer(with: data, type: .vertex)
+        let mesh = MDLMesh(vertexBuffer: buffer, vertexCount: vertexCount, descriptor: descriptor, submeshes: [])
+        meshes.append(mesh)
+    }
+    return meshes
+}
+
+private func makeTargetVertexInfo(
+    target: [String: Int],
+    attribute: GLTFAttribute,
+    accessors: [Accessor],
+    binaryLoader: GLTFBinaryLoader
+) throws -> VertexInfo {
+    guard let accessorIndex = target[attribute.rawValue], accessors.indices.contains(accessorIndex), let format = getMDLVertexFormat(accessor: accessors[accessorIndex]) else {
+        throw SwiftGLTFError.makeParse(.missingAttribute(name: attribute.rawValue), context: .capture(stage: .parse))
+    }
+    return VertexInfo(
+        data: try binaryLoader.extractData(accessorIndex: AccessorIndex(accessorIndex)),
+        componentFormat: format.format,
+        componentSize: format.byteSize
+    )
+}
+
+private func makeMorphVertexDescriptor(
+    _ positionVertex: VertexInfo,
+    _ normalVertex: VertexInfo?,
+    _ tangentVertex: VertexInfo?
+) throws -> MDLVertexDescriptor {
+    let descriptor = MDLVertexDescriptor()
+    var offset = 0
+
+    guard positionVertex.componentFormat == .float3 else {
+        throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "POSITION", expected: "float3"), context: .capture(stage: .parse))
+    }
+    if let normalVertex, normalVertex.componentFormat != .float3 {
+        throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "NORMAL", expected: "float3"), context: .capture(stage: .parse))
+    }
+    if let tangentVertex, tangentVertex.componentFormat != .float4 {
+        throw SwiftGLTFError.makeParse(.invalidVertexFormat(attribute: "TANGENT", expected: "float4"), context: .capture(stage: .parse))
+    }
+
+    descriptor.attributes[GLTFVertexAttributeIndex.POSITION] = MDLVertexAttribute(name: MDLVertexAttributePosition, format: .float3, offset: offset, bufferIndex: 0)
+    offset += MemoryLayout<Float>.size * 3
+    descriptor.attributes[GLTFVertexAttributeIndex.NORMAL] = MDLVertexAttribute(name: MDLVertexAttributeNormal, format: .float3, offset: offset, bufferIndex: 0)
+    offset += MemoryLayout<Float>.size * 3
+    descriptor.attributes[GLTFVertexAttributeIndex.TANGENT] = MDLVertexAttribute(name: MDLVertexAttributeTangent, format: .float4, offset: offset, bufferIndex: 0)
+    offset += MemoryLayout<Float>.size * 4
+    descriptor.layouts[0] = MDLVertexBufferLayout(stride: offset)
+    return descriptor
+}
+
+private func makeMorphVertexData(
+    positionVertex: VertexInfo,
+    normalVertex: VertexInfo?,
+    tangentVertex: VertexInfo?,
+    vertexCount: Int,
+    options: GLTFDecodeOptions
+) -> Data {
+    var data = Data()
+    for i in 0..<vertexCount {
+        // Position
+        let pStride = positionVertex.componentSize
+        let pBase = i * pStride
+        let pSlice = positionVertex.data[pBase..<pBase+pStride]
+        var pArray = pSlice.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+        if options.convertToLeftHanded { pArray[2] = -pArray[2] }
+        data.append(Data(bytes: &pArray, count: pStride))
+
+        // Normal
+        if let normalVertex {
+            let stride = normalVertex.componentSize
+            let base = i * stride
+            let slice = normalVertex.data[base..<base+stride]
+            var nArray = slice.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+            if options.convertToLeftHanded { nArray[2] = -nArray[2] }
+            data.append(Data(bytes: &nArray, count: stride))
+        } else {
+            var zero: SIMD3<Float> = SIMD3<Float>(0, 0, 0)
+            data.append(Data(bytes: &zero, count: MemoryLayout<SIMD3<Float>>.size))
+        }
+
+        // Tangent
+        if let tangentVertex {
+            let stride = tangentVertex.componentSize
+            let base = i * stride
+            let slice = tangentVertex.data[base..<base+stride]
+            var tArray = slice.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+            if options.convertToLeftHanded { tArray[2] = -tArray[2] }
+            data.append(Data(bytes: &tArray, count: stride))
+        } else {
+            var zero: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0)
+            data.append(Data(bytes: &zero, count: MemoryLayout<SIMD4<Float>>.size))
+        }
+    }
+    return data
 }
 
 private func generateNormalVertex(

@@ -83,6 +83,7 @@ class PBRMeshLoader {
         let transform = parentTransform * (obj.transform?.matrix ?? simd_float4x4(1))
 
         if let mdlMesh = obj as? MDLMesh {
+            applyMorph(to: mdlMesh)
             let mtkMesh = try MTKMesh(mesh: mdlMesh, device: device)
 
             var hasSkinning = false
@@ -534,5 +535,50 @@ class PBRMeshLoader {
         } else {
             throw SwiftGLTFError.makeRender(.argumentBufferCreateFailed, context: .capture(stage: .render))
         }
+    }
+
+    private func applyMorph(to mesh: MDLMesh) {
+        guard let morpher = mesh.morpher,
+              let targets = morpher.targets as? [MDLMesh],
+              let weightNumbers = morpher.weights as? [NSNumber],
+              !targets.isEmpty else { return }
+
+        let weights = weightNumbers.map { Float(truncating: $0) }
+        guard let posData = mesh.vertexAttributeData(forAttributeNamed: MDLVertexAttributePosition, as: .float3) else { return }
+        let posPtr = posData.dataStart.bindMemory(to: SIMD3<Float>.self, capacity: mesh.vertexCount)
+
+        var normalPtr: UnsafeMutablePointer<SIMD3<Float>>?
+        if let normalData = mesh.vertexAttributeData(forAttributeNamed: MDLVertexAttributeNormal, as: .float3) {
+            normalPtr = normalData.dataStart.bindMemory(to: SIMD3<Float>.self, capacity: mesh.vertexCount)
+        }
+
+        var tangentPtr: UnsafeMutablePointer<SIMD4<Float>>?
+        if let tangentData = mesh.vertexAttributeData(forAttributeNamed: MDLVertexAttributeTangent, as: .float4) {
+            tangentPtr = tangentData.dataStart.bindMemory(to: SIMD4<Float>.self, capacity: mesh.vertexCount)
+        }
+
+        for (target, weight) in zip(targets, weights) {
+            if weight == 0 { continue }
+            if let tPosData = target.vertexAttributeData(forAttributeNamed: MDLVertexAttributePosition, as: .float3) {
+                let tPosPtr = tPosData.dataStart.bindMemory(to: SIMD3<Float>.self, capacity: mesh.vertexCount)
+                for i in 0..<mesh.vertexCount {
+                    posPtr[i] += tPosPtr[i] * weight
+                }
+            }
+            if let normalPtr, let tNormData = target.vertexAttributeData(forAttributeNamed: MDLVertexAttributeNormal, as: .float3) {
+                let tNormPtr = tNormData.dataStart.bindMemory(to: SIMD3<Float>.self, capacity: mesh.vertexCount)
+                for i in 0..<mesh.vertexCount {
+                    normalPtr[i] += tNormPtr[i] * weight
+                }
+            }
+            if let tangentPtr, let tTanData = target.vertexAttributeData(forAttributeNamed: MDLVertexAttributeTangent, as: .float4) {
+                let tTanPtr = tTanData.dataStart.bindMemory(to: SIMD4<Float>.self, capacity: mesh.vertexCount)
+                for i in 0..<mesh.vertexCount {
+                    tangentPtr[i] += tTanPtr[i] * weight
+                }
+            }
+        }
+
+        mesh.morpher = nil
     }
 }

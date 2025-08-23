@@ -243,8 +243,9 @@ public struct Node: Codable {
     public let rotation: [Float]?
     public let scale: [Float]?
     public let matrix: [Float]?
+    public let weights: [Float]?
 
-    public init(name: String?, mesh: MeshIndex?, skin: SkinIndex?, children: [Int]?, translation: [Float]?, rotation: [Float]?, scale: [Float]?, matrix: [Float]?) {
+    public init(name: String?, mesh: MeshIndex?, skin: SkinIndex?, children: [Int]?, translation: [Float]?, rotation: [Float]?, scale: [Float]?, matrix: [Float]?, weights: [Float]?) {
         self.name = name
         self.mesh = mesh
         self.skin = skin
@@ -253,6 +254,7 @@ public struct Node: Codable {
         self.rotation = rotation
         self.scale = scale
         self.matrix = matrix
+        self.weights = weights
     }
 }
 
@@ -417,6 +419,7 @@ public struct SkinIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
 public struct Mesh: Codable {
     public let name: String?
     public let primitives: [Primitive]
+    public let weights: [Float]?
 }
 
 public struct MeshIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
@@ -441,12 +444,14 @@ public struct Primitive: Codable {
     public let indices: AccessorIndex?
     public let material: Int?
     public let mode: GLTFPrimitiveMode
+    public let targets: [[String: Int]]?
 
     enum CodingKeys: String, CodingKey {
         case attributes
         case indices
         case material
         case mode
+        case targets
     }
 
     public init(from decoder: Decoder) throws {
@@ -455,6 +460,7 @@ public struct Primitive: Codable {
         self.indices = try container.decodeIfPresent(AccessorIndex.self, forKey: .indices)
         self.material = try container.decodeIfPresent(Int.self, forKey: .material)
         self.mode = try container.decodeIfPresent(GLTFPrimitiveMode.self, forKey: .mode) ?? .triangles
+        self.targets = try container.decodeIfPresent([[String: Int]].self, forKey: .targets)
     }
 }
 
