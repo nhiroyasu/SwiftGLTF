@@ -44,7 +44,8 @@ class PBRMeshLoader {
 
         let meshCount = extractAllMeshCounts(from: asset)
         let vertexBuffers = extractAllMeshVertexBuffer(from: asset)
-        let vertexHeap = try makeVertexHeap(from: meshCount, vertexBuffers: vertexBuffers)
+        let morphVertexBuffers = extractAllMorphVertexBuffer(from: asset)
+        let vertexHeap = try makeVertexHeap(from: meshCount, vertexBuffers: vertexBuffers + morphVertexBuffers)
         let fragmentHeap = try makeFragmentHeap(from: meshCount)
 
         var pbrMeshes: [PBRMesh] = []
@@ -90,6 +91,30 @@ class PBRMeshLoader {
             if let skeleton = obj.parent?.parent?.children.objects.compactMap({ $0 as? GLTFSkeleton }).first  {
                 hasSkinning = true
                 globalJointMatricesBuffer = skeletonMap[skeleton]
+            }
+
+            // Morph data detection on this mesh
+            var hasMorph = false
+            var morphCount: UInt32 = 0
+            var morphWeightsBuffer: MTLBuffer? = nil
+            var morphTargetBuffers: [MTLBuffer] = []
+            if let morphComp = mdlMesh.componentConforming(to: GLTFMorphTargetsProtocol.self) as? GLTFMorphTargets {
+                hasMorph = true
+                morphCount = UInt32(morphComp.targetCount)
+
+                // Determine weights: node weights if present, else default
+                let nodeWeights = obj.parent?.componentConforming(to: GLTFMorphWeightsProtocol.self) as? GLTFMorphWeights
+                let weights: [Float] = nodeWeights?.weights ?? morphComp.defaultWeights
+                let tmpWeightsBuffer = device.makeBuffer(bytes: weights, length: MemoryLayout<Float>.size * weights.count)!
+                morphWeightsBuffer = try shaderConnection.moveBufferToHeap(from: tmpWeightsBuffer, use: vertexHeap)
+
+                // Convert target MDLMesh -> MTLBuffer (vertex buffer 0)
+                for targetMDL in morphComp.targetMeshes.prefix(8) { // Limit to max 8
+                    if let mtkTarget = try? MTKMesh(mesh: targetMDL, device: device) {
+                        let heapBuf = try shaderConnection.moveBufferToHeap(from: mtkTarget.vertexBuffers[0].buffer, use: vertexHeap)
+                        morphTargetBuffers.append(heapBuf)
+                    }
+                }
             }
 
             var submeshes: [PBRMesh.Submesh] = []
@@ -227,7 +252,11 @@ class PBRMeshLoader {
                 model: &model,
                 inverseModel: &inverseModel,
                 hasSkinning: &hasSkinning,
-                globalJointMatricesBuffer: globalJointMatricesBuffer
+                globalJointMatricesBuffer: globalJointMatricesBuffer,
+                hasMorph: hasMorph,
+                morphTargetCount: morphCount,
+                morphWeightsBuffer: morphWeightsBuffer,
+                morphInterleavedBuffers: morphTargetBuffers
             )
 
             let pbrMesh = PBRMesh(
@@ -235,7 +264,9 @@ class PBRMeshLoader {
                 modelMatrix: model,
                 vertexArgumentBuffer: vertexArgumentBuffer,
                 submeshes: submeshes,
-                _storedHeapInstance: []
+                _storedHeapInstance: [
+                    morphWeightsBuffer
+                ] + morphTargetBuffers
             )
             pbrMeshes.append(pbrMesh)
         }
@@ -378,6 +409,27 @@ class PBRMeshLoader {
             traverse(object: object)
         }
 
+        return buffers
+    }
+
+    func extractAllMorphVertexBuffer(from asset: MDLAsset) -> [MDLMeshBuffer] {
+        var buffers: [MDLMeshBuffer] = []
+
+        func traverse(object: MDLObject) {
+            if let mesh = object as? MDLMesh {
+                if let morph = mesh.componentConforming(to: GLTFMorphTargetsProtocol.self) as? GLTFMorphTargets {
+                    for target in morph.targetMeshes {
+                        if let buf = target.vertexBuffers.first { buffers.append(buf) }
+                    }
+                }
+            }
+            for child in object.children.objects { traverse(object: child) }
+        }
+
+        for objectIndex in 0..<asset.count {
+            guard let object = asset[objectIndex] else { continue }
+            traverse(object: object)
+        }
         return buffers
     }
 

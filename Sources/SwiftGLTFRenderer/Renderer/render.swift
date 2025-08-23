@@ -86,6 +86,7 @@ func drawPBR(
     let cameraPos = fragParamsPtr.pointee.viewPosition
 
     // Transparent pass (sort back-to-front per submesh using mesh center)
+    // TODO: Need to sort considering Morph
     struct TransparentDrawItem { let distanceSq: Float; let meshIndex: Int; let submeshIndex: Int }
     var transparentItems: [TransparentDrawItem] = []
     for (mi, mesh) in meshes.enumerated() {

@@ -238,16 +238,20 @@ public struct Node: Codable {
     public let name: String?
     public let mesh: MeshIndex?
     public let skin: SkinIndex?
+    /// Morph target weights for this node (applied per mesh instance)
+    /// glTF: node.weights
+    public let weights: [Float]?
     public let children: [Int]?
     public let translation: [Float]?
     public let rotation: [Float]?
     public let scale: [Float]?
     public let matrix: [Float]?
 
-    public init(name: String?, mesh: MeshIndex?, skin: SkinIndex?, children: [Int]?, translation: [Float]?, rotation: [Float]?, scale: [Float]?, matrix: [Float]?) {
+    public init(name: String?, mesh: MeshIndex?, skin: SkinIndex?, weights: [Float]?, children: [Int]?, translation: [Float]?, rotation: [Float]?, scale: [Float]?, matrix: [Float]?) {
         self.name = name
         self.mesh = mesh
         self.skin = skin
+        self.weights = weights
         self.children = children
         self.translation = translation
         self.rotation = rotation
@@ -417,6 +421,9 @@ public struct SkinIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
 public struct Mesh: Codable {
     public let name: String?
     public let primitives: [Primitive]
+    /// Default morph target weights for this mesh
+    /// glTF: mesh.weights
+    public let weights: [Float]?
 }
 
 public struct MeshIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
@@ -441,12 +448,16 @@ public struct Primitive: Codable {
     public let indices: AccessorIndex?
     public let material: Int?
     public let mode: GLTFPrimitiveMode
+    /// Morph targets: Each element is a map from attribute name (e.g. "POSITION") to accessor index
+    /// glTF: mesh.primitives[*].targets
+    public let targets: [[String: Int]]?
 
     enum CodingKeys: String, CodingKey {
         case attributes
         case indices
         case material
         case mode
+        case targets
     }
 
     public init(from decoder: Decoder) throws {
@@ -455,6 +466,7 @@ public struct Primitive: Codable {
         self.indices = try container.decodeIfPresent(AccessorIndex.self, forKey: .indices)
         self.material = try container.decodeIfPresent(Int.self, forKey: .material)
         self.mode = try container.decodeIfPresent(GLTFPrimitiveMode.self, forKey: .mode) ?? .triangles
+        self.targets = try container.decodeIfPresent([[String: Int]].self, forKey: .targets)
     }
 }
 

@@ -70,6 +70,7 @@ let package = Package(
                 .process("BoxTextured/Resources/EmbeddedBoxTextured.gltf"),
                 .process("BoxTextured/Resources/CesiumLogoFlat.png"),
                 .process("SimpleSkin/Resources"),
+                .process("AnimatedMorphCube/Resources"),
             ]),
 
         .target(name: "SwiftGLTFCore"),

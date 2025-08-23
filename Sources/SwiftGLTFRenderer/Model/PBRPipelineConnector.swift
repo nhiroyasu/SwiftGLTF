@@ -147,7 +147,12 @@ class PBRPipelineConnector {
         model: UnsafePointer<simd_float4x4>,
         inverseModel: UnsafePointer<simd_float4x4>,
         hasSkinning: UnsafePointer<Bool>,
-        globalJointMatricesBuffer: MTLBuffer?
+        globalJointMatricesBuffer: MTLBuffer?,
+        // Morph (optional, up to 8 targets)
+        hasMorph: Bool = false,
+        morphTargetCount: UInt32 = 0,
+        morphWeightsBuffer: MTLBuffer? = nil,
+        morphInterleavedBuffers: [MTLBuffer] = []
     ) throws -> MTLBuffer {
         let encoder = vertexFunction.makeArgumentEncoder(bufferIndex: 1)
         guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
@@ -165,6 +170,20 @@ class PBRPipelineConnector {
         hasSkinningAddr.copyMemory(from: hasSkinning, byteCount: MemoryLayout<Bool>.size)
 
         encoder.setBuffer(globalJointMatricesBuffer, offset: 0, index: 3)
+
+        // Morph
+        var hasMorphVar = hasMorph
+        let hasMorphAddr = encoder.constantData(at: 4)
+        hasMorphAddr.copyMemory(from: &hasMorphVar, byteCount: MemoryLayout<Bool>.size)
+        var targetCountVar = morphTargetCount
+        let targetCountAddr = encoder.constantData(at: 5)
+        targetCountAddr.copyMemory(from: &targetCountVar, byteCount: MemoryLayout<UInt32>.size)
+        encoder.setBuffer(morphWeightsBuffer, offset: 0, index: 6)
+        // Up to 8 targets
+        let maxTargets = 8
+        for i in 0..<min(maxTargets, morphInterleavedBuffers.count) {
+            encoder.setBuffer(morphInterleavedBuffers[i], offset: 0, index: 7 + i)
+        }
         return buffer
     }
 }

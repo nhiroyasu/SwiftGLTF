@@ -239,15 +239,30 @@ public func makeMDLMesh(
         )
 
         // Add the mesh to the list
-        let mesh = MDLMesh(
+        let mdlMesh = MDLMesh(
             vertexBuffer: vertexBuffer,
             vertexCount: vertexCount,
             descriptor: vertexDescriptor,
             submeshes: [submesh]
         )
-        mesh.name = "Primitive_\(index)"
+        mdlMesh.name = "Primitive_\(index)"
 
-        meshesObject.addChild(mesh)
+        // Attach morph targets if present
+        if let morph = try buildMorphTargets(
+            for: primitive,
+            meshName: name,
+            primitiveIndex: index,
+            accessors: accessors,
+            vertexCount: vertexCount,
+            allocator: allocator,
+            binaryLoader: binaryLoader,
+            options: options,
+            meshDefaultWeights: mesh.weights
+        ) {
+            mdlMesh.setComponent(morph, for: GLTFMorphTargetsProtocol.self)
+        }
+
+        meshesObject.addChild(mdlMesh)
     }
 
     return meshesObject
@@ -265,7 +280,7 @@ func buildNodeTree(
     let nodes = gltf.nodes ?? []
     let node: Node = {
         if nodes.indices.contains(nodeIndex) { return nodes[nodeIndex] }
-        return Node(name: nil, mesh: nil, skin: nil, children: nil, translation: nil, rotation: nil, scale: nil, matrix: nil)
+        return Node(name: nil, mesh: nil, skin: nil, weights: nil, children: nil, translation: nil, rotation: nil, scale: nil, matrix: nil)
     }()
     let object = MDLObject()
     object.name = node.name ?? "Node_\(nodeIndex)" // ノード名が無ければデフォルト名を設定. en: Set default name if node name is missing
@@ -278,6 +293,12 @@ func buildNodeTree(
     // Add skin if available
     if let skinIndex = node.skin, let skin = skinMap[skinIndex] {
         object.addChild(skin)
+    }
+
+    // Add morph weights if available (per-node weights)
+    if let weights = node.weights {
+        let comp = GLTFMorphWeights(weights: weights)
+        object.setComponent(comp, for: GLTFMorphWeightsProtocol.self)
     }
 
     for skin in skinMap.values {
@@ -1157,5 +1178,191 @@ private func generateNormalVertex(
         data: Data(bytes: &floatArrayNormals, count: floatArrayNormals.count * MemoryLayout<Float>.size),
         componentFormat: .float3,
         componentSize: MemoryLayout<Float>.size * 3
+    )
+}
+
+// MARK: - Morph Target Helpers
+
+private func extractMorphVec3Data(
+    accessorIndex: Int,
+    attributeName: String,
+    accessors: [Accessor],
+    vertexCount: Int,
+    binaryLoader: GLTFBinaryLoader,
+    options: GLTFDecodeOptions
+) throws -> Data {
+    guard accessors.indices.contains(accessorIndex) else {
+        throw SwiftGLTFError.makeParse(
+            .invalidAccessorIndex(name: "morph \(attributeName)", index: accessorIndex),
+            context: .capture(stage: .parse)
+        )
+    }
+    let accessor = accessors[accessorIndex]
+    guard accessor.type == .vec3, accessor.componentType == .float else {
+        throw SwiftGLTFError.makeParse(
+            .invalidAccessor(name: "morph \(attributeName): must be VEC3 with FLOAT components"),
+            context: .capture(stage: .parse)
+        )
+    }
+    guard accessor.count == vertexCount else {
+        throw SwiftGLTFError.makeParse(
+            .invalidAccessor(name: "morph \(attributeName): vertex count mismatch"),
+            context: .capture(stage: .parse)
+        )
+    }
+    var data = try binaryLoader.extractData(accessorIndex: AccessorIndex(accessorIndex))
+    if options.convertToLeftHanded {
+        data.withUnsafeMutableBytes { (ptr: UnsafeMutableRawBufferPointer) in
+            let f = ptr.bindMemory(to: Float.self)
+            var i = 0
+            while i + 2 < f.count {
+                f[i+2] = -f[i+2]
+                i += 3
+            }
+        }
+    }
+    return data
+}
+
+private func interleaveMorphData(
+    position: Data?,
+    normal: Data?,
+    tangent: Data?,
+    vertexCount: Int
+) -> Data {
+    let stride = MemoryLayout<Float>.size * 3 // vec3
+    let totalStride = stride * 3              // pos + nrm + tan
+    var interleaved = Data(capacity: vertexCount * totalStride)
+
+    let pData = position
+    let nData = normal
+    let tData = tangent
+    let zero = Data(count: stride)
+
+    for i in 0..<vertexCount {
+        // POSITION delta
+        if let p = pData, p.count >= (i + 1) * stride {
+            let base = i * stride
+            interleaved.append(p[base..<(base + stride)])
+        } else {
+            interleaved.append(zero)
+        }
+
+        // NORMAL delta
+        if let n = nData, n.count >= (i + 1) * stride {
+            let base = i * stride
+            interleaved.append(n[base..<(base + stride)])
+        } else {
+            interleaved.append(zero)
+        }
+
+        // TANGENT delta
+        if let t = tData, t.count >= (i + 1) * stride {
+            let base = i * stride
+            interleaved.append(t[base..<(base + stride)])
+        } else {
+            interleaved.append(zero)
+        }
+    }
+
+    return interleaved
+}
+
+private func makeMorphTargetMesh(
+    interleavedData: Data,
+    vertexCount: Int,
+    allocator: MTKMeshBufferAllocator,
+    name: String
+) -> MDLMesh {
+    let buffer = allocator.newBuffer(with: interleavedData, type: .vertex)
+    let desc = MDLVertexDescriptor()
+    var offset = 0
+    desc.attributes[0] = MDLVertexAttribute(name: MDLVertexAttributePosition, format: .float3, offset: offset, bufferIndex: 0)
+    offset += MemoryLayout<Float>.size * 3
+    desc.attributes[1] = MDLVertexAttribute(name: MDLVertexAttributeNormal, format: .float3, offset: offset, bufferIndex: 0)
+    offset += MemoryLayout<Float>.size * 3
+    desc.attributes[2] = MDLVertexAttribute(name: MDLVertexAttributeTangent, format: .float3, offset: offset, bufferIndex: 0)
+    offset += MemoryLayout<Float>.size * 3
+    desc.layouts[0] = MDLVertexBufferLayout(stride: offset)
+    let mesh = MDLMesh(vertexBuffer: buffer, vertexCount: vertexCount, descriptor: desc, submeshes: [])
+    mesh.name = name
+    return mesh
+}
+
+private func normalizedDefaultMorphWeights(
+    targetCount: Int,
+    meshWeights: [Float]?
+) -> [Float] {
+    let w = meshWeights ?? []
+    if w.count == targetCount { return w }
+    if w.count > targetCount { return Array(w.prefix(targetCount)) }
+    return w + Array(repeating: 0.0, count: max(0, targetCount - w.count))
+}
+
+private func buildMorphTargets(
+    for primitive: Primitive,
+    meshName: String,
+    primitiveIndex: Int,
+    accessors: [Accessor],
+    vertexCount: Int,
+    allocator: MTKMeshBufferAllocator,
+    binaryLoader: GLTFBinaryLoader,
+    options: GLTFDecodeOptions,
+    meshDefaultWeights: [Float]?
+) throws -> GLTFMorphTargets? {
+    guard let targets = primitive.targets, !targets.isEmpty else { return nil }
+
+    var targetMeshes: [MDLMesh] = []
+    targetMeshes.reserveCapacity(targets.count)
+    for (tIdx, target) in targets.enumerated() {
+        // If an attribute is provided in targets, validate its type strictly.
+        var posData: Data? = nil
+        if let idx = target[GLTFAttribute.position.rawValue] {
+            posData = try extractMorphVec3Data(
+                accessorIndex: idx,
+                attributeName: GLTFAttribute.position.rawValue,
+                accessors: accessors,
+                vertexCount: vertexCount,
+                binaryLoader: binaryLoader,
+                options: options
+            )
+        }
+
+        var nrmData: Data? = nil
+        if let idx = target[GLTFAttribute.normal.rawValue] {
+            nrmData = try extractMorphVec3Data(
+                accessorIndex: idx,
+                attributeName: GLTFAttribute.normal.rawValue,
+                accessors: accessors,
+                vertexCount: vertexCount,
+                binaryLoader: binaryLoader,
+                options: options
+            )
+        }
+
+        var tanData: Data? = nil
+        if let idx = target[GLTFAttribute.tangent.rawValue] {
+            tanData = try extractMorphVec3Data(
+                accessorIndex: idx,
+                attributeName: GLTFAttribute.tangent.rawValue,
+                accessors: accessors,
+                vertexCount: vertexCount,
+                binaryLoader: binaryLoader,
+                options: options
+            )
+        }
+
+        let interleaved = interleaveMorphData(position: posData, normal: nrmData, tangent: tanData, vertexCount: vertexCount)
+        let name = "\(meshName)_Primitive_\(primitiveIndex)_Target_\(tIdx)"
+        let targetMesh = makeMorphTargetMesh(interleavedData: interleaved, vertexCount: vertexCount, allocator: allocator, name: name)
+        targetMeshes.append(targetMesh)
+    }
+
+    let defaultWeights = normalizedDefaultMorphWeights(targetCount: targets.count, meshWeights: meshDefaultWeights)
+    return GLTFMorphTargets(
+        vertexCount: vertexCount,
+        targetCount: targets.count,
+        targetMeshes: targetMeshes,
+        defaultWeights: defaultWeights
     )
 }

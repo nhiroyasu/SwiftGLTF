@@ -9,6 +9,92 @@ enum AlphaMode : uint {
     AlphaModeBlend  = 2
 };
 
+struct MorphApplyResult {
+    float3 pos;
+    float3 normal;
+    float4 tangent;
+};
+
+// MARK: - Shader Structures
+
+struct VertexIn {
+    float3 position [[attribute(0)]];
+    float3 normal [[attribute(1)]];
+    float4 tangent [[attribute(2)]];
+    float2 uv [[attribute(3)]];
+    float2 uv1 [[attribute(4)]];
+    float4 modulationColor [[attribute(5)]];
+    ushort4 joints [[attribute(6)]];
+    float4 weights [[attribute(7)]];
+};
+
+struct PBRVertexOut {
+    float4 position [[position]];
+    float3 worldPosition;
+    float3 normal;
+    float4 tangent;
+    float2 uv;
+    float2 uv1;
+    float4 modulationColor;
+};
+
+struct PBRVertexArguments {
+    float4x4 model [[id(0)]];
+    float4x4 inverseModel [[id(1)]];
+    bool hasSkinning [[id(2)]];
+    constant float4x4 *globalJointMatrices [[id(3)]];
+    // Morph targets (optional)
+    bool hasMorph [[id(4)]];
+    uint morphTargetCount [[id(5)]];
+    constant float *morphWeights [[id(6)]];
+    device float *morphInterleaved0 [[id(7)]];
+    device float *morphInterleaved1 [[id(8)]];
+    device float *morphInterleaved2 [[id(9)]];
+    device float *morphInterleaved3 [[id(10)]];
+    device float *morphInterleaved4 [[id(11)]];
+    device float *morphInterleaved5 [[id(12)]];
+    device float *morphInterleaved6 [[id(13)]];
+    device float *morphInterleaved7 [[id(14)]];
+};
+
+struct PBRFragmentArguments {
+    constant PBRMaterialUniforms &material [[id(0)]];
+    // BaseColor: Texture -> Sampler -> TexCoord
+    bool hasBaseColorTexture [[id(1)]];
+    texture2d<float> baseColorTexture [[id(2)]];
+    sampler baseColorSampler [[id(3)]];
+    uint baseColorTexCoord [[id(4)]];
+    // Normal: Texture -> Sampler -> TexCoord
+    bool hasNormalTexture [[id(5)]];
+    texture2d<float> normalTexture [[id(6)]];
+    sampler normalSampler [[id(7)]];
+    uint normalTexCoord [[id(8)]];
+    // MetallicRoughness: Texture -> Sampler -> TexCoord
+    bool hasMetallicRoughnessTexture [[id(9)]];
+    texture2d<float> metallicRoughnessTexture [[id(10)]];
+    sampler metallicRoughnessSampler [[id(11)]];
+    uint metallicRoughnessTexCoord [[id(12)]];
+    // Emissive: Texture -> Sampler -> TexCoord
+    bool hasEmissiveTexture [[id(13)]];
+    texture2d<float> emissiveTexture [[id(14)]];
+    sampler emissiveSampler [[id(15)]];
+    uint emissiveTexCoord [[id(16)]];
+    // Occlusion: Texture -> Sampler -> TexCoord
+    bool hasOcclusionTexture [[id(17)]];
+    texture2d<float> occlusionTexture [[id(18)]];
+    sampler occlusionSampler [[id(19)]];
+    uint occlusionTexCoord [[id(20)]];
+    // Alpha controls
+    AlphaMode alphaMode [[id(21)]]; // 0: OPAQUE, 1: MASK, 2: BLEND
+    float alphaCutoff [[id(22)]]; // valid when alphaMode == MASK
+};
+
+struct PBREnvMapArguments {
+    texturecube<float> prefilterEnvMap [[id(0)]];
+    texturecube<float> irradianceMap [[id(1)]];
+    texture2d<float> brdfLUT [[id(2)]];
+};
+
 // MARK: - Compute lighting
 
 float3 compute_direct_lighting(float3 normal,
@@ -104,7 +190,7 @@ float3 compute_indirect_lighting(float3 normal,
     return result;
 }
 
-float4x4 compute_skin_matrix(constant float4x4 *globalJointMatrices,
+inline float4x4 compute_skin_matrix(constant float4x4 *globalJointMatrices,
                              float4x4 inverseGlobalTransform,
                              ushort4 joints,
                              float4 weights) {
@@ -115,81 +201,61 @@ float4x4 compute_skin_matrix(constant float4x4 *globalJointMatrices,
     return skinMatrix;
 }
 
-// MARK: - Shader Structures
-
-struct VertexIn {
-    float3 position [[attribute(0)]];
-    float3 normal [[attribute(1)]];
-    float4 tangent [[attribute(2)]];
-    float2 uv [[attribute(3)]];
-    float2 uv1 [[attribute(4)]];
-    float4 modulationColor [[attribute(5)]];
-    ushort4 joints [[attribute(6)]];
-    float4 weights [[attribute(7)]];
-};
-
-struct PBRVertexOut {
-    float4 position [[position]];
-    float3 worldPosition;
-    float3 normal;
-    float4 tangent;
-    float2 uv;
-    float2 uv1;
-    float4 modulationColor;
-};
-
-struct PBRVertexArguments {
-    float4x4 model [[id(0)]];
-    float4x4 inverseModel [[id(1)]];
-    bool hasSkinning [[id(2)]];
-    constant float4x4 *globalJointMatrices [[id(3)]];
-};
-
-struct PBRFragmentArguments {
-    constant PBRMaterialUniforms &material [[id(0)]];
-    // BaseColor: Texture -> Sampler -> TexCoord
-    bool hasBaseColorTexture [[id(1)]];
-    texture2d<float> baseColorTexture [[id(2)]];
-    sampler baseColorSampler [[id(3)]];
-    uint baseColorTexCoord [[id(4)]];
-    // Normal: Texture -> Sampler -> TexCoord
-    bool hasNormalTexture [[id(5)]];
-    texture2d<float> normalTexture [[id(6)]];
-    sampler normalSampler [[id(7)]];
-    uint normalTexCoord [[id(8)]];
-    // MetallicRoughness: Texture -> Sampler -> TexCoord
-    bool hasMetallicRoughnessTexture [[id(9)]];
-    texture2d<float> metallicRoughnessTexture [[id(10)]];
-    sampler metallicRoughnessSampler [[id(11)]];
-    uint metallicRoughnessTexCoord [[id(12)]];
-    // Emissive: Texture -> Sampler -> TexCoord
-    bool hasEmissiveTexture [[id(13)]];
-    texture2d<float> emissiveTexture [[id(14)]];
-    sampler emissiveSampler [[id(15)]];
-    uint emissiveTexCoord [[id(16)]];
-    // Occlusion: Texture -> Sampler -> TexCoord
-    bool hasOcclusionTexture [[id(17)]];
-    texture2d<float> occlusionTexture [[id(18)]];
-    sampler occlusionSampler [[id(19)]];
-    uint occlusionTexCoord [[id(20)]];
-    // Alpha controls
-    AlphaMode alphaMode [[id(21)]]; // 0: OPAQUE, 1: MASK, 2: BLEND
-    float alphaCutoff [[id(22)]]; // valid when alphaMode == MASK
-};
-
-struct PBREnvMapArguments {
-    texturecube<float> prefilterEnvMap [[id(0)]];
-    texturecube<float> irradianceMap [[id(1)]];
-    texture2d<float> brdfLUT [[id(2)]];
-};
+inline MorphApplyResult apply_morph(float3 pos,
+                                    float3 normal,
+                                    float4 tangent,
+                                    constant PBRVertexArguments &args,
+                                    uint vid) {
+    if (!args.hasMorph) {
+        return { pos, normal, tangent };
+    }
+    uint count = min(args.morphTargetCount, (uint)8);
+    for (uint i = 0; i < count; ++i) {
+        float w = args.morphWeights[i];
+        if (w == 0.0) { continue; }
+        device float *buf = nullptr;
+        switch (i) {
+            case 0: buf = args.morphInterleaved0; break;
+            case 1: buf = args.morphInterleaved1; break;
+            case 2: buf = args.morphInterleaved2; break;
+            case 3: buf = args.morphInterleaved3; break;
+            case 4: buf = args.morphInterleaved4; break;
+            case 5: buf = args.morphInterleaved5; break;
+            case 6: buf = args.morphInterleaved6; break;
+            case 7: buf = args.morphInterleaved7; break;
+            default: break;
+        }
+        if (buf == nullptr) { continue; }
+        uint base = vid * 9; // 9 floats per vertex (pos3+normal3+tan3)
+        float3 dpos = float3(buf[base + 0], buf[base + 1], buf[base + 2]);
+        float3 dnormal = float3(buf[base + 3], buf[base + 4], buf[base + 5]);
+        float3 dtan = float3(buf[base + 6], buf[base + 7], buf[base + 8]);
+        pos += dpos * w;
+        normal += dnormal * w;
+        tangent.xyz += dtan * w;
+    }
+    normal = normalize(normal);
+    tangent = float4(normalize(tangent.xyz), tangent.w); // keep sign in w
+    return { pos, normal, tangent };
+}
 
 // MARK: - PBR Shader
 
 vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
                                       constant PBRVertexArguments &args [[buffer(1)]],
-                                      constant PBRVertexVariableParameters &params [[buffer(2)]])
+                                      constant PBRVertexVariableParameters &params [[buffer(2)]],
+                                      uint vid [[vertex_id]])
 {
     PBRVertexOut out;
+
+    // Apply morph targets in model space before skinning
+    float3 pos = in.position;
+    float3 normal = in.normal;
+    float4 tan = in.tangent;
+    MorphApplyResult morphed = apply_morph(pos, normal, tan, args, vid);
+    pos = morphed.pos;
+    normal = morphed.normal;
+    tan = morphed.tangent;
 
     float4x4 skinMatrix = args.hasSkinning
     ? compute_skin_matrix(args.globalJointMatrices, args.inverseModel, in.joints, in.weights)
@@ -199,10 +265,10 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
 
     float3x3 normalTransform = transpose(inverse(_float3x3(modelTransform)));
 
-    out.position = mvpTransform * float4(in.position, 1.0);
-    out.worldPosition = (modelTransform * float4(in.position, 1.0)).xyz;
-    out.normal = normalize(normalTransform * in.normal);
-    out.tangent = normalize(float4(normalTransform * in.tangent.xyz, in.tangent.w));
+    out.position = mvpTransform * float4(pos, 1.0);
+    out.worldPosition = (modelTransform * float4(pos, 1.0)).xyz;
+    out.normal = normalize(normalTransform * normal);
+    out.tangent = normalize(float4(normalTransform * tan.xyz, tan.w));
     out.uv = in.uv;
     out.uv1 = in.uv1;
     out.modulationColor = in.modulationColor;
