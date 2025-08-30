@@ -2,6 +2,9 @@ import Img2Cubemap
 import MetalKit
 import OSLog
 import simd
+import ModelIO
+import SwiftGLTFParser
+import SwiftGLTFCore
 
 public class PBRRenderer {
     private var meshes: [PBRMesh] = []
@@ -102,6 +105,122 @@ public class PBRRenderer {
     }
 
     // MARK: - Rendering
+
+    public func animation(
+        using blitCommandEncoder: MTLBlitCommandEncoder,
+        animationState state: RendererAnimationState
+    ) {
+        for mesh in meshes {
+            guard let animation = mesh.animation else { continue }
+
+            var modelMatrixTree = mesh.modelMatrixTree
+            var animGlobalJointMatrixTrees: [[TRS]] = mesh.skeleton?.joints.map({ $0.globalJointTRSTree }) ?? []
+            var morphWeights: [Float]? = nil
+            for channel in animation.channels {
+                let trs = evaluateTRS(
+                    channel: channel,
+                    duration: animation.duration,
+                    time: state.time,
+                    looping: state.isLooping
+                )
+                if let effectIndex = channel.modelMatrixTreeEffectIndex {
+                    modelMatrixTree[effectIndex] = trs.apply(modelMatrixTree[effectIndex])
+                }
+
+                if let nodeIndex = channel.globalJointNodeTreeEffectIndex,
+                   let matrixIndex = channel.globalJointMatrixTreeEffectIndex {
+                    animGlobalJointMatrixTrees[nodeIndex][matrixIndex] = trs.apply(animGlobalJointMatrixTrees[nodeIndex][matrixIndex])
+                }
+
+                if let w = evaluateWeights(
+                    channel: channel,
+                    duration: animation.duration,
+                    time: state.time,
+                    looping: state.isLooping
+                ) {
+                    morphWeights = w
+                }
+            }
+
+            var totalModelMatrix: float4x4 = modelMatrixTree.reduce(float4x4(1), *)
+            var inverseModelMatrix = totalModelMatrix.inverse
+
+            // Update model and inverse model matrix buffer
+            let length = MemoryLayout<simd_float4x4>.size
+            let modelBuffer = device.makeBuffer(
+                bytes: &totalModelMatrix,
+                length: length,
+                options: .storageModeShared
+            )!
+            let inverseModelBuffer = device.makeBuffer(
+                bytes: &inverseModelMatrix,
+                length: length,
+                options: .storageModeShared
+            )!
+
+            blitCommandEncoder.copy(
+                from: modelBuffer,
+                sourceOffset: 0,
+                to: animation.animatableBuffers.modelBuffer,
+                destinationOffset: 0,
+                size: length
+            )
+            blitCommandEncoder.copy(
+                from: inverseModelBuffer,
+                sourceOffset: 0,
+                to: animation.animatableBuffers.inverseModelBuffer,
+                destinationOffset: 0,
+                size: length
+            )
+
+            // Update global joint matrices buffer if exists
+            if !animGlobalJointMatrixTrees.isEmpty,
+               let jointBuffer = animation.animatableBuffers.globalJointMatricesBuffer,
+               let skeleton = mesh.skeleton {
+                var jointMatrices: [float4x4] = skeleton.jointMatrices
+                for (jointNodeIndex, matrixTree) in animGlobalJointMatrixTrees.enumerated() {
+                    let globalJointMatrix = matrixTree
+                        .map { trs2matrix($0) }
+                        .reduce(float4x4(1), *)
+                    let inverseBindMatrix = skeleton.joints[jointNodeIndex].inverseBindMatrix
+                    jointMatrices[jointNodeIndex] = globalJointMatrix * inverseBindMatrix
+                }
+                let buffer = device.makeBuffer(
+                    bytes: jointMatrices,
+                    length: MemoryLayout<float4x4>.size * jointMatrices.count,
+                    options: .storageModeShared
+                )!
+                blitCommandEncoder.copy(
+                    from: buffer,
+                    sourceOffset: 0,
+                    to: jointBuffer,
+                    destinationOffset: 0,
+                    size: jointBuffer.length
+                )
+            }
+
+
+            if let morphWeights {
+                guard let buffer = animation.animatableBuffers.morphWeightsBuffer else {
+                    assertionFailure("Morph weights buffer is nil")
+                    continue
+                }
+                let staging = device.makeBuffer(
+                    bytes: morphWeights,
+                    length: buffer.length,
+                    options: .storageModeShared
+                )!
+                blitCommandEncoder.copy(
+                    from: staging,
+                    sourceOffset: 0,
+                    to: buffer,
+                    destinationOffset: 0,
+                    size: buffer.length
+                )
+            }
+        }
+        blitCommandEncoder.endEncoding()
+    }
 
     public func render(
         using renderEncoder: MTLRenderCommandEncoder,

@@ -25,10 +25,21 @@ public class GLTFSkeleton: MDLSkeleton {
         super.init(name: name, jointPaths: [])
     }
 
-    func setJointObject(_ obj: MDLObject, for index: Int) {
+    func bind(_ obj: MDLObject, for index: Int) {
         guard index >= 0 && index < _jointObjects.count else {
             fatalError("Index out of bounds for joint objects")
         }
         _jointObjects[index] = obj
+    }
+}
+
+@objc public protocol GLTFSkeletonRef: MDLComponent {
+    var skeleton: GLTFSkeleton { get }
+}
+
+class GLTFSkeletonRefImpl: NSObject, GLTFSkeletonRef {
+    let skeleton: GLTFSkeleton
+    init(skeleton: GLTFSkeleton) {
+        self.skeleton = skeleton
     }
 }

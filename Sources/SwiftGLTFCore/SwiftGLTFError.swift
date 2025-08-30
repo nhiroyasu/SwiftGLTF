@@ -121,6 +121,7 @@ public enum ParseErrorCode: Sendable, Equatable {
     case skinJointsCountMismatch
     case missingSkin(index: Int)
     case invalidSkinReference(node: Int)
+    case invalidAnimationChannelTarget
 }
 
 public enum IOErrorCode: Sendable, Equatable {
@@ -277,6 +278,7 @@ extension SwiftGLTFError: LocalizedError {
         case .skinJointsCountMismatch: return "skin.joints count and inverseBindMatrices length mismatch"
         case let .missingSkin(index): return "Skin not found at index \(index)"
         case let .invalidSkinReference(node): return "Invalid skin reference on node \(node)"
+        case .invalidAnimationChannelTarget: return "Invalid animation channel target"
         }
     }
 
@@ -379,6 +381,7 @@ extension SwiftGLTFError: CustomNSError {
         case .skinJointsCountMismatch: return 10
         case .missingSkin: return 11
         case .invalidSkinReference: return 12
+        case .invalidAnimationChannelTarget: return 13
         }
     }
 

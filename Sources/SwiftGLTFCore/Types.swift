@@ -25,6 +25,7 @@ public struct GLTF: Codable {
     public let scene: Int? // spec: default undefined
     public let nodes: [Node]?
     public let skins: [Skin]?
+    public let animations: [Animation]?
     public let materials: [Material]?
     public let images: [Image]?
     public let textures: [Texture]?
@@ -40,6 +41,7 @@ public struct GLTF: Codable {
         case scene
         case nodes
         case skins
+        case animations
         case materials
         case images
         case textures
@@ -57,6 +59,7 @@ public struct GLTF: Codable {
         self.scene = try container.decodeIfPresent(Int.self, forKey: .scene)
         self.nodes = try container.decodeIfPresent([Node].self, forKey: .nodes)
         self.skins = try container.decodeIfPresent([Skin].self, forKey: .skins)
+        self.animations = try container.decodeIfPresent([Animation].self, forKey: .animations)
         self.materials = try container.decodeIfPresent([Material].self, forKey: .materials)
         self.images = try container.decodeIfPresent([Image].self, forKey: .images)
         self.textures = try container.decodeIfPresent([Texture].self, forKey: .textures)
@@ -238,16 +241,20 @@ public struct Node: Codable {
     public let name: String?
     public let mesh: MeshIndex?
     public let skin: SkinIndex?
+    /// Morph target weights for this node (applied per mesh instance)
+    /// glTF: node.weights
+    public let weights: [Float]?
     public let children: [Int]?
     public let translation: [Float]?
     public let rotation: [Float]?
     public let scale: [Float]?
     public let matrix: [Float]?
 
-    public init(name: String?, mesh: MeshIndex?, skin: SkinIndex?, children: [Int]?, translation: [Float]?, rotation: [Float]?, scale: [Float]?, matrix: [Float]?) {
+    public init(name: String?, mesh: MeshIndex?, skin: SkinIndex?, weights: [Float]?, children: [Int]?, translation: [Float]?, rotation: [Float]?, scale: [Float]?, matrix: [Float]?) {
         self.name = name
         self.mesh = mesh
         self.skin = skin
+        self.weights = weights
         self.children = children
         self.translation = translation
         self.rotation = rotation
@@ -417,6 +424,9 @@ public struct SkinIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
 public struct Mesh: Codable {
     public let name: String?
     public let primitives: [Primitive]
+    /// Default morph target weights for this mesh
+    /// glTF: mesh.weights
+    public let weights: [Float]?
 }
 
 public struct MeshIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
@@ -441,12 +451,16 @@ public struct Primitive: Codable {
     public let indices: AccessorIndex?
     public let material: Int?
     public let mode: GLTFPrimitiveMode
+    /// Morph targets: Each element is a map from attribute name (e.g. "POSITION") to accessor index
+    /// glTF: mesh.primitives[*].targets
+    public let targets: [[String: Int]]?
 
     enum CodingKeys: String, CodingKey {
         case attributes
         case indices
         case material
         case mode
+        case targets
     }
 
     public init(from decoder: Decoder) throws {
@@ -455,6 +469,7 @@ public struct Primitive: Codable {
         self.indices = try container.decodeIfPresent(AccessorIndex.self, forKey: .indices)
         self.material = try container.decodeIfPresent(Int.self, forKey: .material)
         self.mode = try container.decodeIfPresent(GLTFPrimitiveMode.self, forKey: .mode) ?? .triangles
+        self.targets = try container.decodeIfPresent([[String: Int]].self, forKey: .targets)
     }
 }
 
@@ -674,6 +689,69 @@ public enum GLTFPrimitiveMode: Int, Codable {
     case triangleStrip = 5       // TRIANGLE_STRIP
     case triangleFan = 6         // TRIANGLE_FAN
 }
+
+// MARK: - Animations
+
+/// Animation clip
+public struct Animation: Codable {
+    public let name: String?
+    public let samplers: [AnimationSampler]
+    public let channels: [AnimationChannel]
+}
+
+/// Animation sampler mapping input times to output values
+public struct AnimationSampler: Codable {
+    public let input: AccessorIndex
+    public let output: AccessorIndex
+    public let interpolation: GLTFInterpolation
+
+    enum CodingKeys: String, CodingKey {
+        case input
+        case output
+        case interpolation
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.input = try container.decode(AccessorIndex.self, forKey: .input)
+        self.output = try container.decode(AccessorIndex.self, forKey: .output)
+        self.interpolation = try container.decodeIfPresent(GLTFInterpolation.self, forKey: .interpolation) ?? .linear
+    }
+}
+
+/// Animation channel targeting a node path
+public struct AnimationChannel: Codable {
+    public struct Target: Codable {
+        public let node: NodeIndex?
+        public let path: AnimationPath
+    }
+
+    public let sampler: Int
+    public let target: Target
+}
+
+/// Path for animation target
+public enum AnimationPath: String, Codable {
+    case translation
+    case rotation
+    case scale
+    case weights
+    case unknown
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = AnimationPath(rawValue: rawValue) ?? .unknown
+    }
+}
+
+/// Interpolation type for animation sampler
+public enum GLTFInterpolation: String, Codable {
+    case linear = "LINEAR"
+    case step = "STEP"
+    case cubicSpline = "CUBICSPLINE"
+}
+
 // MARK: - KHR_materials_emissive_strength extension
 /// glTF extension KHR_materials_emissive_strength provides a multiplier for emissive color and textures.
 public struct KHRMaterialsEmissiveStrength: Codable {

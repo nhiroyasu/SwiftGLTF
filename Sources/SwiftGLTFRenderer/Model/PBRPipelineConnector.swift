@@ -144,10 +144,15 @@ class PBRPipelineConnector {
     }
 
     func makeVertexArgumentsBuffer(
-        model: UnsafePointer<simd_float4x4>,
-        inverseModel: UnsafePointer<simd_float4x4>,
+        modelBuffer: MTLBuffer,
+        inverseModelBuffer: MTLBuffer,
         hasSkinning: UnsafePointer<Bool>,
-        globalJointMatricesBuffer: MTLBuffer?
+        globalJointMatricesBuffer: MTLBuffer?,
+        // Morph (optional, up to 8 targets)
+        hasMorph: Bool = false,
+        morphTargetCount: UInt32 = 0,
+        morphWeightsBuffer: MTLBuffer? = nil,
+        morphInterleavedBuffers: [MTLBuffer] = []
     ) throws -> MTLBuffer {
         let encoder = vertexFunction.makeArgumentEncoder(bufferIndex: 1)
         guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
@@ -155,16 +160,27 @@ class PBRPipelineConnector {
         }
         encoder.setArgumentBuffer(buffer, offset: 0)
 
-        let modelAddr = encoder.constantData(at: 0)
-        modelAddr.copyMemory(from: model, byteCount: MemoryLayout<simd_float4x4>.size)
-
-        let inverseModelAddr = encoder.constantData(at: 1)
-        inverseModelAddr.copyMemory(from: inverseModel, byteCount: MemoryLayout<simd_float4x4>.size)
+        encoder.setBuffer(modelBuffer, offset: 0, index: 0)
+        encoder.setBuffer(inverseModelBuffer, offset: 0, index: 1)
 
         let hasSkinningAddr = encoder.constantData(at: 2)
         hasSkinningAddr.copyMemory(from: hasSkinning, byteCount: MemoryLayout<Bool>.size)
 
         encoder.setBuffer(globalJointMatricesBuffer, offset: 0, index: 3)
+
+        // Morph
+        var hasMorphVar = hasMorph
+        let hasMorphAddr = encoder.constantData(at: 4)
+        hasMorphAddr.copyMemory(from: &hasMorphVar, byteCount: MemoryLayout<Bool>.size)
+        var targetCountVar = morphTargetCount
+        let targetCountAddr = encoder.constantData(at: 5)
+        targetCountAddr.copyMemory(from: &targetCountVar, byteCount: MemoryLayout<UInt32>.size)
+        encoder.setBuffer(morphWeightsBuffer, offset: 0, index: 6)
+        // Up to 8 targets
+        let maxTargets = 8
+        for i in 0..<min(maxTargets, morphInterleavedBuffers.count) {
+            encoder.setBuffer(morphInterleavedBuffers[i], offset: 0, index: 7 + i)
+        }
         return buffer
     }
 }

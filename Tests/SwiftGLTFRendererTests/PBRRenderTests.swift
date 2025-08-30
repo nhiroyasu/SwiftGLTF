@@ -163,7 +163,7 @@ final class PBRRenderTests {
     // MARK: - Export golden images
 
     let goldenFilePrefix = "golden_pbr_mesh_"
-    let outputFilePrefix = "wireframe_mesh_"
+    let outputFilePrefix = "pbr_mesh_"
     let meshFiles: [(String, String)] = [
         ("BoxTextured", "glb"),
         ("CompareBaseColor", "glb"),

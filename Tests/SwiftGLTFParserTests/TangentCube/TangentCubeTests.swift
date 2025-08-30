@@ -7,7 +7,8 @@ struct TangentCubeTests {
     @Test
     func testTangentBufferMatchesOriginalBinary() async throws {
         let (gltf, asset) = try await loadGLTFAndAsset()
-        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
+        let meshPath = GLTFAssetPath.nodes(atScene: 0) + "/Cube/Cube/Primitive_0"
+        let mesh = asset.object(atPath: meshPath) as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
         let binURL = Bundle.module.url(forResource: "tangent_cube", withExtension: "bin")!
