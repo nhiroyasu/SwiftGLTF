@@ -123,10 +123,10 @@ var body: some View {
 ### Animation
 | Channel                  | Supported |
 |--------------------------|-----------|
-| translation              | ❌         |
-| rotation                 | ❌         |
-| scale                    | ❌         |
-| morph target weights     | ❌         |
+| translation              | ✅         |
+| rotation                 | ✅         |
+| scale                    | ✅         |
+| morph target weights     | ✅         |
 
 ### Scenes
 | Feature                 | Supported |
