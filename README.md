@@ -143,14 +143,14 @@ var body: some View {
 - You can build the sample project by opening `SwiftGLTFSample.xcodeproj`.
 
 ### Project Structure
+#### SwiftGLTF
+- Provides `GLTFView` and `GLTFMetalView` components to display glTF files in UIKit and SwiftUI views.
+
 #### SwiftGLTFRenderer
 - A library for rendering glTF files using Metal.
 
 #### SwiftGLTFParser
 - A library that parses glTF and converts it into `MDLAsset` for use in Swift.
-
-#### SwiftGLTF
-- Provides `GLTFView` and `GLTFMetalView` components to display glTF files in UIKit and SwiftUI views.
 
 #### SwiftGLTFCore
 - A library that defines the core data structures of glTF.
