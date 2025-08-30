@@ -108,21 +108,8 @@ class PBRMeshLoader {
         let transformTree = parentTransformTree + [selfTransform]
 
         var appliedAnimChannels = parentAnimations
-        if let animation {
-            for channel in animation.channels {
-                if obj == channel.targetNode {
-                    let meshAnim = PBRMesh.AnimationChannel(
-                        type: channel.type,
-                        interpolation: channel.interpolation,
-                        input: channel.input,
-                        modelMatrixTreeEffectIndex: transformTree.count - 1,
-                        globalJointNodeTreeEffectIndex: nil,
-                        globalJointMatrixTreeEffectIndex: nil
-                    )
-                    appliedAnimChannels.append(meshAnim)
-                }
-            }
-        }
+        let animChannels = makeAnimChannels(from: obj, with: animation, transformTree: transformTree)
+        appliedAnimChannels.append(contentsOf: animChannels)
 
         var appliedSkeletons = parentSkeletons
         if let skeleton = (obj.componentConforming(to: GLTFSkeletonRef.self) as? GLTFSkeletonRef)?.skeleton {
@@ -161,25 +148,8 @@ class PBRMeshLoader {
                 let skeleton = appliedSkeletons.first!
                 meshSkeleton = skeletonMap[skeleton]
 
-                if let animation {
-                    for channel in animation.channels {
-                        for (nodeIndex, jointNode) in (skeleton.jointObjects).enumerated() {
-                            for (jointMatrixIndex, node) in jointNode.parentTreeWithSelf.enumerated() {
-                                if node == channel.targetNode {
-                                    let meshAnim = PBRMesh.AnimationChannel(
-                                        type: channel.type,
-                                        interpolation: channel.interpolation,
-                                        input: channel.input,
-                                        modelMatrixTreeEffectIndex: nil,
-                                        globalJointNodeTreeEffectIndex: nodeIndex,
-                                        globalJointMatrixTreeEffectIndex: jointMatrixIndex
-                                    )
-                                    appliedAnimChannels.append(meshAnim)
-                                }
-                            }
-                        }
-                    }
-                }
+                let animChannels = makeAnimChannels(from: skeleton, with: animation)
+                appliedAnimChannels.append(contentsOf: animChannels)
             }
 
             // Morph data detection on this mesh
@@ -692,6 +662,63 @@ class PBRMeshLoader {
             )
         }
         return convertedMap
+    }
+
+    // MARK: - Animation Channels Helpers
+
+    private func makeAnimChannels(
+        from obj: MDLObject,
+        with animation: GLTFAnimation?,
+        transformTree: [float4x4]
+    ) -> [PBRMesh.AnimationChannel] {
+        if let animation {
+            var appliedAnimChannels: [PBRMesh.AnimationChannel] = []
+            for channel in animation.channels {
+                if obj == channel.targetNode {
+                    let meshAnim = PBRMesh.AnimationChannel(
+                        type: channel.type,
+                        interpolation: channel.interpolation,
+                        input: channel.input,
+                        modelMatrixTreeEffectIndex: transformTree.count - 1,
+                        globalJointNodeTreeEffectIndex: nil,
+                        globalJointMatrixTreeEffectIndex: nil
+                    )
+                    appliedAnimChannels.append(meshAnim)
+                }
+            }
+            return appliedAnimChannels
+        } else {
+            return []
+        }
+    }
+
+    private func makeAnimChannels(
+        from skeleton: GLTFSkeleton,
+        with animation: GLTFAnimation?
+    ) -> [PBRMesh.AnimationChannel] {
+        if let animation {
+            var appliedAnimChannels: [PBRMesh.AnimationChannel] = []
+            for channel in animation.channels {
+                for (nodeIndex, jointNode) in (skeleton.jointObjects).enumerated() {
+                    for (jointMatrixIndex, node) in jointNode.parentTreeWithSelf.enumerated() {
+                        if node == channel.targetNode {
+                            let meshAnim = PBRMesh.AnimationChannel(
+                                type: channel.type,
+                                interpolation: channel.interpolation,
+                                input: channel.input,
+                                modelMatrixTreeEffectIndex: nil,
+                                globalJointNodeTreeEffectIndex: nodeIndex,
+                                globalJointMatrixTreeEffectIndex: jointMatrixIndex
+                            )
+                            appliedAnimChannels.append(meshAnim)
+                        }
+                    }
+                }
+            }
+            return appliedAnimChannels
+        } else {
+            return []
+        }
     }
 
     // MARK: - Texture & Sampler Helpers
