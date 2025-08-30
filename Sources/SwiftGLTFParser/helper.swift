@@ -1,4 +1,5 @@
 import simd
+import SwiftGLTFCore
 
 func float4x4(_ m: [Float]) -> float4x4 {
     precondition(m.count == 16)
@@ -23,16 +24,6 @@ func quaternionToMatrix3x3(_ q: simd_quatf) -> simd_float3x3 {
     )
 }
 
-func quaternionMatrix(_ q: simd_quatf) -> simd_float4x4 {
-    let r = quaternionToMatrix3x3(q)
-    return simd_float4x4(
-        SIMD4(r.columns.0, 0),
-        SIMD4(r.columns.1, 0),
-        SIMD4(r.columns.2, 0),
-        SIMD4(0, 0, 0, 1)
-    )
-}
-
 public func rotationZMatrix(_ angle: Float) -> simd_float4x4 {
     let c = cos(angle)
     let s = sin(angle)
@@ -45,26 +36,57 @@ public func rotationZMatrix(_ angle: Float) -> simd_float4x4 {
 }
 
 func translationMatrix(_ x: Float, _ y: Float, _ z: Float) -> simd_float4x4 {
-    var matrix = matrix_identity_float4x4
-    matrix.columns.3 = simd_float4(x, y, z, 1.0)
-    return matrix
+    return simd_float4x4(
+        SIMD4(1, 0, 0, 0),
+        SIMD4(0, 1, 0, 0),
+        SIMD4(0, 0, 1, 0),
+        SIMD4(x, y, z, 1)
+    )
 }
 
-func scaleMatrix(_ x: Float, _ y: Float, _ z: Float) -> simd_float4x4 {
-    var matrix = matrix_identity_float4x4
-    matrix.columns.0.x = x
-    matrix.columns.1.y = y
-    matrix.columns.2.z = z
-    return matrix
+@inlinable @inline(__always)
+func translationMatrix(_ f3: SIMD3<Float>) -> simd_float4x4 {
+    // Construct directly without touching matrix_identity_float4x4
+    // to avoid an extra copy + write to columns.3.
+    return simd_float4x4(
+        SIMD4(1, 0, 0, 0),
+        SIMD4(0, 1, 0, 0),
+        SIMD4(0, 0, 1, 0),
+        SIMD4(f3.x, f3.y, f3.z, 1)
+    )
 }
 
-struct TRS {
-    var translation: SIMD3<Float>
-    var rotation: simd_quatf
-    var scale: SIMD3<Float>
+public func scaleMatrix(_ x: Float, _ y: Float, _ z: Float) -> simd_float4x4 {
+    return simd_float4x4(
+        SIMD4(x, 0, 0, 0),
+        SIMD4(0, y, 0, 0),
+        SIMD4(0, 0, z, 0),
+        SIMD4(0, 0, 0, 1)
+    )
 }
 
-func decomposeTRS(_ m: simd_float4x4) -> TRS {
+public func scaleMatrix(_ f3: SIMD3<Float>) -> simd_float4x4 {
+    return simd_float4x4(
+        SIMD4(f3.x, 0, 0, 0),
+        SIMD4(0, f3.y, 0, 0),
+        SIMD4(0, 0, f3.z, 0),
+        SIMD4(0, 0, 0, 1)
+    )
+}
+
+public func trs2matrix(_ trs: TRS) -> simd_float4x4 {
+    return translationMatrix(trs.translation) * simd_float4x4(trs.rotation) * scaleMatrix(trs.scale)
+}
+
+public func trs2matrix(
+    _ t: SIMD3<Float>,
+    _ r: simd_quatf,
+    _ s: SIMD3<Float>
+) -> simd_float4x4 {
+    return translationMatrix(t) * simd_float4x4(r) * scaleMatrix(s)
+}
+
+public func decomposeTRS(_ m: simd_float4x4) -> TRS {
     let translation = SIMD3(m.columns.3.x, m.columns.3.y, m.columns.3.z)
 
     let col0 = SIMD3(m.columns.0.x, m.columns.0.y, m.columns.0.z)
@@ -93,6 +115,7 @@ func decomposeTRS(_ m: simd_float4x4) -> TRS {
 
     return TRS(translation: translation, rotation: rotation, scale: scale)
 }
+
 func flipToLeftHanded(_ trs: TRS) -> TRS {
     let flippedTranslation = SIMD3(trs.translation.x, trs.translation.y, -trs.translation.z)
     let flippedScale = SIMD3(trs.scale.x, trs.scale.y, trs.scale.z)
@@ -116,19 +139,21 @@ func composeTRS(_ trs: TRS) -> simd_float4x4 {
 
 extension float4x4 {
     init(translation t: SIMD3<Float>) {
-        self = matrix_identity_float4x4
-        columns.3 = SIMD4(t.x, t.y, t.z, 1.0)
+        self = simd_float4x4(
+            SIMD4(1, 0, 0, 0),
+            SIMD4(0, 1, 0, 0),
+            SIMD4(0, 0, 1, 0),
+            SIMD4(t, 1)
+        )
     }
 
     init(scale s: SIMD3<Float>) {
-        self = matrix_identity_float4x4
-        columns.0.x = s.x
-        columns.1.y = s.y
-        columns.2.z = s.z
-    }
-
-    init(_ q: simd_quatf) {
-        self = quaternionMatrix(q)
+        self = simd_float4x4(
+            SIMD4(s.x, 0, 0, 0),
+            SIMD4(0, s.y, 0, 0),
+            SIMD4(0, 0, s.z, 0),
+            SIMD4(0, 0, 0, 1)
+        )
     }
 }
 

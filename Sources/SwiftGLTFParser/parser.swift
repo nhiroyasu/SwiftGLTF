@@ -28,6 +28,32 @@ public func makeMDLAsset(
     let asset = MDLAsset(bufferAllocator: allocator)
     let binaryLoader = GLTFBinaryLoader(gltfContainer: gltfContainer)
 
+    let scenesObject = MDLObject()
+    scenesObject.name = GLTFAssetName.scenes
+    let librariesObject = MDLObject()
+    librariesObject.name = GLTFAssetName.libraries
+
+    // Get the default scene
+    let sceneObject = MDLObject()
+    let sceneIndex = gltf.scene ?? 0
+    guard let scene = gltf.scenes?[sceneIndex] else {
+        throw SwiftGLTFError.makeParse(.noValidScene, context: .capture(stage: .parse, jsonPointer: "/scene"))
+    }
+    sceneObject.name = GLTFAssetName.scene(sceneIndex)
+
+    let nodesObj = MDLObject()
+    nodesObj.name = GLTFAssetName.nodes
+
+    let skinsObject = MDLObject()
+    skinsObject.name = GLTFAssetName.skins
+
+    asset.add(scenesObject)
+    scenesObject.addChild(sceneObject)
+    sceneObject.addChild(nodesObj)
+
+    asset.add(librariesObject)
+    librariesObject.addChild(skinsObject)
+
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
     let mdlMeshMap = try await withThrowingTaskGroup(of: (MeshIndex, MDLObject).self) { group in
@@ -81,17 +107,54 @@ public func makeMDLAsset(
         skinMap[SkinIndex(index)] = skeleton
     }
 
-    // デフォルトシーンを取得
-    // en: Get the default scene
-    let sceneIndex = gltf.scene ?? 0
-    guard let scene = gltf.scenes?[sceneIndex] else {
-        throw SwiftGLTFError.makeParse(.noValidScene, context: .capture(stage: .parse, jsonPointer: "/scene"))
+    // Skin nodes are added as children of the root asset
+    for (_, skin) in skinMap {
+        skinsObject.addChild(skin)
     }
+
+    // 全ての animations を先に変換して保持
+    // en: Convert all animations first and keep them for reuse
+    var animations: [MDLObject] = []
+    for (index, anim) in (gltf.animations ?? []).enumerated() {
+        var channels: [GLTFAnimationChannel] = []
+        for channel in anim.channels {
+            if let gltfAnimation = try GLTFAnimationChannelBuilder.build(
+                from: channel,
+                samplers: anim.samplers,
+                gltf: gltf,
+                binaryLoader: binaryLoader,
+                options: options
+            ) {
+                channels.append(gltfAnimation)
+            }
+        }
+        let duration: Float = channels.flatMap { $0.input }.max() ?? 0
+        let animation = GLTFAnimation(
+            name: anim.name ?? "Animation_\(index)",
+            duration: duration,
+            channels: channels
+        )
+        let animObj = MDLObject()
+        animObj.setComponent(animation, for: GLTFAnimationProtocol.self)
+        animations.append(animObj)
+    }
+    let animationsContainer = GLTFAnimationContainer()
+    for animObj in animations {
+        animationsContainer.add(animObj)
+    }
+    asset.animations = animationsContainer
 
     // Build the node tree
     for rootNodeIndex in scene.nodes ?? [] {
-        let root = buildNodeTree(nodeIndex: rootNodeIndex, meshMap: mdlMeshMap, skinMap: skinMap, gltf: gltf, options: options)
-        asset.add(root)
+        let node = buildNodeTree(
+            nodeIndex: rootNodeIndex,
+            meshMap: mdlMeshMap,
+            skinMap: skinMap,
+            animations: animations,
+            gltf: gltf,
+            options: options
+        )
+        nodesObj.addChild(node)
     }
 
     if options.autoScale {
@@ -204,6 +267,7 @@ public func makeMDLMesh(
         let mdlMaterial = try makeMDLMaterial(for: primitive, gltf, binaryLoader)
 
         // Calculate mesh center from POSITION accessor min/max and store to material property
+        // Used in distance sorting of transparent mesh
         if let positionAccessorIndex = primitive.attributes[GLTFAttribute.position.rawValue] {
             let accessors = gltf.accessors ?? []
             if accessors.indices.contains(positionAccessorIndex) {
@@ -274,6 +338,7 @@ func buildNodeTree(
     nodeIndex: Int,
     meshMap: [MeshIndex: MDLObject],
     skinMap: [SkinIndex: GLTFSkeleton],
+    animations: [MDLObject],
     gltf: GLTF,
     options: GLTFDecodeOptions = .default
 ) -> MDLObject {
@@ -284,29 +349,43 @@ func buildNodeTree(
     }()
     let object = MDLObject()
     object.name = node.name ?? "Node_\(nodeIndex)" // ノード名が無ければデフォルト名を設定. en: Set default name if node name is missing
+    // Attach glTF node index for later animation application
+    object.setComponent(GLTFNodeIndex(index: nodeIndex), for: GLTFNodeIndexProtocol.self)
 
     // Add mesh if available
     if let meshIndex = node.mesh, let mesh = meshMap[meshIndex] {
         object.addChild(mesh)
     }
 
-    // Add skin if available
+    // Add skin ref if available
     if let skinIndex = node.skin, let skin = skinMap[skinIndex] {
-        object.addChild(skin)
+        let skinRef = GLTFSkeletonRefImpl(skeleton: skin)
+        object.setComponent(skinRef, for: GLTFSkeletonRef.self)
     }
-
-    // Add morph weights if available (per-node weights)
-    if let weights = node.weights {
-        let comp = GLTFMorphWeights(weights: weights)
-        object.setComponent(comp, for: GLTFMorphWeightsProtocol.self)
-    }
-
+    // Bind skeleton joints if this node is a joint
     for skin in skinMap.values {
         for (i, jointNodeIndex) in skin.joins.enumerated() {
             if nodeIndex == jointNodeIndex.value {
-                skin.setJointObject(object, for: i)
+                skin.bind(object, for: i)
             }
         }
+    }
+
+    // Bind the animation channel to target node
+    for animObj in animations {
+        if let animComp = animObj.componentConforming(to: GLTFAnimationProtocol.self) as? GLTFAnimation {
+            for channel in animComp.channels {
+                if channel.targetNodeIndex.value == nodeIndex {
+                    channel.bind(object)
+                }
+            }
+        }
+    }
+
+    // Add morph  weights if available (per-node weights)
+    if let weights = node.weights {
+        let comp = GLTFMorphWeights(weights: weights)
+        object.setComponent(comp, for: GLTFMorphWeightsProtocol.self)
     }
 
     // トランスフォーム適用
@@ -316,29 +395,39 @@ func buildNodeTree(
         let finalMatrix = options.convertToLeftHanded ? flipToLeftHanded(transformMatrix) : transformMatrix
         object.transform = GLTFTransform(matrix: finalMatrix)
     } else {
-        var translation = float4x4(1.0)
+        var translation: SIMD3<Float> = SIMD3<Float>(0, 0, 0)
         if let t = node.translation {
-            translation = translationMatrix(t[0], t[1], t[2])
+            translation = SIMD3<Float>(t[0], t[1], t[2])
+            if options.convertToLeftHanded {
+                translation.z = -translation.z
+            }
         }
-        var rotation = float4x4(1.0)
+        var rotation: simd_quatf = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
         if let r = node.rotation {
             let q = simd_quatf(ix: r[0], iy: r[1], iz: r[2], r: r[3])
-            rotation = quaternionMatrix(q)
+            if options.convertToLeftHanded {
+                rotation = simd_quatf(ix: -q.imag.x, iy: -q.imag.y, iz: q.imag.z, r: q.real)
+            }
         }
-        var scale = float4x4(1.0)
+        var scale: SIMD3<Float> = SIMD3<Float>(1, 1, 1)
         if let s = node.scale {
-            scale = scaleMatrix(s[0], s[1], s[2])
+            scale = SIMD3<Float>(s[0], s[1], s[2])
         }
-        let localMatrix = translation * rotation * scale
-        let finalMatrix = options.convertToLeftHanded ? flipToLeftHanded(localMatrix) : localMatrix
-        object.transform = GLTFTransform(matrix: finalMatrix)
+        object.transform = GLTFTransform(translation: translation, rotation: rotation, scale: scale)
     }
 
     // 子ノードを再帰的に追加
     // en: Recursively add child nodes
     if let children = node.children {
         for childIndex in children {
-            let child = buildNodeTree(nodeIndex: childIndex, meshMap: meshMap, skinMap: skinMap, gltf: gltf, options: options)
+            let child = buildNodeTree(
+                nodeIndex: childIndex,
+                meshMap: meshMap,
+                skinMap: skinMap,
+                animations: animations,
+                gltf: gltf,
+                options: options
+            )
             object.addChild(child)
         }
     }

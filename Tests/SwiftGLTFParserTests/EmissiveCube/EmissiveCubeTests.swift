@@ -7,7 +7,8 @@ struct EmissiveCubeTests {
     @Test
     func testEmissiveFactor() async throws {
         let (_, asset) = try await loadGLTFAndAsset()
-        let mesh = asset.object(at: 0).children[0].children[0] as! MDLMesh
+        let meshPath = GLTFAssetPath.nodes(atScene: 0) + "/Cube/Cube/Primitive_0"
+        let mesh = asset.object(atPath: meshPath) as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
         let emissiveFactor = material.property(with: .emission)!

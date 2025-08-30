@@ -11,10 +11,7 @@ struct VertexOut_Wireframe {
 };
 
 struct WireframeVertexArguments {
-    float4x4 model [[id(0)]];
-    float4x4 inverseModel [[id(1)]];
-    bool hasSkinning [[id(2)]];
-    constant float4x4 *globalJointMatrices [[id(3)]];
+    constant float4x4 &model [[id(0)]];
 };
 
 vertex VertexOut_Wireframe wireframe_vertex_shader(VertexIn_Wireframe in [[stage_in]],

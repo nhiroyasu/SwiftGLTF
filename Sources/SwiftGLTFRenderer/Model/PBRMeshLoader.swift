@@ -21,7 +21,10 @@ class PBRMeshLoader {
         self.textureLoader = MTKTextureLoader(device: device)
     }
 
-    func loadMeshes(from asset: MDLAsset) async throws -> PBRMeshContainer {
+    func loadMeshes(
+        from asset: MDLAsset,
+        animationIndex: Int = 0
+    ) async throws -> PBRMeshContainer {
         #if DEBUG
         let startTime = Date()
         defer {
@@ -30,14 +33,23 @@ class PBRMeshLoader {
         }
         #endif
 
+        let animations: [GLTFAnimation] = asset.animations.objects
+            .compactMap({ $0.componentConforming(to: GLTFAnimationProtocol.self) as? GLTFAnimation })
+        var animation: GLTFAnimation?
+        if animationIndex < animations.count {
+            animation = animations[animationIndex]
+        }
+
         var textureMap = try extractAllTextureMap(from: asset)
         let texturesHeap = try makeTexturesHeap(from: Array(textureMap.values))
         if let texturesHeap {
             textureMap = try convertHeapTexture(from: textureMap, use: texturesHeap)
         }
 
-        var skeletonMap: [GLTFSkeleton: MTLBuffer] = try extractAllSkeletonMap(from: asset)
-        let skeletonHeap = makeSkeletonHeap(skeletonBuffers: Array(skeletonMap.values))
+        var skeletonMap: [GLTFSkeleton: PBRMesh.Skeleton] = try extractAllSkeletonMap(from: asset)
+        let skeletonHeap = makeSkeletonHeap(
+            skeletonBuffers: Array(skeletonMap.values.map({ $0.buffer }))
+        )
         if let skeletonHeap {
             skeletonMap = try convertHeapSkeleton(from: skeletonMap, use: skeletonHeap)
         }
@@ -58,7 +70,11 @@ class PBRMeshLoader {
                 skeletonMap: skeletonMap,
                 vertexHeap: vertexHeap,
                 fragmentHeap: fragmentHeap,
-                parentTransform: simd_float4x4(1)
+                animation: animation,
+                parentTransform: float4x4(1),
+                parentTransformTree: [],
+                parentAnimations: [],
+                parentSkeletons: []
             )
             pbrMeshes.append(contentsOf: meshes)
         }
@@ -74,23 +90,75 @@ class PBRMeshLoader {
         device: MTLDevice,
         obj: MDLObject,
         textureMap: [MDLTexture: MTLTexture],
-        skeletonMap: [GLTFSkeleton: MTLBuffer],
+        skeletonMap: [GLTFSkeleton: PBRMesh.Skeleton],
         vertexHeap: MTLHeap,
         fragmentHeap: MTLHeap,
-        parentTransform: simd_float4x4
+        animation: GLTFAnimation?,
+        parentTransform: float4x4,
+        parentTransformTree: [float4x4],
+        parentAnimations: [PBRMesh.AnimationChannel],
+        parentSkeletons: [GLTFSkeleton]
     ) async throws -> [PBRMesh] {
         var pbrMeshes: [PBRMesh] = []
 
-        let transform = parentTransform * (obj.transform?.matrix ?? simd_float4x4(1))
+        let selfTransform = obj.transform?.matrix ?? simd_float4x4(1)
+        let totalTransform = parentTransform * selfTransform
+        let transformTree = parentTransformTree + [selfTransform]
+
+        var appliedAnimChannels = parentAnimations
+        if let animation {
+            for channel in animation.channels {
+                if obj == channel.targetNode {
+                    let meshAnim = PBRMesh.AnimationChannel(
+                        type: channel.type,
+                        interpolation: channel.interpolation,
+                        input: channel.input,
+                        modelMatrixTreeEffectIndex: transformTree.count - 1,
+                        globalJointNodeTreeEffectIndex: nil,
+                        globalJointMatrixTreeEffectIndex: nil
+                    )
+                    appliedAnimChannels.append(meshAnim)
+                }
+            }
+        }
+
+        var appliedSkeletons = parentSkeletons
+        if let skeleton = (obj.componentConforming(to: GLTFSkeletonRef.self) as? GLTFSkeletonRef)?.skeleton {
+            appliedSkeletons.append(skeleton)
+        }
 
         if let mdlMesh = obj as? MDLMesh {
             let mtkMesh = try MTKMesh(mesh: mdlMesh, device: device)
 
             var hasSkinning = false
-            var globalJointMatricesBuffer: MTLBuffer?
-            if let skeleton = obj.parent?.parent?.children.objects.compactMap({ $0 as? GLTFSkeleton }).first  {
+            var meshSkeleton: PBRMesh.Skeleton?
+            if !appliedSkeletons.isEmpty {
                 hasSkinning = true
-                globalJointMatricesBuffer = skeletonMap[skeleton]
+                if appliedSkeletons.count > 1 {
+                    os_log("⚠️ Warning: Multiple skeletons found for a mesh. Using the first one.", log: .default, type: .error)
+                }
+                let skeleton = appliedSkeletons.first!
+                meshSkeleton = skeletonMap[skeleton]
+
+                if let animation {
+                    for channel in animation.channels {
+                        for (nodeIndex, jointNode) in (skeleton.jointObjects).enumerated() {
+                            for (jointMatrixIndex, node) in jointNode.parentTreeWithSelf.enumerated() {
+                                if node == channel.targetNode {
+                                    let meshAnim = PBRMesh.AnimationChannel(
+                                        type: channel.type,
+                                        interpolation: channel.interpolation,
+                                        input: channel.input,
+                                        modelMatrixTreeEffectIndex: nil,
+                                        globalJointNodeTreeEffectIndex: nodeIndex,
+                                        globalJointMatrixTreeEffectIndex: jointMatrixIndex
+                                    )
+                                    appliedAnimChannels.append(meshAnim)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Morph data detection on this mesh
@@ -103,7 +171,7 @@ class PBRMeshLoader {
                 morphCount = UInt32(morphComp.targetCount)
 
                 // Determine weights: node weights if present, else default
-                let nodeWeights = obj.parent?.componentConforming(to: GLTFMorphWeightsProtocol.self) as? GLTFMorphWeights
+                let nodeWeights = obj.parent?.parent?.componentConforming(to: GLTFMorphWeightsProtocol.self) as? GLTFMorphWeights
                 let weights: [Float] = nodeWeights?.weights ?? morphComp.defaultWeights
                 let tmpWeightsBuffer = device.makeBuffer(bytes: weights, length: MemoryLayout<Float>.size * weights.count)!
                 morphWeightsBuffer = try shaderConnection.moveBufferToHeap(from: tmpWeightsBuffer, use: vertexHeap)
@@ -245,27 +313,50 @@ class PBRMeshLoader {
                 use: vertexHeap
             )
 
-            var model = transform
+            var model = totalTransform
             var inverseModel = model.inverse
+            let tmpModelBuffer = device.makeBuffer(bytes: &model, length: MemoryLayout<float4x4>.size)!
+            let tmpInverseModelBuffer = device.makeBuffer(bytes: &inverseModel, length: MemoryLayout<float4x4>.size)!
+            let modelBuffer = try shaderConnection.moveBufferToHeap(from: tmpModelBuffer, use: vertexHeap)
+            let inverseModelBuffer = try shaderConnection.moveBufferToHeap(from: tmpInverseModelBuffer, use: vertexHeap)
 
             let vertexArgumentBuffer = try pipelineConnector.makeVertexArgumentsBuffer(
-                model: &model,
-                inverseModel: &inverseModel,
+                modelBuffer: modelBuffer,
+                inverseModelBuffer: inverseModelBuffer,
                 hasSkinning: &hasSkinning,
-                globalJointMatricesBuffer: globalJointMatricesBuffer,
+                globalJointMatricesBuffer: meshSkeleton?.buffer,
                 hasMorph: hasMorph,
                 morphTargetCount: morphCount,
                 morphWeightsBuffer: morphWeightsBuffer,
                 morphInterleavedBuffers: morphTargetBuffers
             )
 
+            var meshAnimation: PBRMesh.Animation?
+            if let animation, !appliedAnimChannels.isEmpty {
+                meshAnimation = .init(
+                    channels: appliedAnimChannels,
+                    duration: animation.duration,
+                    animatableBuffers: PBRMesh.AnimatableBuffers(
+                        modelBuffer: modelBuffer,
+                        inverseModelBuffer: inverseModelBuffer,
+                        globalJointMatricesBuffer: meshSkeleton?.buffer,
+                        morphWeightsBuffer: morphWeightsBuffer
+                    )
+                )
+            }
+
             let pbrMesh = PBRMesh(
                 vertexBuffer: vertexBuffer,
-                modelMatrix: model,
                 vertexArgumentBuffer: vertexArgumentBuffer,
                 submeshes: submeshes,
+                animation: meshAnimation,
+                modelMatrix: model,
+                modelMatrixTree: transformTree,
+                skeleton: meshSkeleton,
                 _storedHeapInstance: [
-                    morphWeightsBuffer
+                    morphWeightsBuffer,
+                    modelBuffer,
+                    inverseModelBuffer
                 ] + morphTargetBuffers
             )
             pbrMeshes.append(pbrMesh)
@@ -279,7 +370,11 @@ class PBRMeshLoader {
                 skeletonMap: skeletonMap,
                 vertexHeap: vertexHeap,
                 fragmentHeap: fragmentHeap,
-                parentTransform: transform
+                animation: animation,
+                parentTransform: totalTransform,
+                parentTransformTree: transformTree,
+                parentAnimations: appliedAnimChannels,
+                parentSkeletons: appliedSkeletons
             )
             pbrMeshes.append(contentsOf: childMeshes)
         }
@@ -329,42 +424,49 @@ class PBRMeshLoader {
         return textureMap
     }
 
-    func extractAllSkeletonMap(from asset: MDLAsset) throws -> [GLTFSkeleton: MTLBuffer] {
-        var skeletonMap: [GLTFSkeleton: MTLBuffer] = [:]
+    func extractAllSkeletonMap(from asset: MDLAsset) throws -> [GLTFSkeleton: PBRMesh.Skeleton] {
+        var skeletonMap: [GLTFSkeleton: PBRMesh.Skeleton] = [:]
 
-        func traverse(object: MDLObject) throws {
-            if let skeleton = object as? GLTFSkeleton {
-                var globalJointMatrices: [float4x4] = Array(repeating: float4x4(1), count: skeleton.jointObjects.count)
-                for (index, jointObject) in skeleton.jointObjects.enumerated() {
-                    let inverseBindMatrix = skeleton.inverseBindMatrices.float4x4Array[index]
-                    let globalJointTransform = {
-                        var skinNode = jointObject
-                        var transform = skinNode.transform?.matrix ?? float4x4(1)
-                        while let parent = skinNode.parent {
-                            transform = (parent.transform?.matrix ?? float4x4(1)) * transform
-                            skinNode = parent
-                        }
-                        return transform
-                    }()
-                    let globalJointMatrix = globalJointTransform * inverseBindMatrix
-                    globalJointMatrices[index] = globalJointMatrix
-                }
-                let buffer = device.makeBuffer(
-                    bytes: globalJointMatrices,
-                    length: MemoryLayout<float4x4>.size * globalJointMatrices.count,
-                    options: []
-                )!
-                skeletonMap[skeleton] = buffer
+        for skeleton in asset.object(atPath: GLTFAssetPath.skins).children.objects.compactMap({ $0 as? GLTFSkeleton }) {
+            var jointMatrices: [float4x4] = Array(repeating: float4x4(1), count: skeleton.jointObjects.count)
+            var joints: [PBRMesh.Skeleton.Joint] = []
+            joints.reserveCapacity(skeleton.jointObjects.count)
+            for (index, jointObject) in skeleton.jointObjects.enumerated() {
+                let inverseBindMatrix = skeleton.inverseBindMatrices.float4x4Array[index]
+                let (globalJointTransform, globalJointTransformTree) = {
+                    var skinNode = jointObject
+                    var totalTransform = skinNode.transform?.matrix ?? float4x4(1)
+                    var transformTree: [float4x4] = [totalTransform]
+                    while let parent = skinNode.parent {
+                        let parentTransform = parent.transform?.matrix ?? float4x4(1)
+                        totalTransform = parentTransform * totalTransform
+                        transformTree.insert(parentTransform, at: 0)
+                        skinNode = parent
+                    }
+                    return (totalTransform, transformTree)
+                }()
+
+                let jointMatrix = globalJointTransform * inverseBindMatrix
+                jointMatrices[index] = jointMatrix
+
+                let joint = PBRMesh.Skeleton.Joint(
+                    node: jointObject,
+                    inverseBindMatrix: inverseBindMatrix,
+                    globalJointMatrixTree: globalJointTransformTree,
+                    globalJointTRSTree: globalJointTransformTree.map { decomposeTRS($0) }
+                )
+                joints.append(joint)
             }
-
-            for child in object.children.objects {
-                try traverse(object: child)
-            }
-        }
-
-        for objectIndex in 0..<asset.count {
-            guard let object = asset[objectIndex] else { continue }
-            try traverse(object: object)
+            let buffer = device.makeBuffer(
+                bytes: jointMatrices,
+                length: MemoryLayout<float4x4>.size * jointMatrices.count,
+                options: []
+            )!
+            skeletonMap[skeleton] = PBRMesh.Skeleton(
+                buffer: buffer,
+                jointMatrices: jointMatrices,
+                joints: joints
+            )
         }
 
         return skeletonMap
@@ -487,6 +589,7 @@ class PBRMeshLoader {
         let heapDescriptor = MTLHeapDescriptor()
 
         let modelSize = device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * meshCount
+        let inverseModelSize = device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * meshCount
 
         var bufferSize: Int = 0
         for vertexBuffer in vertexBuffers {
@@ -494,7 +597,7 @@ class PBRMeshLoader {
             bufferSize += size
         }
 
-        heapDescriptor.size = modelSize + bufferSize
+        heapDescriptor.size = modelSize + inverseModelSize + bufferSize
         heapDescriptor.storageMode = .private
 
         guard heapDescriptor.size > 0 else {
@@ -515,11 +618,20 @@ class PBRMeshLoader {
         return convertedMap
     }
 
-    func convertHeapSkeleton(from skeletonMap: [GLTFSkeleton: MTLBuffer], use heap: MTLHeap) throws -> [GLTFSkeleton: MTLBuffer] {
-        var convertedMap: [GLTFSkeleton: MTLBuffer] = [:]
-        let heapBuffers = try shaderConnection.moveBuffersToHeap(from: Array(skeletonMap.values), use: heap)
-        for (index, skeleton) in skeletonMap.keys.enumerated() {
-            convertedMap[skeleton] = heapBuffers[index]
+    func convertHeapSkeleton(from skeletonMap: [GLTFSkeleton: PBRMesh.Skeleton], use heap: MTLHeap) throws -> [GLTFSkeleton: PBRMesh.Skeleton] {
+        var convertedMap: [GLTFSkeleton: PBRMesh.Skeleton] = [:]
+        let heapBuffers = try shaderConnection.moveBuffersToHeap(
+            from: Array(skeletonMap.values.map({ $0.buffer })),
+            use: heap
+        )
+        for (index, element) in skeletonMap.enumerated() {
+            let skeleton = element.key
+            let data = element.value
+            convertedMap[skeleton] = .init(
+                buffer: heapBuffers[index],
+                jointMatrices: data.jointMatrices,
+                joints: data.joints
+            )
         }
         return convertedMap
     }

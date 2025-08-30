@@ -7,10 +7,13 @@ struct SimpleSkinTests {
     @Test
     func testSkeletonNode() async throws {
         let (_, asset) = try await loadGLTFAndAsset()
-        let skeleton = asset.object(at: 0).children[1] as! GLTFSkeleton
+        let skeleton = asset.object(atPath: GLTFAssetPath.skins).children.objects.first as! GLTFSkeleton
 
         #expect(skeleton.joins == [1, 2])
-        #expect(skeleton.jointObjects == [asset.object(at: 1), asset.object(at: 1).children[0]])
+        #expect(skeleton.jointObjects == [
+            asset.object(atPath: GLTFAssetPath.nodes(atScene: 0) + "/Node_1"),
+            asset.object(atPath: GLTFAssetPath.nodes(atScene: 0) + "/Node_1/Node_2")
+        ])
 
         let expectedInverseBindMatrices = MDLMatrix4x4Array(elementCount: 2)
         expectedInverseBindMatrices.float4x4Array = [
@@ -24,7 +27,7 @@ struct SimpleSkinTests {
         ]
         #expect(skeleton.inverseBindMatrices.float4x4Array == expectedInverseBindMatrices.float4x4Array)
         #expect(skeleton.inverseBindMatrices.elementCount == expectedInverseBindMatrices.elementCount)
-        #expect(skeleton.jointPaths == ["/Node_1", "/Node_1/Node_2"])
+        #expect(skeleton.jointPaths == ["\(GLTFAssetPath.nodes(atScene: 0))/Node_1", "\(GLTFAssetPath.nodes(atScene: 0))/Node_1/Node_2"])
     }
 
     // MARK: - Helper Methods

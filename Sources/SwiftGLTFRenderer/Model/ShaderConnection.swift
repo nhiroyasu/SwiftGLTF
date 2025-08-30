@@ -174,6 +174,20 @@ class ShaderConnection {
         return heapBuffer
     }
 
+    func copyValueToBuffer<T>(valuePtr: UnsafePointer<T>, dst: MTLBuffer) throws {
+        let length = MemoryLayout<T>.size
+        let staging = device.makeBuffer(bytes: valuePtr, length: length, options: .storageModeShared)!
+        guard let commandBuffer = commandQueue.makeCommandBuffer() else {
+            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
+        }
+        guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
+            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+        }
+        encoder.copy(from: staging, sourceOffset: 0, to: dst, destinationOffset: 0, size: length)
+        encoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+    }
 
     func generatePrefilterEnvMapTexture(envMap: MTLTexture) -> MTLTexture {
         let prefilterEnvMapKernel = library.makeFunction(name: "prefilterEnvMap")!

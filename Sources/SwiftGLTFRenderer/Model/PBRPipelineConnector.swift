@@ -144,8 +144,8 @@ class PBRPipelineConnector {
     }
 
     func makeVertexArgumentsBuffer(
-        model: UnsafePointer<simd_float4x4>,
-        inverseModel: UnsafePointer<simd_float4x4>,
+        modelBuffer: MTLBuffer,
+        inverseModelBuffer: MTLBuffer,
         hasSkinning: UnsafePointer<Bool>,
         globalJointMatricesBuffer: MTLBuffer?,
         // Morph (optional, up to 8 targets)
@@ -160,11 +160,8 @@ class PBRPipelineConnector {
         }
         encoder.setArgumentBuffer(buffer, offset: 0)
 
-        let modelAddr = encoder.constantData(at: 0)
-        modelAddr.copyMemory(from: model, byteCount: MemoryLayout<simd_float4x4>.size)
-
-        let inverseModelAddr = encoder.constantData(at: 1)
-        inverseModelAddr.copyMemory(from: inverseModel, byteCount: MemoryLayout<simd_float4x4>.size)
+        encoder.setBuffer(modelBuffer, offset: 0, index: 0)
+        encoder.setBuffer(inverseModelBuffer, offset: 0, index: 1)
 
         let hasSkinningAddr = encoder.constantData(at: 2)
         hasSkinningAddr.copyMemory(from: hasSkinning, byteCount: MemoryLayout<Bool>.size)

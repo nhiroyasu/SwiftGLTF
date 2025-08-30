@@ -1,4 +1,6 @@
 import simd
+import SwiftGLTFCore
+import SwiftGLTFParser
 
 public let simd4x4Identity: simd_float4x4 = simd_float4x4(
     [1, 0, 0, 0],

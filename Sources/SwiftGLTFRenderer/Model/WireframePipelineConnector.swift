@@ -32,7 +32,7 @@ class WireframePipelineConnector {
     }
 
     func makeVertexArgumentsBuffer(
-        model: UnsafePointer<simd_float4x4>
+        modelBuffer: MTLBuffer
     ) throws -> MTLBuffer {
         let encoder = vertexFunction.makeArgumentEncoder(bufferIndex: 1)
         guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
@@ -40,8 +40,7 @@ class WireframePipelineConnector {
         }
         encoder.setArgumentBuffer(buffer, offset: 0)
 
-        let modelAddr = encoder.constantData(at: 0)
-        modelAddr.copyMemory(from: model, byteCount: MemoryLayout<simd_float4x4>.size)
+        encoder.setBuffer(modelBuffer, offset: 0, index: 0)
 
         return buffer
     }

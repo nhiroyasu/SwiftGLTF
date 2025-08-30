@@ -39,22 +39,22 @@ struct PBRVertexOut {
 };
 
 struct PBRVertexArguments {
-    float4x4 model [[id(0)]];
-    float4x4 inverseModel [[id(1)]];
+    constant float4x4 &model [[id(0)]];
+    constant float4x4 &inverseModel [[id(1)]];
     bool hasSkinning [[id(2)]];
     constant float4x4 *globalJointMatrices [[id(3)]];
     // Morph targets (optional)
     bool hasMorph [[id(4)]];
     uint morphTargetCount [[id(5)]];
     constant float *morphWeights [[id(6)]];
-    device float *morphInterleaved0 [[id(7)]];
-    device float *morphInterleaved1 [[id(8)]];
-    device float *morphInterleaved2 [[id(9)]];
-    device float *morphInterleaved3 [[id(10)]];
-    device float *morphInterleaved4 [[id(11)]];
-    device float *morphInterleaved5 [[id(12)]];
-    device float *morphInterleaved6 [[id(13)]];
-    device float *morphInterleaved7 [[id(14)]];
+    constant float *morphInterleaved0 [[id(7)]];
+    constant float *morphInterleaved1 [[id(8)]];
+    constant float *morphInterleaved2 [[id(9)]];
+    constant float *morphInterleaved3 [[id(10)]];
+    constant float *morphInterleaved4 [[id(11)]];
+    constant float *morphInterleaved5 [[id(12)]];
+    constant float *morphInterleaved6 [[id(13)]];
+    constant float *morphInterleaved7 [[id(14)]];
 };
 
 struct PBRFragmentArguments {
@@ -213,7 +213,7 @@ inline MorphApplyResult apply_morph(float3 pos,
     for (uint i = 0; i < count; ++i) {
         float w = args.morphWeights[i];
         if (w == 0.0) { continue; }
-        device float *buf = nullptr;
+        constant float *buf = nullptr;
         switch (i) {
             case 0: buf = args.morphInterleaved0; break;
             case 1: buf = args.morphInterleaved1; break;

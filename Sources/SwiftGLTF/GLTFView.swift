@@ -4,6 +4,7 @@ import SwiftGLTFRenderer
 import SwiftGLTFCore
 import MetalKit
 import OSLog
+import QuartzCore
 
 @MainActor
 public class GLTFView: MTKView {
@@ -30,6 +31,11 @@ public class GLTFView: MTKView {
     private let maxFramesInFlight = 2
     private var currentBuffer = 0
     private let frameSemaphores: DispatchSemaphore
+
+    // MARK: - Animation state
+    private var mdlAsset: MDLAsset?
+    private var animationState = RendererAnimationState(time: 0, speed: 1, isLooping: true)
+    private var lastFrameTime: CFTimeInterval?
 
     var eye: SIMD3<Float> {
         SIMD3<Float>(
@@ -113,10 +119,7 @@ public class GLTFView: MTKView {
     ) throws {
         try self.init(frame: frame, device: device)
 
-        Task {
-            let asset = try await makeMDLAsset(from: url)
-            await self.load(from: asset)
-        }
+        Task { await self.load(from: url) }
     }
 
     required init(coder: NSCoder) {
@@ -260,14 +263,29 @@ public class GLTFView: MTKView {
     public override func draw(_ rect: CGRect) {
         guard let drawable = currentDrawable,
               let descriptor = currentRenderPassDescriptor,
-              let commandBuffer = commandQueue.makeCommandBuffer(),
-              let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
+              let commandBuffer = commandQueue.makeCommandBuffer() else {
             return
         }
 
         // Update frame buffer index
         frameSemaphores.wait()
         currentBuffer = (currentBuffer + 1) % maxFramesInFlight
+
+        // Advance animation and apply to the asset if available
+        if let lastTime = lastFrameTime {
+            let now = CACurrentMediaTime()
+            let dt = now - lastTime
+            lastFrameTime = now
+            animationState.time += Float(dt) * animationState.speed
+
+            guard let blitCommandEncoder = commandBuffer.makeBlitCommandEncoder() else { return }
+            renderer.animation(
+                using: blitCommandEncoder,
+                animationState: animationState
+            )
+        } else {
+            lastFrameTime = CACurrentMediaTime()
+        }
 
         // Update buffers
         updateSkyboxBuffer(
@@ -287,6 +305,9 @@ public class GLTFView: MTKView {
             drawableSize: drawableSize
         )
 
+        guard let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
+            return
+        }
         // Rendering
         renderer.render(
             using: renderEncoder,
