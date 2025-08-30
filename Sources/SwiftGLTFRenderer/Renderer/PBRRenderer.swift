@@ -109,9 +109,13 @@ public class PBRRenderer {
     public func animation(
         using blitCommandEncoder: MTLBlitCommandEncoder,
         animationState state: RendererAnimationState
-    ) {
+    ) -> MTLFence? {
+        var fence: MTLFence? = nil
         for mesh in meshes {
             guard let animation = mesh.animation else { continue }
+            if fence == nil {
+                fence = device.makeFence()
+            }
 
             var modelMatrixTree = mesh.modelMatrixTree
             var animGlobalJointMatrixTrees: [[TRS]] = mesh.skeleton?.joints.map({ $0.globalJointTRSTree }) ?? []
@@ -219,7 +223,12 @@ public class PBRRenderer {
                 )
             }
         }
+        if let fence {
+            blitCommandEncoder.updateFence(fence)
+        }
         blitCommandEncoder.endEncoding()
+
+        return fence
     }
 
     public func render(

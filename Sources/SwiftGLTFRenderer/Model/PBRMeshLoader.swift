@@ -57,7 +57,8 @@ class PBRMeshLoader {
         let meshCount = extractAllMeshCounts(from: asset)
         let vertexBuffers = extractAllMeshVertexBuffer(from: asset)
         let morphVertexBuffers = extractAllMorphVertexBuffer(from: asset)
-        let vertexHeap = try makeVertexHeap(from: meshCount, vertexBuffers: vertexBuffers + morphVertexBuffers)
+        let vertexHeap = try makeVertexHeap(vertexBuffers: vertexBuffers + morphVertexBuffers)
+        let vertexAnimationHeap = try makeVertexAnimationHeap(from: asset)
         let fragmentHeap = try makeFragmentHeap(from: meshCount)
 
         var pbrMeshes: [PBRMesh] = []
@@ -69,19 +70,21 @@ class PBRMeshLoader {
                 textureMap: textureMap,
                 skeletonMap: skeletonMap,
                 vertexHeap: vertexHeap,
+                vertexAnimationHeap: vertexAnimationHeap,
                 fragmentHeap: fragmentHeap,
                 animation: animation,
                 parentTransform: float4x4(1),
                 parentTransformTree: [],
                 parentAnimations: [],
-                parentSkeletons: []
+                parentSkeletons: [],
+                parentMorphs: []
             )
             pbrMeshes.append(contentsOf: meshes)
         }
 
         return PBRMeshContainer(
             meshes: pbrMeshes,
-            vertexResources: [vertexHeap, skeletonHeap].compactMap { $0 },
+            vertexResources: [vertexHeap, skeletonHeap, vertexAnimationHeap].compactMap { $0 },
             fragmentResources: [texturesHeap, fragmentHeap].compactMap { $0 }
         )
     }
@@ -92,12 +95,14 @@ class PBRMeshLoader {
         textureMap: [MDLTexture: MTLTexture],
         skeletonMap: [GLTFSkeleton: PBRMesh.Skeleton],
         vertexHeap: MTLHeap,
+        vertexAnimationHeap: MTLHeap,
         fragmentHeap: MTLHeap,
         animation: GLTFAnimation?,
         parentTransform: float4x4,
         parentTransformTree: [float4x4],
         parentAnimations: [PBRMesh.AnimationChannel],
-        parentSkeletons: [GLTFSkeleton]
+        parentSkeletons: [GLTFSkeleton],
+        parentMorphs: [GLTFMorphWeights]
     ) async throws -> [PBRMesh] {
         var pbrMeshes: [PBRMesh] = []
 
@@ -125,6 +130,11 @@ class PBRMeshLoader {
         var appliedSkeletons = parentSkeletons
         if let skeleton = (obj.componentConforming(to: GLTFSkeletonRef.self) as? GLTFSkeletonRef)?.skeleton {
             appliedSkeletons.append(skeleton)
+        }
+
+        var appliedMorphs = parentMorphs
+        if let morph = (obj.componentConforming(to: GLTFMorphWeightsProtocol.self) as? GLTFMorphWeights) {
+            appliedMorphs.append(morph)
         }
 
         if let mdlMesh = obj as? MDLMesh {
@@ -171,10 +181,13 @@ class PBRMeshLoader {
                 morphCount = UInt32(morphComp.targetCount)
 
                 // Determine weights: node weights if present, else default
-                let nodeWeights = obj.parent?.parent?.componentConforming(to: GLTFMorphWeightsProtocol.self) as? GLTFMorphWeights
+                if appliedMorphs.count > 1 {
+                    os_log("⚠️ Warning: Multiple morph weights found for a mesh. Using the last one.", log: .default, type: .error)
+                }
+                let nodeWeights = appliedMorphs.last
                 let weights: [Float] = nodeWeights?.weights ?? morphComp.defaultWeights
-                let tmpWeightsBuffer = device.makeBuffer(bytes: weights, length: MemoryLayout<Float>.size * weights.count)!
-                morphWeightsBuffer = try shaderConnection.moveBufferToHeap(from: tmpWeightsBuffer, use: vertexHeap)
+                morphWeightsBuffer = vertexAnimationHeap.makeBuffer(length: MemoryLayout<Float>.size * morphComp.targetCount)!
+                morphWeightsBuffer!.contents().copyMemory(from: weights, byteCount: MemoryLayout<Float>.size * morphComp.targetCount)
 
                 // Convert target MDLMesh -> MTLBuffer (vertex buffer 0)
                 for targetMDL in morphComp.targetMeshes.prefix(8) { // Limit to max 8
@@ -315,10 +328,10 @@ class PBRMeshLoader {
 
             var model = totalTransform
             var inverseModel = model.inverse
-            let tmpModelBuffer = device.makeBuffer(bytes: &model, length: MemoryLayout<float4x4>.size)!
-            let tmpInverseModelBuffer = device.makeBuffer(bytes: &inverseModel, length: MemoryLayout<float4x4>.size)!
-            let modelBuffer = try shaderConnection.moveBufferToHeap(from: tmpModelBuffer, use: vertexHeap)
-            let inverseModelBuffer = try shaderConnection.moveBufferToHeap(from: tmpInverseModelBuffer, use: vertexHeap)
+            let modelBuffer = vertexAnimationHeap.makeBuffer(length: MemoryLayout<float4x4>.size)!
+            modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
+            let inverseModelBuffer = vertexAnimationHeap.makeBuffer(length: MemoryLayout<float4x4>.size)!
+            inverseModelBuffer.contents().copyMemory(from: &inverseModel, byteCount: MemoryLayout<float4x4>.size)
 
             let vertexArgumentBuffer = try pipelineConnector.makeVertexArgumentsBuffer(
                 modelBuffer: modelBuffer,
@@ -369,12 +382,14 @@ class PBRMeshLoader {
                 textureMap: textureMap,
                 skeletonMap: skeletonMap,
                 vertexHeap: vertexHeap,
+                vertexAnimationHeap: vertexAnimationHeap,
                 fragmentHeap: fragmentHeap,
                 animation: animation,
                 parentTransform: totalTransform,
                 parentTransformTree: transformTree,
                 parentAnimations: appliedAnimChannels,
-                parentSkeletons: appliedSkeletons
+                parentSkeletons: appliedSkeletons,
+                parentMorphs: appliedMorphs
             )
             pbrMeshes.append(contentsOf: childMeshes)
         }
@@ -576,7 +591,7 @@ class PBRMeshLoader {
             .alignedSize
 
         heapDescriptor.size = modelSize
-        heapDescriptor.storageMode = .private
+        heapDescriptor.storageMode = .shared
 
         guard heapDescriptor.size > 0 else { return nil }
         guard let skeletonHeap = device.makeHeap(descriptor: heapDescriptor) else {
@@ -585,11 +600,8 @@ class PBRMeshLoader {
         return skeletonHeap
     }
 
-    func makeVertexHeap(from meshCount: Int, vertexBuffers: [MDLMeshBuffer]) throws -> MTLHeap {
+    func makeVertexHeap(vertexBuffers: [MDLMeshBuffer]) throws -> MTLHeap {
         let heapDescriptor = MTLHeapDescriptor()
-
-        let modelSize = device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * meshCount
-        let inverseModelSize = device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * meshCount
 
         var bufferSize: Int = 0
         for vertexBuffer in vertexBuffers {
@@ -597,7 +609,7 @@ class PBRMeshLoader {
             bufferSize += size
         }
 
-        heapDescriptor.size = modelSize + inverseModelSize + bufferSize
+        heapDescriptor.size = bufferSize
         heapDescriptor.storageMode = .private
 
         guard heapDescriptor.size > 0 else {
@@ -607,6 +619,45 @@ class PBRMeshLoader {
             throw SwiftGLTFError.makeRender(.vertexModelHeapCreateFailed, context: .capture(stage: .render))
         }
         return vertexModelHeap
+    }
+
+    func makeVertexAnimationHeap(from asset: MDLAsset) throws -> MTLHeap {
+        let meshCount = extractAllMeshCounts(from: asset)
+
+        let modelSize = device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * meshCount
+        let inverseModelSize = device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * meshCount
+
+        let morphWeightsSize = {
+            func traverse(object: MDLObject) -> Int {
+                var size = 0
+                if let mesh = object as? MDLMesh,
+                   let morph = mesh.componentConforming(to: GLTFMorphTargetsProtocol.self) as? GLTFMorphTargets {
+                    size += MemoryLayout<Float>.size * morph.targetCount
+                }
+                for child in object.children.objects {
+                    size += traverse(object: child)
+                }
+                return size
+            }
+            var totalSize = 0
+            for i in 0..<asset.count {
+                guard let object = asset[i] else { continue }
+                totalSize += traverse(object: object)
+            }
+            return totalSize
+        }()
+
+        let heapDescriptor = MTLHeapDescriptor()
+        heapDescriptor.size = modelSize + inverseModelSize + morphWeightsSize
+        heapDescriptor.storageMode = .shared
+
+        guard heapDescriptor.size > 0 else {
+            throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+        }
+        guard let animationHeap = device.makeHeap(descriptor: heapDescriptor) else {
+            throw SwiftGLTFError.makeRender(.vertexModelHeapCreateFailed, context: .capture(stage: .render))
+        }
+        return animationHeap
     }
 
     func convertHeapTexture(from textureMap: [MDLTexture: MTLTexture], use heap: MTLHeap) throws -> [MDLTexture: MTLTexture] {
@@ -620,10 +671,12 @@ class PBRMeshLoader {
 
     func convertHeapSkeleton(from skeletonMap: [GLTFSkeleton: PBRMesh.Skeleton], use heap: MTLHeap) throws -> [GLTFSkeleton: PBRMesh.Skeleton] {
         var convertedMap: [GLTFSkeleton: PBRMesh.Skeleton] = [:]
-        let heapBuffers = try shaderConnection.moveBuffersToHeap(
-            from: Array(skeletonMap.values.map({ $0.buffer })),
-            use: heap
-        )
+        var heapBuffers: [MTLBuffer] = []
+        for b in Array(skeletonMap.values.map({ $0.buffer })) {
+            let heapBuf = heap.makeBuffer(length: b.length)!
+            heapBuf.contents().copyMemory(from: b.contents(), byteCount: b.length)
+            heapBuffers.append(heapBuf)
+        }
         for (index, element) in skeletonMap.enumerated() {
             let skeleton = element.key
             let data = element.value

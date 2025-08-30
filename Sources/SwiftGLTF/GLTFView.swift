@@ -272,6 +272,7 @@ public class GLTFView: MTKView {
         currentBuffer = (currentBuffer + 1) % maxFramesInFlight
 
         // Advance animation and apply to the asset if available
+        var fence: MTLFence?
         if let lastTime = lastFrameTime {
             let now = CACurrentMediaTime()
             let dt = now - lastTime
@@ -279,7 +280,7 @@ public class GLTFView: MTKView {
             animationState.time += Float(dt) * animationState.speed
 
             guard let blitCommandEncoder = commandBuffer.makeBlitCommandEncoder() else { return }
-            renderer.animation(
+            fence = renderer.animation(
                 using: blitCommandEncoder,
                 animationState: animationState
             )
@@ -307,6 +308,9 @@ public class GLTFView: MTKView {
 
         guard let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
             return
+        }
+        if let fence {
+            renderEncoder.waitForFence(fence, before: .vertex)
         }
         // Rendering
         renderer.render(
