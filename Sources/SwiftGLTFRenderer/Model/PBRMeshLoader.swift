@@ -54,12 +54,9 @@ class PBRMeshLoader {
             skeletonMap = try convertHeapSkeleton(from: skeletonMap, use: skeletonHeap)
         }
 
-        let meshCount = extractAllMeshCounts(from: asset)
-        let vertexBuffers = extractAllMeshVertexBuffer(from: asset)
-        let morphVertexBuffers = extractAllMorphVertexBuffer(from: asset)
-        let vertexHeap = try makeVertexHeap(vertexBuffers: vertexBuffers + morphVertexBuffers)
+        let vertexMeshHeap = try makeVertexMeshHeap(from: asset)
         let vertexAnimationHeap = try makeVertexAnimationHeap(from: asset)
-        let fragmentHeap = try makeFragmentHeap(from: meshCount)
+        let fragmentHeap = try makeFragmentHeap(from: asset)
 
         var pbrMeshes: [PBRMesh] = []
         for i in 0..<asset.count {
@@ -69,7 +66,7 @@ class PBRMeshLoader {
                 obj: rootObj,
                 textureMap: textureMap,
                 skeletonMap: skeletonMap,
-                vertexHeap: vertexHeap,
+                vertexMeshHeap: vertexMeshHeap,
                 vertexAnimationHeap: vertexAnimationHeap,
                 fragmentHeap: fragmentHeap,
                 animation: animation,
@@ -84,7 +81,7 @@ class PBRMeshLoader {
 
         return PBRMeshContainer(
             meshes: pbrMeshes,
-            vertexResources: [vertexHeap, skeletonHeap, vertexAnimationHeap].compactMap { $0 },
+            vertexResources: [vertexMeshHeap, skeletonHeap, vertexAnimationHeap].compactMap { $0 },
             fragmentResources: [texturesHeap, fragmentHeap].compactMap { $0 }
         )
     }
@@ -94,7 +91,7 @@ class PBRMeshLoader {
         obj: MDLObject,
         textureMap: [MDLTexture: MTLTexture],
         skeletonMap: [GLTFSkeleton: PBRMesh.Skeleton],
-        vertexHeap: MTLHeap,
+        vertexMeshHeap: MTLHeap,
         vertexAnimationHeap: MTLHeap,
         fragmentHeap: MTLHeap,
         animation: GLTFAnimation?,
@@ -140,6 +137,20 @@ class PBRMeshLoader {
         if let mdlMesh = obj as? MDLMesh {
             let mtkMesh = try MTKMesh(mesh: mdlMesh, device: device)
 
+            let vertexBuffer = try shaderConnection.moveBufferToHeap(
+                from: mtkMesh.vertexBuffers[0].buffer,
+                use: vertexMeshHeap
+            )
+
+            // Model & Inverse Model matrix buffers
+            var model = totalTransform
+            var inverseModel = model.inverse
+            let modelBuffer = vertexAnimationHeap.makeBuffer(length: MemoryLayout<float4x4>.size)!
+            modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
+            let inverseModelBuffer = vertexAnimationHeap.makeBuffer(length: MemoryLayout<float4x4>.size)!
+            inverseModelBuffer.contents().copyMemory(from: &inverseModel, byteCount: MemoryLayout<float4x4>.size)
+
+            // Skinning data detection on this mesh
             var hasSkinning = false
             var meshSkeleton: PBRMesh.Skeleton?
             if !appliedSkeletons.isEmpty {
@@ -192,12 +203,40 @@ class PBRMeshLoader {
                 // Convert target MDLMesh -> MTLBuffer (vertex buffer 0)
                 for targetMDL in morphComp.targetMeshes.prefix(8) { // Limit to max 8
                     if let mtkTarget = try? MTKMesh(mesh: targetMDL, device: device) {
-                        let heapBuf = try shaderConnection.moveBufferToHeap(from: mtkTarget.vertexBuffers[0].buffer, use: vertexHeap)
+                        let heapBuf = try shaderConnection.moveBufferToHeap(from: mtkTarget.vertexBuffers[0].buffer, use: vertexMeshHeap)
                         morphTargetBuffers.append(heapBuf)
                     }
                 }
             }
 
+            // Animation data detection on this mesh
+            var meshAnimation: PBRMesh.Animation?
+            if let animation, !appliedAnimChannels.isEmpty {
+                meshAnimation = .init(
+                    channels: appliedAnimChannels,
+                    duration: animation.duration,
+                    animatableBuffers: PBRMesh.AnimatableBuffers(
+                        modelBuffer: modelBuffer,
+                        inverseModelBuffer: inverseModelBuffer,
+                        globalJointMatricesBuffer: meshSkeleton?.buffer,
+                        morphWeightsBuffer: morphWeightsBuffer
+                    )
+                )
+            }
+
+            // Create vertex argument buffer
+            let vertexArgumentBuffer = try pipelineConnector.makeVertexArgumentsBuffer(
+                modelBuffer: modelBuffer,
+                inverseModelBuffer: inverseModelBuffer,
+                hasSkinning: &hasSkinning,
+                globalJointMatricesBuffer: meshSkeleton?.buffer,
+                hasMorph: hasMorph,
+                morphTargetCount: morphCount,
+                morphWeightsBuffer: morphWeightsBuffer,
+                morphInterleavedBuffers: morphTargetBuffers
+            )
+
+            // Process submeshes
             var submeshes: [PBRMesh.Submesh] = []
             for (mtkSubmesh, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
                 // Extract material factors to pass to shader
@@ -321,43 +360,6 @@ class PBRMeshLoader {
                 submeshes.append(submeshData)
             }
 
-            let vertexBuffer = try shaderConnection.moveBufferToHeap(
-                from: mtkMesh.vertexBuffers[0].buffer,
-                use: vertexHeap
-            )
-
-            var model = totalTransform
-            var inverseModel = model.inverse
-            let modelBuffer = vertexAnimationHeap.makeBuffer(length: MemoryLayout<float4x4>.size)!
-            modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
-            let inverseModelBuffer = vertexAnimationHeap.makeBuffer(length: MemoryLayout<float4x4>.size)!
-            inverseModelBuffer.contents().copyMemory(from: &inverseModel, byteCount: MemoryLayout<float4x4>.size)
-
-            let vertexArgumentBuffer = try pipelineConnector.makeVertexArgumentsBuffer(
-                modelBuffer: modelBuffer,
-                inverseModelBuffer: inverseModelBuffer,
-                hasSkinning: &hasSkinning,
-                globalJointMatricesBuffer: meshSkeleton?.buffer,
-                hasMorph: hasMorph,
-                morphTargetCount: morphCount,
-                morphWeightsBuffer: morphWeightsBuffer,
-                morphInterleavedBuffers: morphTargetBuffers
-            )
-
-            var meshAnimation: PBRMesh.Animation?
-            if let animation, !appliedAnimChannels.isEmpty {
-                meshAnimation = .init(
-                    channels: appliedAnimChannels,
-                    duration: animation.duration,
-                    animatableBuffers: PBRMesh.AnimatableBuffers(
-                        modelBuffer: modelBuffer,
-                        inverseModelBuffer: inverseModelBuffer,
-                        globalJointMatricesBuffer: meshSkeleton?.buffer,
-                        morphWeightsBuffer: morphWeightsBuffer
-                    )
-                )
-            }
-
             let pbrMesh = PBRMesh(
                 vertexBuffer: vertexBuffer,
                 vertexArgumentBuffer: vertexArgumentBuffer,
@@ -381,7 +383,7 @@ class PBRMeshLoader {
                 obj: childObj,
                 textureMap: textureMap,
                 skeletonMap: skeletonMap,
-                vertexHeap: vertexHeap,
+                vertexMeshHeap: vertexMeshHeap,
                 vertexAnimationHeap: vertexAnimationHeap,
                 fragmentHeap: fragmentHeap,
                 animation: animation,
@@ -567,10 +569,11 @@ class PBRMeshLoader {
         return texturesHeap
     }
 
-    func makeFragmentHeap(from meshCount: Int) throws -> MTLHeap {
-        let heapDescriptor = MTLHeapDescriptor()
-
+    func makeFragmentHeap(from asset: MDLAsset) throws -> MTLHeap {
+        let meshCount = extractAllMeshCounts(from: asset)
         let size = device.heapBufferSizeAndAlign(length: MemoryLayout<PBRMaterialUniforms>.size).alignedSize
+
+        let heapDescriptor = MTLHeapDescriptor()
         heapDescriptor.size = size * meshCount
         heapDescriptor.storageMode = .private
 
@@ -600,15 +603,17 @@ class PBRMeshLoader {
         return skeletonHeap
     }
 
-    func makeVertexHeap(vertexBuffers: [MDLMeshBuffer]) throws -> MTLHeap {
-        let heapDescriptor = MTLHeapDescriptor()
+    func makeVertexMeshHeap(from asset: MDLAsset) throws -> MTLHeap {
+        let vertexBuffers = extractAllMeshVertexBuffer(from: asset)
+        let morphVertexBuffers = extractAllMorphVertexBuffer(from: asset)
 
         var bufferSize: Int = 0
-        for vertexBuffer in vertexBuffers {
+        for vertexBuffer in vertexBuffers + morphVertexBuffers {
             let size = device.heapBufferSizeAndAlign(length: vertexBuffer.length).alignedSize
             bufferSize += size
         }
 
+        let heapDescriptor = MTLHeapDescriptor()
         heapDescriptor.size = bufferSize
         heapDescriptor.storageMode = .private
 
