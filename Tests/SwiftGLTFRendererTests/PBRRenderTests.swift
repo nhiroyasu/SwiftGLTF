@@ -152,7 +152,8 @@ final class PBRRenderTests {
             morphDispatchesBuffer: mc.morphDispatchesBuffer,
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams,
-            mvpUniformBuffer: mvpUniformBuffer
+            mvpUniformBuffer: mvpUniformBuffer,
+            viewPos: eye
         )
 
         encoder.endEncoding()

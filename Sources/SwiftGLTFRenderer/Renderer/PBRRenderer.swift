@@ -175,7 +175,8 @@ public class PBRRenderer {
         using renderEncoder: MTLRenderCommandEncoder,
         mvpUniformBuffer: MTLBuffer,
         fragmentParams: MTLBuffer,
-        skyboxVP: MTLBuffer
+        skyboxVP: MTLBuffer,
+        viewPos: SIMD3<Float>
     ) {
         guard let mc = meshContainer else {
             os_log("No mesh loaded", type: .error)
@@ -205,7 +206,8 @@ public class PBRRenderer {
             morphDispatchesBuffer: mc.morphDispatchesBuffer,
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams,
-            mvpUniformBuffer: mvpUniformBuffer
+            mvpUniformBuffer: mvpUniformBuffer,
+            viewPos: viewPos
         )
     }
 

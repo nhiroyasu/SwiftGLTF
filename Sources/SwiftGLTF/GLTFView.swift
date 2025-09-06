@@ -324,7 +324,8 @@ public class GLTFView: MTKView {
             using: renderEncoder,
             mvpUniformBuffer: mvpUniformBuffer.buffer(currentBuffer),
             fragmentParams: fragmentParamsBuffer.buffer(currentBuffer),
-            skyboxVP: skyboxVPMatrixBuffer.buffer(currentBuffer)
+            skyboxVP: skyboxVPMatrixBuffer.buffer(currentBuffer),
+            viewPos: eye
         )
 
         // Finalize rendering

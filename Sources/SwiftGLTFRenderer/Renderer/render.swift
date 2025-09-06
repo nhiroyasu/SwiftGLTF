@@ -38,7 +38,8 @@ func drawPBR(
     morphDispatchesBuffer: MTLBuffer,
     envMapArgBuffer: MTLBuffer,
     fragmentParams: MTLBuffer,
-    mvpUniformBuffer: MTLBuffer
+    mvpUniformBuffer: MTLBuffer,
+    viewPos: SIMD3<Float>
 ) {
     renderEncoder.setFrontFacing(.counterClockwise)
     renderEncoder.useHeaps(vertexResources, stages: .vertex)
@@ -91,10 +92,6 @@ func drawPBR(
         }
     }
 
-    // Read camera position for sorting
-    let fragParamsPtr = fragmentParams.contents().bindMemory(to: PBRFragmentVariableParameters.self, capacity: 1)
-    let cameraPos = fragParamsPtr.pointee.viewPosition
-
     // Transparent pass (sort back-to-front per submesh using mesh center)
     // TODO: Need to sort considering Morph
     struct TransparentDrawItem { let distanceSq: Float; let meshIndex: Int; let submeshIndex: Int }
@@ -105,7 +102,7 @@ func drawPBR(
             let center = submesh.centerModelSpace
             let worldPos4 = model * SIMD4<Float>(center.x, center.y, center.z, 1.0)
             let worldPos = SIMD3<Float>(worldPos4.x, worldPos4.y, worldPos4.z)
-            let d = worldPos - cameraPos
+            let d = worldPos - viewPos
             let distSq = simd_dot(d, d)
             transparentItems.append(TransparentDrawItem(distanceSq: distSq, meshIndex: mi, submeshIndex: si))
         }
