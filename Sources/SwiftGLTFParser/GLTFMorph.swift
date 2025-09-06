@@ -1,9 +1,15 @@
 import Foundation
 import ModelIO
 
-@objc public protocol GLTFMorphTargetsProtocol: MDLComponent {}
+@objc public protocol GLTFMorphTargets: MDLComponent {
+    var vertexCount: Int { get }
+    var targetCount: Int { get }
+    var targetMeshes: [MDLMesh] { get }
+    var defaultWeights: [Float] { get }
+    var targetNames: [String]? { get }
+}
 
-public class GLTFMorphTargets: NSObject, GLTFMorphTargetsProtocol {
+public class GLTFMorphTargetsImpl: NSObject, GLTFMorphTargets {
     public let vertexCount: Int
     public let targetCount: Int
 
@@ -29,10 +35,12 @@ public class GLTFMorphTargets: NSObject, GLTFMorphTargetsProtocol {
     }
 }
 
-@objc public protocol GLTFMorphWeightsProtocol: MDLComponent {}
+@objc public protocol GLTFMorphWeights: MDLComponent {
+    var weights: [Float] { get }
+}
 
-public class GLTFMorphWeights: NSObject, GLTFMorphWeightsProtocol {
-    public var weights: [Float]
+public class GLTFMorphWeightsImpl: NSObject, GLTFMorphWeights {
+    public let weights: [Float]
 
     public init(weights: [Float]) {
         self.weights = weights

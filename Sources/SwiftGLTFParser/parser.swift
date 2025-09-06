@@ -56,7 +56,7 @@ public func makeMDLAsset(
 
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
-    let mdlMeshMap = try await withThrowingTaskGroup(of: (MeshIndex, MDLObject).self) { group in
+    let mdlMeshMap = try await withThrowingTaskGroup(of: (MeshIndex, [MDLMesh]).self) { group in
         for (index, mesh) in (gltf.meshes ?? []).enumerated() {
             group.addTask {
                 let meshes = try makeMDLMesh(
@@ -71,16 +71,25 @@ public func makeMDLAsset(
             }
         }
 
-        var result: [MeshIndex: MDLObject] = [:]
+        var result: [MeshIndex: [MDLMesh]] = [:]
         for try await (index, meshes) in group {
             result[index] = meshes
         }
         return result
     }
 
+    // Add all meshes to libraries for reference
+    let meshes = mdlMeshMap.values.flatMap { $0 }
+    let meshObject = MDLObject()
+    meshObject.name = GLTFAssetName.meshes
+    for mesh in meshes {
+        meshObject.addChild(mesh)
+    }
+    librariesObject.addChild(meshObject)
+
     // 全ての skins を先に変換して保持
     // en: Convert all skins first and keep them for reuse
-    var skinMap: [SkinIndex: GLTFSkeleton] = [:]
+    var skinMap: [SkinIndex: GLTFSkin] = [:]
     for (index, skin) in (gltf.skins ?? []).enumerated() {
         let inverseBindTransforms = try {
             if let accessoryIndex = skin.inverseBindMatrices, let accessor = gltf.accessors?[accessoryIndex.value] {
@@ -99,7 +108,7 @@ public func makeMDLAsset(
                 return matrixArray
             }
         }()
-        let skeleton = GLTFSkeleton(
+        let skeleton = GLTFSkin(
             name: skin.name ?? "Skin_\(index)",
             joins: skin.joints,
             inverseBindMatrices: inverseBindTransforms
@@ -129,13 +138,13 @@ public func makeMDLAsset(
             }
         }
         let duration: Float = channels.flatMap { $0.input }.max() ?? 0
-        let animation = GLTFAnimation(
+        let animation = GLTFAnimationImpl(
             name: anim.name ?? "Animation_\(index)",
             duration: duration,
             channels: channels
         )
         let animObj = MDLObject()
-        animObj.setComponent(animation, for: GLTFAnimationProtocol.self)
+        animObj.setComponent(animation, for: GLTFAnimation.self)
         animations.append(animObj)
     }
     let animationsContainer = GLTFAnimationContainer()
@@ -167,10 +176,8 @@ public func makeMDLAsset(
            positionAccessorIndex < accessors.count,
            let max = accessors[positionAccessorIndex].max?.max() {
             let scale = 1 / max
-            for i in 0..<asset.count {
-                let matrix = asset.object(at: i).transform?.matrix ?? matrix_identity_float4x4
-                asset.object(at: i).transform = GLTFTransform(matrix: scaleMatrix(scale, scale, scale) * matrix)
-            }
+            let rootNode = asset.object(atPath: GLTFAssetPath.nodes(atScene: sceneIndex))
+            rootNode.transform = GLTFTransform(matrix: scaleMatrix(scale, scale, scale) * (rootNode.transform?.matrix ?? matrix_identity_float4x4))
             os_log("Scaling asset by factor: %{public}f", log: .default, type: .info, scale)
         }
     }
@@ -185,11 +192,10 @@ public func makeMDLMesh(
     allocator: MTKMeshBufferAllocator,
     binaryLoader: GLTFBinaryLoader,
     options: GLTFDecodeOptions = .default
-) throws -> MDLObject {
+) throws -> [MDLMesh] {
     let allocator = MTKMeshBufferAllocator(device: MTLCreateSystemDefaultDevice()!) // TODO: Metal device should be passed from outside
 
-    let meshesObject = MDLObject()
-    meshesObject.name = name
+    var output: [MDLMesh] = []
     for (index, primitive) in mesh.primitives.enumerated() {
         let accessors = gltf.accessors ?? []
         let materials = gltf.materials ?? []
@@ -323,21 +329,21 @@ public func makeMDLMesh(
             options: options,
             meshDefaultWeights: mesh.weights
         ) {
-            mdlMesh.setComponent(morph, for: GLTFMorphTargetsProtocol.self)
+            mdlMesh.setComponent(morph, for: GLTFMorphTargets.self)
         }
 
-        meshesObject.addChild(mdlMesh)
+        output.append(mdlMesh)
     }
 
-    return meshesObject
+    return output
 }
 
 // 各ノードを再帰的に MDLObject に変換
 // en: Recursively convert each node to MDLObject
 func buildNodeTree(
     nodeIndex: Int,
-    meshMap: [MeshIndex: MDLObject],
-    skinMap: [SkinIndex: GLTFSkeleton],
+    meshMap: [MeshIndex: [MDLMesh]],
+    skinMap: [SkinIndex: GLTFSkin],
     animations: [MDLObject],
     gltf: GLTF,
     options: GLTFDecodeOptions = .default
@@ -353,18 +359,17 @@ func buildNodeTree(
     object.setComponent(GLTFNodeIndex(index: nodeIndex), for: GLTFNodeIndexProtocol.self)
 
     // Add mesh if available
-    if let meshIndex = node.mesh, let mesh = meshMap[meshIndex] {
-        object.addChild(mesh)
+    if let meshIndex = node.mesh, let meshes = meshMap[meshIndex] {
+        object.setComponent(GLTFMeshImpl(primitives: meshes), for: GLTFMesh.self)
     }
 
     // Add skin ref if available
     if let skinIndex = node.skin, let skin = skinMap[skinIndex] {
-        let skinRef = GLTFSkeletonRefImpl(skeleton: skin)
-        object.setComponent(skinRef, for: GLTFSkeletonRef.self)
+        object.setComponent(GLTFSkeletonRefImpl(skeleton: skin), for: GLTFSkeletonRef.self)
     }
     // Bind skeleton joints if this node is a joint
     for skin in skinMap.values {
-        for (i, jointNodeIndex) in skin.joins.enumerated() {
+        for (i, jointNodeIndex) in skin.joints.enumerated() {
             if nodeIndex == jointNodeIndex.value {
                 skin.bind(object, for: i)
             }
@@ -373,7 +378,7 @@ func buildNodeTree(
 
     // Bind the animation channel to target node
     for animObj in animations {
-        if let animComp = animObj.componentConforming(to: GLTFAnimationProtocol.self) as? GLTFAnimation {
+        if let animComp = animObj.componentConforming(to: GLTFAnimation.self) as? GLTFAnimation {
             for channel in animComp.channels {
                 if channel.targetNodeIndex.value == nodeIndex {
                     channel.bind(object)
@@ -384,8 +389,8 @@ func buildNodeTree(
 
     // Add morph  weights if available (per-node weights)
     if let weights = node.weights {
-        let comp = GLTFMorphWeights(weights: weights)
-        object.setComponent(comp, for: GLTFMorphWeightsProtocol.self)
+        let comp = GLTFMorphWeightsImpl(weights: weights)
+        object.setComponent(comp, for: GLTFMorphWeights.self)
     }
 
     // トランスフォーム適用
@@ -1448,7 +1453,7 @@ private func buildMorphTargets(
     }
 
     let defaultWeights = normalizedDefaultMorphWeights(targetCount: targets.count, meshWeights: meshDefaultWeights)
-    return GLTFMorphTargets(
+    return GLTFMorphTargetsImpl(
         vertexCount: vertexCount,
         targetCount: targets.count,
         targetMeshes: targetMeshes,

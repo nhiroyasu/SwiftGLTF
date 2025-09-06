@@ -138,6 +138,37 @@ float3x3 inverse(float3x3 m) {
     return inv;
 }
 
+float3x3 inverse3x3(float3x3 A)
+{
+    // 列ベクトルを a,b,c とする。adj(A) の列は cross(b,c), cross(c,a), cross(a,b)
+    float3 a = A[0], b = A[1], c = A[2];
+    float3 r0 = cross(b, c);
+    float3 r1 = cross(c, a);
+    float3 r2 = cross(a, b);
+
+    float det = dot(a, r0);
+    // ほぼ特異な場合のガード（用途に応じて閾値調整）
+    float invDet = 1.0 / max(fabs(det), 1e-8);
+
+    // 逆行列 = adj(A) / det
+    return float3x3(r0, r1, r2) * invDet;
+}
+
+float4x4 inverse_affine(float4x4 m)
+{
+    float3x3 A  = float3x3(m[0].xyz, m[1].xyz, m[2].xyz);
+    float3   t  = m[3].xyz;
+    float3x3 Ai = inverse(A);
+    float3   ti = -(Ai * t);
+
+    return float4x4(
+        float4(Ai[0], 0.0),
+        float4(Ai[1], 0.0),
+        float4(Ai[2], 0.0),
+        float4(ti,    1.0)
+    );
+}
+
 float3x3 makeNormalMatrix(float4x4 mvp) {
     return inverse(transpose(_float3x3(mvp)));
 }

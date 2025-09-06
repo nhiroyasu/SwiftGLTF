@@ -34,4 +34,82 @@ typedef struct {
     uint32_t cubeSize;
 } IrradianceMapParams;
 
+typedef struct {
+    int64_t start;   // levelStarts[d]
+    int64_t count;   // levelCounts[d]
+} LevelDispatch;
+
+/* ex:
+# glTF.skins
+ - joints: [0, 1, 2]
+ - joints: [0, 2, 3, 5]
+
+# GPU Memory Layout
+ joints: [
+ 0, 1, 2, // first skin
+ 0, 2, 3, 5 // second skin
+ ]
+
+ ↑ SkinDispatch
+    [offset: 0, length: 3], // first skin
+    [offset: 3, length: 4]  // second skin
+*/
+typedef struct {
+    // if -1, no skinning
+    int64_t offset;
+    int64_t length;
+} SkinDispatch;
+
+/** ex:
+ # glTF
+ ```
+ nodes: [
+   {
+     mesh: 0,
+     weights: [0.5, 1.0]
+   },
+   {
+     mesh: 1,
+     weights: [0.7, 0.7]
+    },
+ ],
+ ]
+
+ # GPU Memory Layout
+ morphWeights: [
+   0.5, 1.0, // first node
+   0.7, 0.7, // second node
+ ]
+
+↑ MorphDispatch
+[offset: 0, length: 2], // first node
+[offset: 2, length: 2]  // second node
+ ```
+ */
+typedef struct {
+    // if -1, no morph
+    int64_t offset;
+    int64_t length;
+
+} MorphDispatch;
+
+enum PBRVertexArgId: int {
+    PBRVertexArgIdModel = 0,
+    PBRVertexArgIdInverseModel,
+    PBRVertexArgIdMorphTargetCount,
+    PBRVertexArgIdMorphDefaultWeights,
+    PBRVertexArgIdMorphInterleaved0,
+    PBRVertexArgIdMorphInterleaved1,
+    PBRVertexArgIdMorphInterleaved2,
+    PBRVertexArgIdMorphInterleaved3,
+    PBRVertexArgIdMorphInterleaved4,
+    PBRVertexArgIdMorphInterleaved5,
+    PBRVertexArgIdMorphInterleaved6,
+    PBRVertexArgIdMorphInterleaved7,
+    PBRVertexArgIdTransformIndex,
+    PBRVertexArgIdMorphDispatchIndex,
+    PBRVertexArgIdSkinDispatch,
+};
+
+
 #endif /* PBR_h */

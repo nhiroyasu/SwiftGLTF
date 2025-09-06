@@ -8,8 +8,7 @@ struct CubeBinaryWithTextureTests {
     func testTexCoordBufferMatchesOriginalBinary() async throws {
         let (gltfContainer, asset) = try await loadGLBAndAsset()
         let gltf = gltfContainer.gltf
-        let meshPath = GLTFAssetPath.nodes(atScene: 0) + "/Cube/Cube/Primitive_0"
-        let mesh = asset.object(atPath: meshPath) as! MDLMesh
+        let mesh = asset.object(atPath: GLTFAssetPath.meshes).children[0] as! MDLMesh
         let vertexData = Data(bytes: mesh.vertexBuffers[0].map().bytes.assumingMemoryBound(to: UInt8.self), count: mesh.vertexBuffers[0].length)
 
         let binURL = Bundle.module.url(forResource: "bricks_cube", withExtension: "bin")!
@@ -38,8 +37,7 @@ struct CubeBinaryWithTextureTests {
     @Test
     func testMaterialBaseColorAndNormalTexture() async throws {
         let (gltfContainer, asset) = try await loadGLBAndAsset()
-        let meshPath = GLTFAssetPath.nodes(atScene: 0) + "/Cube/Cube/Primitive_0"
-        let mesh = asset.object(atPath: meshPath) as! MDLMesh
+        let mesh = asset.object(atPath: GLTFAssetPath.meshes).children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
 
@@ -64,8 +62,7 @@ struct CubeBinaryWithTextureTests {
     func testSamplerFilterAndWrapSettings() async throws {
         let (gltfContainer, asset) = try await loadGLBAndAsset()
         let gltf = gltfContainer.gltf
-        let meshPath = GLTFAssetPath.nodes(atScene: 0) + "/Cube/Cube/Primitive_0"
-        let mesh = asset.object(atPath: meshPath) as! MDLMesh
+        let mesh = asset.object(atPath: GLTFAssetPath.meshes).children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
 
@@ -97,8 +94,7 @@ struct CubeBinaryWithTextureTests {
     func testMetallicRoughnessProperties() async throws {
         // Please write a test for metallic and roughness properties
         let (_, asset) = try await loadGLBAndAsset()
-        let meshPath = GLTFAssetPath.nodes(atScene: 0) + "/Cube/Cube/Primitive_0"
-        let mesh = asset.object(atPath: meshPath) as! MDLMesh
+        let mesh = asset.object(atPath: GLTFAssetPath.meshes).children[0] as! MDLMesh
         let submesh = mesh.submeshes?.firstObject as! MDLSubmesh
         let material = submesh.material!
         let metallic = material.property(with: .metallic)!

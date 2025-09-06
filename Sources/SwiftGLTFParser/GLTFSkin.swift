@@ -1,8 +1,8 @@
 import SwiftGLTFCore
 import ModelIO
 
-public class GLTFSkeleton: MDLSkeleton {
-    public let joins: [NodeIndex]
+public class GLTFSkin: MDLSkeleton {
+    public let joints: [NodeIndex]
     public let inverseBindMatrices: MDLMatrix4x4Array
 
     private var _jointObjects: [MDLObject] = []
@@ -19,7 +19,7 @@ public class GLTFSkeleton: MDLSkeleton {
     }
 
     init(name: String, joins: [NodeIndex], inverseBindMatrices: MDLMatrix4x4Array) {
-        self.joins = joins
+        self.joints = joins
         self.inverseBindMatrices = inverseBindMatrices
         self._jointObjects = Array(repeating: MDLObject(), count: joins.count)
         super.init(name: name, jointPaths: [])
@@ -34,12 +34,12 @@ public class GLTFSkeleton: MDLSkeleton {
 }
 
 @objc public protocol GLTFSkeletonRef: MDLComponent {
-    var skeleton: GLTFSkeleton { get }
+    var skeleton: GLTFSkin { get }
 }
 
 class GLTFSkeletonRefImpl: NSObject, GLTFSkeletonRef {
-    let skeleton: GLTFSkeleton
-    init(skeleton: GLTFSkeleton) {
+    let skeleton: GLTFSkin
+    init(skeleton: GLTFSkin) {
         self.skeleton = skeleton
     }
 }

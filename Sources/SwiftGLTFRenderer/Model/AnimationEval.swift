@@ -146,7 +146,9 @@ struct AnimationTRS {
 
 /// Evaluate TRS channels of a resolved animation and return per-node overrides.
 func evaluateTRS(
-    channel: PBRMesh.AnimationChannel,
+    type: GLTFAnimationType,
+    interpolation: GLTFInterpolation,
+    keyFrameTimes: [Float],
     duration: Float,
     time: Float,
     looping: Bool = true
@@ -155,21 +157,19 @@ func evaluateTRS(
     let t = wrapTime(time, duration: duration, looping: looping)
 
     // Only TRS
-    switch channel.type {
+    switch type {
     case .translation, .rotation, .scale:
         break
     case .weights, .unknown:
         return trs
     }
 
-    let times = channel.input
-
-    let (k0, k1, sFac) = findKeyframeIndices(times: times, t: t, hint: &channel.hint.cursor)
+    let (k0, k1, sFac) = findKeyframeIndices(times: keyFrameTimes, t: t)
 
     if k0 == k1 {
         // same as STEP
         let idx = k0
-        switch channel.type {
+        switch type {
         case .translation(let values):
             trs.translation = values[idx]
         case .scale(let values):
@@ -181,10 +181,10 @@ func evaluateTRS(
         }
     }
 
-    switch channel.interpolation {
+    switch interpolation {
     case .step:
         let idx = k0
-        switch channel.type {
+        switch type {
         case .translation(let values):
             trs.translation = values[idx]
         case .scale(let values):
@@ -196,7 +196,7 @@ func evaluateTRS(
         }
 
     case .linear:
-        switch channel.type {
+        switch type {
         case .translation(let values):
             let a = values[k0]
             let b = values[k1]
@@ -216,10 +216,10 @@ func evaluateTRS(
         }
 
     case .cubicSpline:
-        let t0 = times[k0]
-        let t1 = times[k1]
+        let t0: Float = keyFrameTimes[k0]
+        let t1: Float = keyFrameTimes[k1]
         let dt = max(1e-8, t1 - t0)
-        switch channel.type {
+        switch type {
         case .translation(let values):
             let v0: simd_float3x3 = simd_float3x3(rows: [
                 values[k0 * 3 + 0],
@@ -292,37 +292,38 @@ func evaluateTRS(
 }
 
 func evaluateWeights(
-    channel: PBRMesh.AnimationChannel,
+    type: GLTFAnimationType,
+    interpolation: GLTFInterpolation,
+    keyFrameTimes: [Float],
     duration: Float,
     time: Float,
     looping: Bool = true
-) -> [Float]? {
+) -> [Float] {
     let t = wrapTime(time, duration: duration, looping: looping)
 
-    guard case .weights(let values) = channel.type else { return nil }
-    let times = channel.input
-    if times.isEmpty { return nil }
+    guard case .weights(let values) = type else { return [] }
+    if keyFrameTimes.isEmpty { return [] }
 
-    let (k0, k1, sFac) = findKeyframeIndices(times: times, t: t)
+    let (k0, k1, sFac) = findKeyframeIndices(times: keyFrameTimes, t: t)
 
-    switch channel.interpolation {
+    switch interpolation {
     case .step:
-        let width = values.count / max(1, times.count)
+        let width = values.count / max(1, keyFrameTimes.count)
         let base = k0 * width
         if base + width <= values.count {
             return Array(values[base..<(base + width)])
         } else {
-            return nil
+            return []
         }
 
     case .linear:
-        let width = values.count / max(1, times.count)
+        let width = values.count / max(1, keyFrameTimes.count)
         if k0 == k1 {
             let base = k0 * width
             if base + width <= values.count {
                 return Array(values[base..<(base + width)])
             } else {
-                return nil
+                return []
             }
         } else {
             let a0 = k0 * width
@@ -332,22 +333,22 @@ func evaluateWeights(
                 for i in 0..<width { w[i] = lerp(values[a0 + i], values[b0 + i], sFac) }
                 return w
             } else {
-                return nil
+                return []
             }
         }
 
     case .cubicSpline:
-        let width = (values.count / max(1, times.count)) / 3
+        let width = (values.count / max(1, keyFrameTimes.count)) / 3
         if k0 == k1 {
             let base = k0 * (3 * width) + width
             if base + width <= values.count {
                 return Array(values[base..<(base + width)])
             } else {
-                return nil
+                return []
             }
         } else {
-            let t0 = times[k0]
-            let t1 = times[k1]
+            let t0 = keyFrameTimes[k0]
+            let t1 = keyFrameTimes[k1]
             let dt = max(1e-8, t1 - t0)
             let i0 = k0 * (3 * width)
             let i1 = k1 * (3 * width)

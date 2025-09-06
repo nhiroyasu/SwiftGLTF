@@ -310,4 +310,82 @@ class ShaderConnection {
 
         return lut
     }
+
+    func computeWorldMatrices(
+        nodeLevelHierarchy nlh: NodeLevelHierarchy
+    ) throws -> MTLBuffer {
+        let cb = commandQueue.makeCommandBuffer()!
+        let en = cb.makeComputeCommandEncoder()!
+
+        let worldTransformBuf = device.makeBuffer(
+            length: MemoryLayout<simd_float4x4>.stride * nlh.localTransforms.count,
+            options: .storageModeShared
+        )!
+
+        try computeWorldMatrices(
+            nodeLevelHierarchy: nlh,
+            out: worldTransformBuf,
+            commandEncoder: en
+        )
+        cb.commit()
+        cb.waitUntilCompleted()
+        return worldTransformBuf
+    }
+
+    func computeWorldMatrices(
+        nodeLevelHierarchy nlh: NodeLevelHierarchy,
+        out worldTransformBuf: MTLBuffer,
+        commandEncoder en: MTLComputeCommandEncoder,
+    ) throws {
+        precondition(worldTransformBuf.length == MemoryLayout<simd_float4x4>.stride * nlh.localTransforms.count)
+
+        let device = en.device
+        let computePso = try device.makeComputePipelineState(
+            function: library.makeFunction(name: "computeWorldMatrices")!
+        )
+
+        var levelDispatch: [LevelDispatch] = []
+        for (start, count) in zip(nlh.levelStarts, nlh.levelCounts) {
+            levelDispatch.append(
+                LevelDispatch(
+                    start: Int64(start),
+                    count: Int64(count)
+                )
+            )
+        }
+        let levelNodesBuf = device.makeBuffer(
+            bytes: nlh.levelNodes,
+            length: MemoryLayout<Int>.stride * nlh.levelNodes.count,
+            options: .storageModeShared
+        )!
+        let parentIndexBuf = device.makeBuffer(
+            bytes: nlh.parentIndex,
+            length: MemoryLayout<Int>.stride * nlh.parentIndex.count,
+            options: .storageModeShared
+        )!
+        let localTransformBuf = device.makeBuffer(
+            bytes: nlh.localTransforms,
+            length: MemoryLayout<simd_float4x4>.stride * nlh.localTransforms.count,
+            options: .storageModeShared
+        )!
+        for d in 0..<nlh.maxDepth {
+            en.setComputePipelineState(computePso)
+
+            en.setBytes(&levelDispatch[d], length: MemoryLayout<LevelDispatch>.size, index: 0)
+            en.setBuffer(levelNodesBuf, offset: 0, index: 1)
+            en.setBuffer(parentIndexBuf, offset: 0, index: 2)
+            en.setBuffer(localTransformBuf, offset: 0, index: 3)
+            en.setBuffer(worldTransformBuf, offset: 0, index: 4)
+            let levelCount = nlh.levelCounts[d]
+            let threadSize = min(computePso.maxTotalThreadsPerThreadgroup, levelCount)
+            let threads = MTLSize(width: threadSize, height: 1, depth: 1)
+            let groups = MTLSize(
+                width: (levelCount+threads.width-1) / threads.width,
+                height: 1,
+                depth: 1
+            )
+            en.dispatchThreadgroups(groups, threadsPerThreadgroup: threads)
+        }
+        en.endEncoding()
+    }
 }

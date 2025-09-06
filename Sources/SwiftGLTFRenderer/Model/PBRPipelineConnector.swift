@@ -3,6 +3,12 @@ import SwiftGLTFParser
 import SwiftGLTFCore
 import SwiftGLTFShaderTypes
 
+extension PBRVertexArgId {
+    var index: Int {
+        return Int(self.rawValue)
+    }
+}
+
 class PBRPipelineConnector {
     private let device: MTLDevice
     private let vertexFunction: MTLFunction
@@ -146,13 +152,13 @@ class PBRPipelineConnector {
     func makeVertexArgumentsBuffer(
         modelBuffer: MTLBuffer,
         inverseModelBuffer: MTLBuffer,
-        hasSkinning: UnsafePointer<Bool>,
-        globalJointMatricesBuffer: MTLBuffer?,
         // Morph (optional, up to 8 targets)
-        hasMorph: Bool = false,
         morphTargetCount: UInt32 = 0,
         morphWeightsBuffer: MTLBuffer? = nil,
-        morphInterleavedBuffers: [MTLBuffer] = []
+        morphInterleavedBuffers: [MTLBuffer] = [],
+        transformIndex: Int,
+        skinDispatch: SkinDispatch?,
+        morphDispatchIndex: Int
     ) throws -> MTLBuffer {
         let encoder = vertexFunction.makeArgumentEncoder(bufferIndex: 1)
         guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
@@ -160,27 +166,30 @@ class PBRPipelineConnector {
         }
         encoder.setArgumentBuffer(buffer, offset: 0)
 
-        encoder.setBuffer(modelBuffer, offset: 0, index: 0)
-        encoder.setBuffer(inverseModelBuffer, offset: 0, index: 1)
-
-        let hasSkinningAddr = encoder.constantData(at: 2)
-        hasSkinningAddr.copyMemory(from: hasSkinning, byteCount: MemoryLayout<Bool>.size)
-
-        encoder.setBuffer(globalJointMatricesBuffer, offset: 0, index: 3)
+        encoder.setBuffer(modelBuffer, offset: 0, index: PBRVertexArgIdModel.index)
+        encoder.setBuffer(inverseModelBuffer, offset: 0, index: PBRVertexArgIdInverseModel.index)
 
         // Morph
-        var hasMorphVar = hasMorph
-        let hasMorphAddr = encoder.constantData(at: 4)
-        hasMorphAddr.copyMemory(from: &hasMorphVar, byteCount: MemoryLayout<Bool>.size)
         var targetCountVar = morphTargetCount
-        let targetCountAddr = encoder.constantData(at: 5)
+        let targetCountAddr = encoder.constantData(at: PBRVertexArgIdMorphTargetCount.index)
         targetCountAddr.copyMemory(from: &targetCountVar, byteCount: MemoryLayout<UInt32>.size)
-        encoder.setBuffer(morphWeightsBuffer, offset: 0, index: 6)
+        encoder.setBuffer(morphWeightsBuffer, offset: 0, index: PBRVertexArgIdMorphDefaultWeights.index)
         // Up to 8 targets
         let maxTargets = 8
         for i in 0..<min(maxTargets, morphInterleavedBuffers.count) {
-            encoder.setBuffer(morphInterleavedBuffers[i], offset: 0, index: 7 + i)
+            encoder.setBuffer(morphInterleavedBuffers[i], offset: 0, index: PBRVertexArgIdMorphInterleaved0.index + i)
         }
+
+        var transformIndex = transformIndex
+        let transformIndexAddr = encoder.constantData(at: PBRVertexArgIdTransformIndex.index)
+        transformIndexAddr.copyMemory(from: &transformIndex, byteCount: MemoryLayout<Int>.size)
+        var skinDispatch = skinDispatch
+        let skinDispatchAddr = encoder.constantData(at: PBRVertexArgIdSkinDispatch.index)
+        skinDispatchAddr.copyMemory(from: &skinDispatch, byteCount: MemoryLayout<SkinDispatch>.size)
+        var morphDispatchIndex = morphDispatchIndex
+        let morphDispatchIndexAddr = encoder.constantData(at: PBRVertexArgIdMorphDispatchIndex.index)
+        morphDispatchIndexAddr.copyMemory(from: &morphDispatchIndex, byteCount: MemoryLayout<Int>.size)
+
         return buffer
     }
 }

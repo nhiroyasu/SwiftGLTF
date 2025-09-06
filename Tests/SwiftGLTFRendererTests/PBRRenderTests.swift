@@ -15,11 +15,6 @@ final class PBRRenderTests {
     let depthStencilStateWrite: MTLDepthStencilState
     let depthStencilStateNoWrite: MTLDepthStencilState
 
-    var _prefilterEnvMap: MTLTexture!
-    var _irradianceMap: MTLTexture!
-    var _brdfLUT: MTLTexture!
-    var _pbrMeshContainer: PBRMeshContainer!
-
     let TEX_SIZE = 256
 
     init() {
@@ -96,19 +91,19 @@ final class PBRRenderTests {
             options: .storageModeShared
         )!
 
-        let envMapHeap: MTLHeap
-        (
+
+        let (
             envMapHeap,
-            self._prefilterEnvMap,
-            self._irradianceMap,
-            self._brdfLUT
+            prefilterEnvMap,
+            irradianceMap,
+            brdfLUT
         ) = try envMapLoader.makeEnvMapHeapAndTexture(
             url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
         )
         let envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
-            prefilterEnvMap: _prefilterEnvMap,
-            irradianceMap: _irradianceMap,
-            brdfLUT: _brdfLUT
+            prefilterEnvMap: prefilterEnvMap,
+            irradianceMap: irradianceMap,
+            brdfLUT: brdfLUT
         )
 
         let depthTextureDesc = MTLTextureDescriptor.texture2DDescriptor(
@@ -134,7 +129,7 @@ final class PBRRenderTests {
 
         // Load a sample mesh
         let asset = try await makeMDLAsset(from: meshURL)
-        self._pbrMeshContainer = try await loader.loadMeshes(from: asset)
+        let mc = try await loader.loadMeshes(from: asset)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
@@ -147,10 +142,15 @@ final class PBRRenderTests {
             pipelineStateTransparent: pipelineConnector.pipelineStateTransparent,
             depthStencilStateWrite: depthStencilStateWrite,
             depthStencilStateNoWrite: depthStencilStateNoWrite,
-            vertexResources: _pbrMeshContainer.vertexResources,
-            fragmentResources: _pbrMeshContainer.fragmentResources + [envMapHeap],
-            meshes: _pbrMeshContainer.meshes,
+            vertexResources: mc.vertexResources,
+            fragmentResources: mc.fragmentResources + [envMapHeap],
+            meshes: mc.meshes,
             vertexParams: vertexParams,
+            worldTransformBuffer: mc.worldTransformBuffer,
+            jointsBuffer: mc.jointsBuffer,
+            inverseBindMatricesBuffer: mc.inverseBindMatricesBuffer,
+            morphWeightsBuffer: mc.morphWeightsBuffer,
+            morphDispatchesBuffer: mc.morphDispatchesBuffer,
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams
         )
@@ -177,7 +177,8 @@ final class PBRRenderTests {
         ("Fox", "glb"),
         ("MultiUVTest", "glb"),
         ("TextureSettingsTest", "glb"),
-        ("SimpleSkin", "gltf")
+        ("SimpleSkin", "gltf"),
+        ("MorphPrimitivesTest", "glb")
     ]
 
     // Export baseline textures

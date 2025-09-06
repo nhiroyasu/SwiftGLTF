@@ -7,10 +7,10 @@ struct SimpleSkinTests {
     @Test
     func testSkeletonNode() async throws {
         let (_, asset) = try await loadGLTFAndAsset()
-        let skeleton = asset.object(atPath: GLTFAssetPath.skins).children.objects.first as! GLTFSkeleton
+        let skin = asset.object(atPath: GLTFAssetPath.skins).children.objects.first as! GLTFSkin
 
-        #expect(skeleton.joins == [1, 2])
-        #expect(skeleton.jointObjects == [
+        #expect(skin.joints == [1, 2])
+        #expect(skin.jointObjects == [
             asset.object(atPath: GLTFAssetPath.nodes(atScene: 0) + "/Node_1"),
             asset.object(atPath: GLTFAssetPath.nodes(atScene: 0) + "/Node_1/Node_2")
         ])
@@ -25,9 +25,9 @@ struct SimpleSkinTests {
                 simd_float4(0, -1, 0, 1)
             )
         ]
-        #expect(skeleton.inverseBindMatrices.float4x4Array == expectedInverseBindMatrices.float4x4Array)
-        #expect(skeleton.inverseBindMatrices.elementCount == expectedInverseBindMatrices.elementCount)
-        #expect(skeleton.jointPaths == ["\(GLTFAssetPath.nodes(atScene: 0))/Node_1", "\(GLTFAssetPath.nodes(atScene: 0))/Node_1/Node_2"])
+        #expect(skin.inverseBindMatrices.float4x4Array == expectedInverseBindMatrices.float4x4Array)
+        #expect(skin.inverseBindMatrices.elementCount == expectedInverseBindMatrices.elementCount)
+        #expect(skin.jointPaths == ["\(GLTFAssetPath.nodes(atScene: 0))/Node_1", "\(GLTFAssetPath.nodes(atScene: 0))/Node_1/Node_2"])
     }
 
     // MARK: - Helper Methods

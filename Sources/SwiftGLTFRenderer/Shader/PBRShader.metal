@@ -36,25 +36,27 @@ struct PBRVertexOut {
     float2 uv;
     float2 uv1;
     float4 modulationColor;
-};
+};;
 
 struct PBRVertexArguments {
-    constant float4x4 &model [[id(0)]];
-    constant float4x4 &inverseModel [[id(1)]];
-    bool hasSkinning [[id(2)]];
-    constant float4x4 *globalJointMatrices [[id(3)]];
+    constant float4x4 &model                [[id(PBRVertexArgIdModel)]];
+    constant float4x4 &inverseModel         [[id(PBRVertexArgIdInverseModel)]];
+
     // Morph targets (optional)
-    bool hasMorph [[id(4)]];
-    uint morphTargetCount [[id(5)]];
-    constant float *morphWeights [[id(6)]];
-    constant float *morphInterleaved0 [[id(7)]];
-    constant float *morphInterleaved1 [[id(8)]];
-    constant float *morphInterleaved2 [[id(9)]];
-    constant float *morphInterleaved3 [[id(10)]];
-    constant float *morphInterleaved4 [[id(11)]];
-    constant float *morphInterleaved5 [[id(12)]];
-    constant float *morphInterleaved6 [[id(13)]];
-    constant float *morphInterleaved7 [[id(14)]];
+    uint morphTargetCount                   [[id(PBRVertexArgIdMorphTargetCount)]];
+    constant float *morphDefaultWeights     [[id(PBRVertexArgIdMorphDefaultWeights)]];
+    constant float *morphInterleaved0       [[id(PBRVertexArgIdMorphInterleaved0)]];
+    constant float *morphInterleaved1       [[id(PBRVertexArgIdMorphInterleaved1)]];
+    constant float *morphInterleaved2       [[id(PBRVertexArgIdMorphInterleaved2)]];
+    constant float *morphInterleaved3       [[id(PBRVertexArgIdMorphInterleaved3)]];
+    constant float *morphInterleaved4       [[id(PBRVertexArgIdMorphInterleaved4)]];
+    constant float *morphInterleaved5       [[id(PBRVertexArgIdMorphInterleaved5)]];
+    constant float *morphInterleaved6       [[id(PBRVertexArgIdMorphInterleaved6)]];
+    constant float *morphInterleaved7       [[id(PBRVertexArgIdMorphInterleaved7)]];
+
+    int64_t transformIndex                  [[id(PBRVertexArgIdTransformIndex)]];
+    int64_t morphDispatchIndex              [[id(PBRVertexArgIdMorphDispatchIndex)]]; // equal to `transformIndex`
+    SkinDispatch skinDispatch               [[id(PBRVertexArgIdSkinDispatch)]];
 };
 
 struct PBRFragmentArguments {
@@ -190,14 +192,35 @@ float3 compute_indirect_lighting(float3 normal,
     return result;
 }
 
-inline float4x4 compute_skin_matrix(constant float4x4 *globalJointMatrices,
+float4x4 compute_skin_matrix(constant float4x4 *worldTransforms,
+                             constant int64_t *skins,
+                             constant float4x4 *skinInverseBindMatrices,
                              float4x4 inverseGlobalTransform,
+                             SkinDispatch sd,
                              ushort4 joints,
                              float4 weights) {
-    float4x4 skinMatrix = weights.x * inverseGlobalTransform * globalJointMatrices[joints.x] +
-                          weights.y * inverseGlobalTransform * globalJointMatrices[joints.y] +
-                          weights.z * inverseGlobalTransform * globalJointMatrices[joints.z] +
-                          weights.w * inverseGlobalTransform * globalJointMatrices[joints.w];
+    int64_t jointOffsetX = sd.offset + joints.x;
+    int64_t jointOffsetY = sd.offset + joints.y;
+    int64_t jointOffsetZ = sd.offset + joints.z;
+    int64_t jointOffsetW = sd.offset + joints.w;
+    int64_t nodeIndexX = skins[jointOffsetX];
+    int64_t nodeIndexY = skins[jointOffsetY];
+    int64_t nodeIndexZ = skins[jointOffsetZ];
+    int64_t nodeIndexW = skins[jointOffsetW];
+    float4x4 globalJointMatrixX = worldTransforms[nodeIndexX];
+    float4x4 globalJointMatrixY = worldTransforms[nodeIndexY];
+    float4x4 globalJointMatrixZ = worldTransforms[nodeIndexZ];
+    float4x4 globalJointMatrixW = worldTransforms[nodeIndexW];
+    float4x4 inverseBindMatrixX = skinInverseBindMatrices[jointOffsetX];
+    float4x4 inverseBindMatrixY = skinInverseBindMatrices[jointOffsetY];
+    float4x4 inverseBindMatrixZ = skinInverseBindMatrices[jointOffsetZ];
+    float4x4 inverseBindMatrixW = skinInverseBindMatrices[jointOffsetW];
+
+    float4x4 skinMatrix =
+    weights.x * inverseGlobalTransform * globalJointMatrixX * inverseBindMatrixX +
+    weights.y * inverseGlobalTransform * globalJointMatrixY * inverseBindMatrixY +
+    weights.z * inverseGlobalTransform * globalJointMatrixZ * inverseBindMatrixZ +
+    weights.w * inverseGlobalTransform * globalJointMatrixW * inverseBindMatrixW;
     return skinMatrix;
 }
 
@@ -205,13 +228,23 @@ inline MorphApplyResult apply_morph(float3 pos,
                                     float3 normal,
                                     float4 tangent,
                                     constant PBRVertexArguments &args,
+                                    constant float *weights,
+                                    constant MorphDispatch *dispatches,
                                     uint vid) {
-    if (!args.hasMorph) {
+    uint count = min(args.morphTargetCount, (uint)8);
+    MorphDispatch dispatch = dispatches[args.morphDispatchIndex];
+
+    if (count == 0 ) {
         return { pos, normal, tangent };
     }
-    uint count = min(args.morphTargetCount, (uint)8);
+
     for (uint i = 0; i < count; ++i) {
-        float w = args.morphWeights[i];
+        float w;
+        if (dispatch.length == 0) {
+            w = args.morphDefaultWeights[i];
+        } else {
+            w = weights[dispatch.offset + i];
+        }
         if (w == 0.0) { continue; }
         constant float *buf = nullptr;
         switch (i) {
@@ -244,6 +277,11 @@ inline MorphApplyResult apply_morph(float3 pos,
 vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
                                       constant PBRVertexArguments &args [[buffer(1)]],
                                       constant PBRVertexVariableParameters &params [[buffer(2)]],
+                                      constant float4x4* worldTransforms [[buffer(3)]],
+                                      constant int64_t* skinJoints [[buffer(4)]],
+                                      constant float4x4* skinInverseBindMatrices [[buffer(5)]],
+                                      constant float* morphWeights [[buffer(6)]],
+                                      constant MorphDispatch* morphDispatches [[buffer(7)]],
                                       uint vid [[vertex_id]])
 {
     PBRVertexOut out;
@@ -252,15 +290,17 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
     float3 pos = in.position;
     float3 normal = in.normal;
     float4 tan = in.tangent;
-    MorphApplyResult morphed = apply_morph(pos, normal, tan, args, vid);
+    MorphApplyResult morphed = apply_morph(pos, normal, tan, args, morphWeights, morphDispatches, vid);
     pos = morphed.pos;
     normal = morphed.normal;
     tan = morphed.tangent;
 
-    float4x4 skinMatrix = args.hasSkinning
-    ? compute_skin_matrix(args.globalJointMatrices, args.inverseModel, in.joints, in.weights)
+    float4x4 worldTransform = worldTransforms[args.transformIndex];
+    float4x4 inverseWorldTransform = inverse_affine(worldTransform);
+    float4x4 skinMatrix = args.skinDispatch.offset != -1
+    ? compute_skin_matrix(worldTransforms, skinJoints, skinInverseBindMatrices, inverseWorldTransform, args.skinDispatch, in.joints, in.weights)
     : float4x4(1.0);
-    float4x4 modelTransform = params.externalTransform * args.model * skinMatrix;
+    float4x4 modelTransform = params.externalTransform * worldTransform * skinMatrix;
     float4x4 mvpTransform = params.projection * params.view * modelTransform;
 
     float3x3 normalTransform = transpose(inverse(_float3x3(modelTransform)));

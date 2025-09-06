@@ -33,7 +33,7 @@ public class GLTFView: MTKView {
     private let frameSemaphores: DispatchSemaphore
 
     // MARK: - Animation state
-    private var mdlAsset: MDLAsset?
+    private var enabledAnimation: Bool = true
     private var animationState = RendererAnimationState(time: 0, speed: 1, isLooping: true)
     private var lastFrameTime: CFTimeInterval?
 
@@ -272,18 +272,23 @@ public class GLTFView: MTKView {
         currentBuffer = (currentBuffer + 1) % maxFramesInFlight
 
         // Advance animation and apply to the asset if available
-        var fence: MTLFence?
-        if let lastTime = lastFrameTime {
+        var animationFence: MTLFence?
+        if let lastTime = lastFrameTime, enabledAnimation {
             let now = CACurrentMediaTime()
             let dt = now - lastTime
             lastFrameTime = now
             animationState.time += Float(dt) * animationState.speed
 
-            guard let blitCommandEncoder = commandBuffer.makeBlitCommandEncoder() else { return }
-            fence = renderer.animation(
-                using: blitCommandEncoder,
-                animationState: animationState
-            )
+            if let en = commandBuffer.makeComputeCommandEncoder(),
+               let fence = commandQueue.device.makeFence() {
+                en.updateFence(fence)
+                animationFence = fence
+
+                renderer.animation(
+                    commandEncoder: en,
+                    animationState: animationState
+                )
+            }
         } else {
             lastFrameTime = CACurrentMediaTime()
         }
@@ -309,9 +314,11 @@ public class GLTFView: MTKView {
         guard let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
             return
         }
-        if let fence {
-            renderEncoder.waitForFence(fence, before: .vertex)
+
+        if let animationFence {
+            renderEncoder.waitForFence(animationFence, before: .vertex)
         }
+
         // Rendering
         renderer.render(
             using: renderEncoder,

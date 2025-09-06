@@ -30,4 +30,8 @@ extension MDLObject {
         }
         return false
     }
+
+    func component<T: MDLComponent>(ofType type: T.Type) -> T? {
+        return self.components.first(where: { $0 is T }) as? T
+    }
 }

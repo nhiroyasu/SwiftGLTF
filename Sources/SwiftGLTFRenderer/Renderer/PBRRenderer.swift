@@ -5,11 +5,10 @@ import simd
 import ModelIO
 import SwiftGLTFParser
 import SwiftGLTFCore
+import SwiftGLTFShaderTypes
 
 public class PBRRenderer {
-    private var meshes: [PBRMesh] = []
-    private var vertexResources: [MTLHeap] = []
-    private var fragmentResources: [MTLHeap] = []
+    private var meshContainer: PBRMeshContainer? = nil
 
     private var skyboxMesh: SkyboxMesh
     private var envMapArgBuffer: MTLBuffer
@@ -107,128 +106,69 @@ public class PBRRenderer {
     // MARK: - Rendering
 
     public func animation(
-        using blitCommandEncoder: MTLBlitCommandEncoder,
+        commandEncoder en: MTLComputeCommandEncoder,
         animationState state: RendererAnimationState
-    ) -> MTLFence? {
-        var fence: MTLFence? = nil
-        for mesh in meshes {
-            guard let animation = mesh.animation else { continue }
-            if fence == nil {
-                fence = device.makeFence()
-            }
+    ) {
+        guard let meshContainer else { return }
 
-            var modelMatrixTree = mesh.modelMatrixTree
-            var animGlobalJointMatrixTrees: [[TRS]] = mesh.skeleton?.joints.map({ $0.globalJointTRSTree }) ?? []
-            var morphWeights: [Float]? = nil
-            for channel in animation.channels {
-                let trs = evaluateTRS(
-                    channel: channel,
-                    duration: animation.duration,
-                    time: state.time,
-                    looping: state.isLooping
-                )
-                if let effectIndex = channel.modelMatrixTreeEffectIndex {
-                    modelMatrixTree[effectIndex] = trs.apply(modelMatrixTree[effectIndex])
-                }
+        var localTransforms = meshContainer.nodeLevelHierarchy.localTransforms
+        var morphWeights = meshContainer.originMorphWeights
+        var morphDispatches = meshContainer.morphDispatches
 
-                if let nodeIndex = channel.globalJointNodeTreeEffectIndex,
-                   let matrixIndex = channel.globalJointMatrixTreeEffectIndex {
-                    animGlobalJointMatrixTrees[nodeIndex][matrixIndex] = trs.apply(animGlobalJointMatrixTrees[nodeIndex][matrixIndex])
-                }
-
-                if let w = evaluateWeights(
-                    channel: channel,
-                    duration: animation.duration,
-                    time: state.time,
-                    looping: state.isLooping
-                ) {
-                    morphWeights = w
-                }
-            }
-
-            var totalModelMatrix: float4x4 = modelMatrixTree.reduce(float4x4(1), *)
-            var inverseModelMatrix = totalModelMatrix.inverse
-
-            // Update model and inverse model matrix buffer
-            let length = MemoryLayout<simd_float4x4>.size
-            let modelBuffer = device.makeBuffer(
-                bytes: &totalModelMatrix,
-                length: length,
-                options: .storageModeShared
-            )!
-            let inverseModelBuffer = device.makeBuffer(
-                bytes: &inverseModelMatrix,
-                length: length,
-                options: .storageModeShared
-            )!
-
-            blitCommandEncoder.copy(
-                from: modelBuffer,
-                sourceOffset: 0,
-                to: animation.animatableBuffers.modelBuffer,
-                destinationOffset: 0,
-                size: length
+        for animation in meshContainer.animations {
+            let trs = evaluateTRS(
+                type: animation.type,
+                interpolation: animation.interpolation,
+                keyFrameTimes: animation.keyframes,
+                duration: animation.duration,
+                time: state.time,
+                looping: state.isLooping
             )
-            blitCommandEncoder.copy(
-                from: inverseModelBuffer,
-                sourceOffset: 0,
-                to: animation.animatableBuffers.inverseModelBuffer,
-                destinationOffset: 0,
-                size: length
+            let weights = evaluateWeights(
+                type: animation.type,
+                interpolation: animation.interpolation,
+                keyFrameTimes: animation.keyframes,
+                duration: animation.duration,
+                time: state.time,
+                looping: state.isLooping
             )
 
-            // Update global joint matrices buffer if exists
-            if !animGlobalJointMatrixTrees.isEmpty,
-               let jointBuffer = animation.animatableBuffers.globalJointMatricesBuffer,
-               let skeleton = mesh.skeleton {
-                var jointMatrices: [float4x4] = skeleton.jointMatrices
-                for (jointNodeIndex, matrixTree) in animGlobalJointMatrixTrees.enumerated() {
-                    let globalJointMatrix = matrixTree
-                        .map { trs2matrix($0) }
-                        .reduce(float4x4(1), *)
-                    let inverseBindMatrix = skeleton.joints[jointNodeIndex].inverseBindMatrix
-                    jointMatrices[jointNodeIndex] = globalJointMatrix * inverseBindMatrix
-                }
-                let buffer = device.makeBuffer(
-                    bytes: jointMatrices,
-                    length: MemoryLayout<float4x4>.size * jointMatrices.count,
-                    options: .storageModeShared
-                )!
-                blitCommandEncoder.copy(
-                    from: buffer,
-                    sourceOffset: 0,
-                    to: jointBuffer,
-                    destinationOffset: 0,
-                    size: jointBuffer.length
-                )
-            }
+            let target = animation.targetNode
 
+            localTransforms[target] = trs.apply(localTransforms[target])
 
-            if let morphWeights {
-                guard let buffer = animation.animatableBuffers.morphWeightsBuffer else {
-                    assertionFailure("Morph weights buffer is nil")
-                    continue
-                }
-                let staging = device.makeBuffer(
-                    bytes: morphWeights,
-                    length: buffer.length,
-                    options: .storageModeShared
-                )!
-                blitCommandEncoder.copy(
-                    from: staging,
-                    sourceOffset: 0,
-                    to: buffer,
-                    destinationOffset: 0,
-                    size: buffer.length
+            let dispatch = morphDispatches[target]
+            if dispatch.length == 0 {
+                morphWeights.insert(contentsOf: weights, at: Int(dispatch.offset))
+                morphDispatches[target] = MorphDispatch(
+                    offset: dispatch.offset,
+                    length: Int64(weights.count)
                 )
+            } else {
+                morphWeights.replaceSubrange(Int(dispatch.offset)..<Int(dispatch.offset + dispatch.length), with: weights)
             }
         }
-        if let fence {
-            blitCommandEncoder.updateFence(fence)
-        }
-        blitCommandEncoder.endEncoding()
 
-        return fence
+        let nlh = meshContainer.nodeLevelHierarchy.copy(localTransforms: localTransforms)
+        do {
+            try shaderConnection.computeWorldMatrices(
+                nodeLevelHierarchy: nlh,
+                out: meshContainer.worldTransformBuffer,
+                commandEncoder: en
+            )
+        } catch {
+            os_log("Failed to compute world matrices: %@", type: .error, String(describing: error))
+            return
+        }
+
+        meshContainer.morphWeightsBuffer.contents().copyMemory(
+            from: &morphWeights,
+            byteCount: MemoryLayout<Float>.size * morphWeights.count
+        )
+        meshContainer.morphDispatchesBuffer.contents().copyMemory(
+            from: &morphDispatches,
+            byteCount: MemoryLayout<MorphDispatch>.size * morphDispatches.count
+        )
     }
 
     public func render(
@@ -237,6 +177,11 @@ public class PBRRenderer {
         fragmentParams: MTLBuffer,
         skyboxVP: MTLBuffer
     ) {
+        guard let mc = meshContainer else {
+            os_log("No mesh loaded", type: .error)
+            return
+        }
+
         drawSkybox(
             renderEncoder: renderEncoder,
             mesh: skyboxMesh,
@@ -250,10 +195,15 @@ public class PBRRenderer {
             pipelineStateTransparent: pipelineConnector.pipelineStateTransparent,
             depthStencilStateWrite: depthStencilStateWrite,
             depthStencilStateNoWrite: depthStencilStateNoWrite,
-            vertexResources: vertexResources,
-            fragmentResources: fragmentResources + [envMapHeap],
-            meshes: meshes,
+            vertexResources: mc.vertexResources,
+            fragmentResources: mc.fragmentResources + [envMapHeap],
+            meshes: mc.meshes,
             vertexParams: vertexParams,
+            worldTransformBuffer: mc.worldTransformBuffer,
+            jointsBuffer: mc.jointsBuffer,
+            inverseBindMatricesBuffer: mc.inverseBindMatricesBuffer,
+            morphWeightsBuffer: mc.morphWeightsBuffer,
+            morphDispatchesBuffer: mc.morphDispatchesBuffer,
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams
         )
@@ -263,10 +213,7 @@ public class PBRRenderer {
 
     /// Load a gltf asset
     public func load(from asset: MDLAsset) async throws {
-        let meshContainer = try await meshLoader.loadMeshes(from: asset)
-        self.meshes = meshContainer.meshes
-        self.vertexResources = meshContainer.vertexResources
-        self.fragmentResources = meshContainer.fragmentResources
+        self.meshContainer = try await meshLoader.loadMeshes(from: asset)
     }
 
     /// Set environment from external URL (equirectangular .exr)

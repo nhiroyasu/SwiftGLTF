@@ -19,8 +19,7 @@ class WireframeMeshLoader {
             let meshes = try loadRecursiveMeshes(
                 device: device,
                 obj: rootObj,
-                parentTransform: simd_float4x4(1),
-                parentTransformTree: []
+                parentTransform: simd_float4x4(1)
             )
             pbrMeshes.append(contentsOf: meshes)
         }
@@ -31,14 +30,12 @@ class WireframeMeshLoader {
     private func loadRecursiveMeshes(
         device: MTLDevice,
         obj: MDLObject,
-        parentTransform: simd_float4x4,
-        parentTransformTree: [simd_float4x4]
+        parentTransform: simd_float4x4
     ) throws -> [PBRMesh] {
         var pbrMeshes: [PBRMesh] = []
 
         let selfTransform = obj.transform?.matrix ?? simd_float4x4(1)
         let totalTransform = parentTransform * selfTransform
-        let transformTree = parentTransformTree + [selfTransform]
 
         if let mdlMesh = obj as? MDLMesh {
             let mtkMesh = try MTKMesh(mesh: mdlMesh, device: device)
@@ -72,10 +69,7 @@ class WireframeMeshLoader {
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
                 vertexArgumentBuffer: vertexArgumentBuffer,
                 submeshes: submeshes,
-                animation: nil,
                 modelMatrix: model,
-                modelMatrixTree: transformTree,
-                skeleton: nil,
                 _storedHeapInstance: [modelBuffer]
             )
             pbrMeshes.append(pbrMesh)
@@ -85,8 +79,7 @@ class WireframeMeshLoader {
             let childMeshes = try loadRecursiveMeshes(
                 device: device,
                 obj: childObj,
-                parentTransform: totalTransform,
-                parentTransformTree: transformTree
+                parentTransform: totalTransform
             )
             pbrMeshes.append(contentsOf: childMeshes)
         }

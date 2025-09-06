@@ -6,9 +6,13 @@ import SwiftGLTFCore
 public class GLTFAnimationContainer: MDLObjectContainer {
 }
 
-@objc public protocol GLTFAnimationProtocol: MDLComponent {}
+@objc public protocol GLTFAnimation: MDLComponent {
+    var name: String? { get }
+    var duration: Float { get }         // max of all sampler input times
+    var channels: [GLTFAnimationChannel] { get }
+}
 
-public class GLTFAnimation: NSObject, GLTFAnimationProtocol {
+public class GLTFAnimationImpl: NSObject, GLTFAnimation {
     public let name: String?
     public let duration: Float          // max of all sampler input times
     public let channels: [GLTFAnimationChannel]
@@ -24,7 +28,7 @@ public class GLTFAnimation: NSObject, GLTFAnimationProtocol {
     }
 }
 
-public class GLTFAnimationChannel {
+public class GLTFAnimationChannel: NSObject {
     public let type: GLTFAnimationType
     public let targetNodeIndex: NodeIndex
     public let interpolation: GLTFInterpolation
