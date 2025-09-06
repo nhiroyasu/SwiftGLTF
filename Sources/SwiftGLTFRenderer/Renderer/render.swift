@@ -31,19 +31,19 @@ func drawPBR(
     vertexResources: [MTLHeap],
     fragmentResources: [MTLHeap],
     meshes: [PBRMesh],
-    vertexParams: MTLBuffer,
     worldTransformBuffer: MTLBuffer,
     jointsBuffer: MTLBuffer,
     inverseBindMatricesBuffer: MTLBuffer,
     morphWeightsBuffer: MTLBuffer,
     morphDispatchesBuffer: MTLBuffer,
     envMapArgBuffer: MTLBuffer,
-    fragmentParams: MTLBuffer
+    fragmentParams: MTLBuffer,
+    mvpUniformBuffer: MTLBuffer
 ) {
     renderEncoder.setFrontFacing(.counterClockwise)
     renderEncoder.useHeaps(vertexResources, stages: .vertex)
     renderEncoder.useHeaps(fragmentResources, stages: .fragment)
-    renderEncoder.setVertexBuffer(vertexParams, offset: 0, index: 2)
+    renderEncoder.setVertexBuffer(mvpUniformBuffer, offset: 0, index: 2)
     renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: 3)
     renderEncoder.setVertexBuffer(jointsBuffer, offset: 0, index: 4)
     renderEncoder.setVertexBuffer(inverseBindMatricesBuffer, offset: 0, index: 5)

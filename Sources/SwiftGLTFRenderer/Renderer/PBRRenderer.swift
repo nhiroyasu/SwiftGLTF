@@ -173,7 +173,7 @@ public class PBRRenderer {
 
     public func render(
         using renderEncoder: MTLRenderCommandEncoder,
-        vertexParams: MTLBuffer,
+        mvpUniformBuffer: MTLBuffer,
         fragmentParams: MTLBuffer,
         skyboxVP: MTLBuffer
     ) {
@@ -198,14 +198,14 @@ public class PBRRenderer {
             vertexResources: mc.vertexResources,
             fragmentResources: mc.fragmentResources + [envMapHeap],
             meshes: mc.meshes,
-            vertexParams: vertexParams,
             worldTransformBuffer: mc.worldTransformBuffer,
             jointsBuffer: mc.jointsBuffer,
             inverseBindMatricesBuffer: mc.inverseBindMatricesBuffer,
             morphWeightsBuffer: mc.morphWeightsBuffer,
             morphDispatchesBuffer: mc.morphDispatchesBuffer,
             envMapArgBuffer: envMapArgBuffer,
-            fragmentParams: fragmentParams
+            fragmentParams: fragmentParams,
+            mvpUniformBuffer: mvpUniformBuffer
         )
     }
 

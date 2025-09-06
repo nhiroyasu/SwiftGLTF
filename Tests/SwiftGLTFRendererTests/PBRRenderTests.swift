@@ -73,7 +73,7 @@ final class PBRRenderTests {
             projection: projection,
             externalTransform: simd_float4x4(1)
         )
-        let vertexParams = device.makeBuffer(
+        let mvpUniformBuffer = device.makeBuffer(
             bytes: &vertexVariableParams,
             length: MemoryLayout<MVPUniforms>.size,
             options: .storageModeShared
@@ -145,14 +145,14 @@ final class PBRRenderTests {
             vertexResources: mc.vertexResources,
             fragmentResources: mc.fragmentResources + [envMapHeap],
             meshes: mc.meshes,
-            vertexParams: vertexParams,
             worldTransformBuffer: mc.worldTransformBuffer,
             jointsBuffer: mc.jointsBuffer,
             inverseBindMatricesBuffer: mc.inverseBindMatricesBuffer,
             morphWeightsBuffer: mc.morphWeightsBuffer,
             morphDispatchesBuffer: mc.morphDispatchesBuffer,
             envMapArgBuffer: envMapArgBuffer,
-            fragmentParams: fragmentParams
+            fragmentParams: fragmentParams,
+            mvpUniformBuffer: mvpUniformBuffer
         )
 
         encoder.endEncoding()

@@ -13,7 +13,7 @@ public class GLTFView: MTKView {
     private let renderer: PBRRenderer
 
     private let fragmentParamsBuffer: FrameInFlightBuffer
-    private let vertexPramsBuffer: FrameInFlightBuffer
+    private let mvpUniformBuffer: FrameInFlightBuffer
     private let skyboxVPMatrixBuffer: FrameInFlightBuffer
 
     private var displayType: DisplayType = .loading {
@@ -77,7 +77,7 @@ public class GLTFView: MTKView {
                 options: []
             )!
         }
-        self.vertexPramsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+        self.mvpUniformBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
                 length: MemoryLayout<MVPUniforms>.size,
                 options: .storageModeShared
@@ -302,7 +302,7 @@ public class GLTFView: MTKView {
             drawableSize: drawableSize
         )
         updateSceneBuffer(
-            toVertexParams: vertexPramsBuffer.buffer(currentBuffer),
+            toVertexParams: mvpUniformBuffer.buffer(currentBuffer),
             toFragmentParams: fragmentParamsBuffer.buffer(currentBuffer),
             eye: eye,
             lightPosition: lightPosition,
@@ -322,7 +322,7 @@ public class GLTFView: MTKView {
         // Rendering
         renderer.render(
             using: renderEncoder,
-            vertexParams: vertexPramsBuffer.buffer(currentBuffer),
+            mvpUniformBuffer: mvpUniformBuffer.buffer(currentBuffer),
             fragmentParams: fragmentParamsBuffer.buffer(currentBuffer),
             skyboxVP: skyboxVPMatrixBuffer.buffer(currentBuffer)
         )
