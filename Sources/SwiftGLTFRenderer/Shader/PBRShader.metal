@@ -276,7 +276,7 @@ inline MorphApplyResult apply_morph(float3 pos,
 
 vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
                                       constant PBRVertexArguments &args [[buffer(1)]],
-                                      constant PBRVertexVariableParameters &params [[buffer(2)]],
+                                      constant MVPUniforms &mvp [[buffer(2)]],
                                       constant float4x4* worldTransforms [[buffer(3)]],
                                       constant int64_t* skinJoints [[buffer(4)]],
                                       constant float4x4* skinInverseBindMatrices [[buffer(5)]],
@@ -300,8 +300,8 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
     float4x4 skinMatrix = args.skinDispatch.offset != -1
     ? compute_skin_matrix(worldTransforms, skinJoints, skinInverseBindMatrices, inverseWorldTransform, args.skinDispatch, in.joints, in.weights)
     : float4x4(1.0);
-    float4x4 modelTransform = params.externalTransform * worldTransform * skinMatrix;
-    float4x4 mvpTransform = params.projection * params.view * modelTransform;
+    float4x4 modelTransform = mvp.externalTransform * worldTransform * skinMatrix;
+    float4x4 mvpTransform = mvp.projection * mvp.view * modelTransform;
 
     float3x3 normalTransform = transpose(inverse(_float3x3(modelTransform)));
 

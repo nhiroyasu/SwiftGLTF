@@ -15,13 +15,13 @@ struct WireframeVertexArguments {
 };
 
 vertex VertexOut_Wireframe wireframe_vertex_shader(VertexIn_Wireframe in [[stage_in]],
-                                                   constant PBRVertexVariableParameters &params [[buffer(1)]],
+                                                   constant MVPUniforms &mvp [[buffer(1)]],
                                                    constant float4x4* worldTransforms [[buffer(2)]],
                                                    constant int64_t &transformIndex [[buffer(3)]])
 {
     VertexOut_Wireframe out;
 
-    float4x4 mvpMatrix = params.projection * params.view * worldTransforms[transformIndex];
+    float4x4 mvpMatrix = mvp.projection * mvp.view * worldTransforms[transformIndex];
 
     out.position = mvpMatrix * float4(in.position, 1.0);
     return out;

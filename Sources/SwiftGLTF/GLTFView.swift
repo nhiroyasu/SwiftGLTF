@@ -79,7 +79,7 @@ public class GLTFView: MTKView {
         }
         self.vertexPramsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
-                length: MemoryLayout<PBRVertexVariableParameters>.size,
+                length: MemoryLayout<MVPUniforms>.size,
                 options: .storageModeShared
             )!
         }
@@ -237,14 +237,14 @@ public class GLTFView: MTKView {
             far: 1000.0
         )
         let offset = translationMatrix(targetOffset.x, targetOffset.y, targetOffset.z)
-        var vpUniforms = PBRVertexVariableParameters(
+        var vpUniforms = MVPUniforms(
             view: view,
             projection: projection,
             externalTransform: offset
         )
         toVertexParams.contents().copyMemory(
             from: &vpUniforms,
-            byteCount: MemoryLayout<PBRVertexVariableParameters>.size
+            byteCount: MemoryLayout<MVPUniforms>.size
         )
 
         var pbrSceneUniforms = PBRFragmentVariableParameters(

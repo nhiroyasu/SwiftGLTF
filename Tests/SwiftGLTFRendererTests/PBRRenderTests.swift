@@ -68,14 +68,14 @@ final class PBRRenderTests {
         let eye = SIMD3<Float>(-2.83, 2.83, -2.83)
         let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
         let projection = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
-        var vertexVariableParams = PBRVertexVariableParameters(
+        var vertexVariableParams = MVPUniforms(
             view: view,
             projection: projection,
             externalTransform: simd_float4x4(1)
         )
         let vertexParams = device.makeBuffer(
             bytes: &vertexVariableParams,
-            length: MemoryLayout<PBRVertexVariableParameters>.size,
+            length: MemoryLayout<MVPUniforms>.size,
             options: .storageModeShared
         )!
 
