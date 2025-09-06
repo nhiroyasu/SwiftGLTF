@@ -51,7 +51,8 @@ final class WireframeRenderTests {
         )
         let loader = WireframeMeshLoader(
             device: device,
-            pipelineConnector: pipelineConnector
+            pipelineConnector: pipelineConnector,
+            shaderConnection: shaderConnection
         )
         
         // Create view-projection matrix buffer
@@ -107,7 +108,7 @@ final class WireframeRenderTests {
 
         // Load a sample mesh
         let asset = try await makeMDLAsset(from: meshURL)
-        let meshes = try loader.loadMeshes(from: asset)
+        let mc = try loader.loadMeshes(from: asset)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
@@ -118,8 +119,9 @@ final class WireframeRenderTests {
             renderEncoder: encoder,
             pipelineState: pipelineState,
             depthStencilState: depthStencilState,
-            meshes: meshes,
-            vertexParams: vertexParams
+            meshes: mc.meshes,
+            vertexParams: vertexParams,
+            worldTransformBuffer: mc.worldTransformBuffer
         )
 
         encoder.endEncoding()

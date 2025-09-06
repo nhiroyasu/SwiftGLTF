@@ -1,12 +1,10 @@
 import MetalKit
 import simd
-import OSLog
+import os.log
 import SwiftGLTFCore
 
 public class WireframeRenderer {
-    private var meshes: [PBRMesh] = []
-    private var vertexResources: [MTLHeap] = []
-    private var fragmentResources: [MTLHeap] = []
+    private var meshContainer: WireframeMeshContainer?
 
     private var skyboxMesh: SkyboxMesh?
     private var envMapArgBuffer: MTLBuffer?
@@ -62,7 +60,11 @@ public class WireframeRenderer {
             config: pipelineStateConfig,
             shaderConnection: shaderConnection
         )
-        self.meshLoader = WireframeMeshLoader(device: device, pipelineConnector: pipelineConnector)
+        self.meshLoader = WireframeMeshLoader(
+            device: device,
+            pipelineConnector: pipelineConnector,
+            shaderConnection: shaderConnection
+        )
         self.envMapLoader = EnvironmentMapLoader(
             device: device,
             library: library,
@@ -80,6 +82,10 @@ public class WireframeRenderer {
         fragmentParams: MTLBuffer,
         skyboxVP: MTLBuffer
     ) {
+        guard let meshContainer else {
+            os_log("Mesh not loaded", log: .default, type: .error)
+            return
+        }
         guard let skyboxMesh, let _specularCubeMapTexture else {
             os_log("Skybox or textures not loaded", log: .default, type: .error)
             return
@@ -96,8 +102,9 @@ public class WireframeRenderer {
             renderEncoder: renderEncoder,
             pipelineState: pipelineConnector.pipelineState,
             depthStencilState: depthStencilState,
-            meshes: meshes,
-            vertexParams: vertexParams
+            meshes: meshContainer.meshes,
+            vertexParams: vertexParams,
+            worldTransformBuffer: meshContainer.worldTransformBuffer
         )
     }
 
@@ -114,8 +121,7 @@ public class WireframeRenderer {
     // MARK: - Helper
 
     private func _loadAsset(asset: MDLAsset) throws {
-        let meshes = try meshLoader.loadMeshes(from: asset)
-        self.meshes = meshes
+        self.meshContainer = try meshLoader.loadMeshes(from: asset)
     }
 
     private func _loadSkybox() async throws {

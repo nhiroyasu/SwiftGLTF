@@ -3,7 +3,7 @@ import SwiftGLTFShaderTypes
 import SwiftGLTFRenderer
 import SwiftGLTFCore
 import MetalKit
-import OSLog
+import os.log
 import QuartzCore
 
 @MainActor

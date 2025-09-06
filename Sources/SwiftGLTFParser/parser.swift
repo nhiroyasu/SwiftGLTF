@@ -1,7 +1,7 @@
 import Foundation
 import MetalKit
 import SwiftGLTFCore
-import OSLog
+import os.log
 
 public func makeMDLAsset(from url: URL, options: GLTFDecodeOptions = .default) async throws -> MDLAsset {
     let data = try Data(contentsOf: url)

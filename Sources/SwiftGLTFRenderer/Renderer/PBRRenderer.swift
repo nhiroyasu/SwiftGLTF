@@ -1,6 +1,6 @@
 import Img2Cubemap
 import MetalKit
-import OSLog
+import os.log
 import simd
 import ModelIO
 import SwiftGLTFParser

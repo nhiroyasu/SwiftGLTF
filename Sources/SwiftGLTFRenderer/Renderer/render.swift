@@ -135,18 +135,24 @@ func drawWireframe(
     renderEncoder: MTLRenderCommandEncoder,
     pipelineState: MTLRenderPipelineState,
     depthStencilState: MTLDepthStencilState,
-    meshes: [PBRMesh],
-    vertexParams: MTLBuffer
+    meshes: [WireframeMesh],
+    vertexParams: MTLBuffer,
+    worldTransformBuffer: MTLBuffer
 ) {
     renderEncoder.setTriangleFillMode(.lines)
     renderEncoder.setRenderPipelineState(pipelineState)
     renderEncoder.setDepthStencilState(depthStencilState)
-    renderEncoder.setVertexBuffer(vertexParams, offset: 0, index: 2)
+    renderEncoder.setVertexBuffer(vertexParams, offset: 0, index: 1)
+    renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: 2)
     for mesh in meshes {
         renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-        renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: 1)
+        var transformIndex: Int = mesh.transformIndex
+        renderEncoder.setVertexBytes(
+            &transformIndex,
+            length: MemoryLayout<Int>.size,
+            index: 3
+        )
         for submesh in mesh.submeshes {
-            renderEncoder.setCullMode(submesh.doubleSided ? .none : .back)
             renderEncoder.drawIndexedPrimitives(
                 type: submesh.primitiveType,
                 indexCount: submesh.indexCount,

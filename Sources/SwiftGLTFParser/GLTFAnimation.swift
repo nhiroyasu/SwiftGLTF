@@ -1,6 +1,6 @@
 import ModelIO
 import simd
-import OSLog
+import os.log
 import SwiftGLTFCore
 
 public class GLTFAnimationContainer: MDLObjectContainer {

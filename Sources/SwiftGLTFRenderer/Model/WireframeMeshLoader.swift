@@ -5,85 +5,76 @@ import SwiftGLTFParser
 class WireframeMeshLoader {
     private let device: MTLDevice
     private let pipelineConnector: WireframePipelineConnector
+    private let shaderConnection: ShaderConnection
 
-    init(device: MTLDevice, pipelineConnector: WireframePipelineConnector) {
+    private let SCENE_INDEX = 0
+
+    init(
+        device: MTLDevice,
+        pipelineConnector: WireframePipelineConnector,
+        shaderConnection: ShaderConnection
+    ) {
         self.device = device
         self.pipelineConnector = pipelineConnector
+        self.shaderConnection = shaderConnection
     }
 
-    func loadMeshes(from asset: MDLAsset) throws -> [PBRMesh] {
-        var pbrMeshes: [PBRMesh] = []
+    func loadMeshes(from asset: MDLAsset) throws -> WireframeMeshContainer {
+        let scene = asset.object(atPath: GLTFAssetPath.scene(SCENE_INDEX))
+        let nodeLevelHierarchy = makeNodeLevelHierarchy(root: scene)
+        let worldTransformsBuffer = try shaderConnection.computeWorldMatrices(nodeLevelHierarchy: nodeLevelHierarchy)
 
-        for i in 0..<asset.count {
-            let rootObj = asset.object(at: i)
-            let meshes = try loadRecursiveMeshes(
-                device: device,
-                obj: rootObj,
-                parentTransform: simd_float4x4(1)
-            )
-            pbrMeshes.append(contentsOf: meshes)
-        }
+        let nodes = asset.object(atPath: GLTFAssetPath.nodes(atScene: SCENE_INDEX))
+        let wireframeMeshes: [WireframeMesh] = try loadRecursiveMeshes(
+            device: device,
+            obj: nodes,
+            nodeLevelHierarchy: nodeLevelHierarchy
+        )
 
-        return pbrMeshes
+        return WireframeMeshContainer(
+            meshes: wireframeMeshes,
+            worldTransformBuffer: worldTransformsBuffer
+        )
     }
 
     private func loadRecursiveMeshes(
         device: MTLDevice,
         obj: MDLObject,
-        parentTransform: simd_float4x4
-    ) throws -> [PBRMesh] {
-        var pbrMeshes: [PBRMesh] = []
+        nodeLevelHierarchy: NodeLevelHierarchy
+    ) throws -> [WireframeMesh] {
+        var wireframeMeshes: [WireframeMesh] = []
 
-        let selfTransform = obj.transform?.matrix ?? simd_float4x4(1)
-        let totalTransform = parentTransform * selfTransform
-
-        if let mdlMesh = obj as? MDLMesh {
+        for mdlMesh in obj.component(ofType: GLTFMesh.self)?.primitives ?? [] {
             let mtkMesh = try MTKMesh(mesh: mdlMesh, device: device)
 
-            var submeshes: [PBRMesh.Submesh] = []
+            var submeshes: [WireframeMesh.Submesh] = []
             for mtkSubmesh in mtkMesh.submeshes {
-                // Create a dummy material uniforms buffer (unused in wireframe rendering)
-                
-                let submeshData = PBRMesh.Submesh(
+                let submeshData = WireframeMesh.Submesh(
                     primitiveType: mtkSubmesh.primitiveType,
                     indexCount: mtkSubmesh.indexCount,
                     indexType: mtkSubmesh.indexType,
-                    indexBuffer: mtkSubmesh.indexBuffer,
-                    fragmentArgumentBuffer: device.makeBuffer(length: MemoryLayout<Int>.size, options: [])!,
-                    alphaMode: .opaque,
-                    alphaCutoff: 0.5,
-                    centerModelSpace: .zero,
-                    doubleSided: true,
-                    _storedHeapInstance: []
+                    indexBuffer: mtkSubmesh.indexBuffer
                 )
                 submeshes.append(submeshData)
             }
 
-            var model = totalTransform
-            let modelBuffer = device.makeBuffer(bytes: &model, length: MemoryLayout<simd_float4x4>.size, options: [.storageModeShared])!
-            let vertexArgumentBuffer = try pipelineConnector.makeVertexArgumentsBuffer(
-                modelBuffer: modelBuffer
-            )
-
-            let pbrMesh = PBRMesh(
+            let wireframeMesh = WireframeMesh(
                 vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
-                vertexArgumentBuffer: vertexArgumentBuffer,
+                transformIndex: nodeLevelHierarchy.objectToIndex[ObjectIdentifier(obj)]!,
                 submeshes: submeshes,
-                modelMatrix: model,
-                _storedHeapInstance: [modelBuffer]
             )
-            pbrMeshes.append(pbrMesh)
+            wireframeMeshes.append(wireframeMesh)
         }
 
         for childObj in obj.children.objects {
             let childMeshes = try loadRecursiveMeshes(
                 device: device,
                 obj: childObj,
-                parentTransform: totalTransform
+                nodeLevelHierarchy: nodeLevelHierarchy
             )
-            pbrMeshes.append(contentsOf: childMeshes)
+            wireframeMeshes.append(contentsOf: childMeshes)
         }
 
-        return pbrMeshes
+        return wireframeMeshes
     }
 }
