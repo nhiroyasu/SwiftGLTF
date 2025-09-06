@@ -271,6 +271,24 @@ public class GLTFView: MTKView {
         frameSemaphores.wait()
         currentBuffer = (currentBuffer + 1) % maxFramesInFlight
 
+        // Update buffers
+        updateSkyboxBuffer(
+            toVPMatrix: skyboxVPMatrixBuffer.buffer(currentBuffer),
+            rotationX: rotationX,
+            rotationY: rotationY,
+            upSign: upSign,
+            drawableSize: drawableSize
+        )
+        updateSceneBuffer(
+            toVertexParams: mvpUniformBuffer.buffer(currentBuffer),
+            toFragmentParams: fragmentParamsBuffer.buffer(currentBuffer),
+            eye: eye,
+            lightPosition: lightPosition,
+            ambientLightColor: ambientLightColor,
+            upSign: upSign,
+            drawableSize: drawableSize
+        )
+
         // Advance animation and apply to the asset if available
         var animationFence: MTLFence?
         if let lastTime = lastFrameTime, enabledAnimation {
@@ -292,24 +310,6 @@ public class GLTFView: MTKView {
         } else {
             lastFrameTime = CACurrentMediaTime()
         }
-
-        // Update buffers
-        updateSkyboxBuffer(
-            toVPMatrix: skyboxVPMatrixBuffer.buffer(currentBuffer),
-            rotationX: rotationX,
-            rotationY: rotationY,
-            upSign: upSign,
-            drawableSize: drawableSize
-        )
-        updateSceneBuffer(
-            toVertexParams: mvpUniformBuffer.buffer(currentBuffer),
-            toFragmentParams: fragmentParamsBuffer.buffer(currentBuffer),
-            eye: eye,
-            lightPosition: lightPosition,
-            ambientLightColor: ambientLightColor,
-            upSign: upSign,
-            drawableSize: drawableSize
-        )
 
         guard let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
             return
