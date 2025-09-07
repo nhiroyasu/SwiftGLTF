@@ -32,6 +32,7 @@ func drawPBR(
     fragmentResources: [MTLHeap],
     meshes: [PBRMesh],
     worldTransformBuffer: MTLBuffer,
+    boundingSpheresBuffer: MTLBuffer,
     jointsBuffer: MTLBuffer,
     inverseBindMatricesBuffer: MTLBuffer,
     morphWeightsBuffer: MTLBuffer,
@@ -92,17 +93,23 @@ func drawPBR(
         }
     }
 
-    // Transparent pass (sort back-to-front per submesh using mesh center)
-    // TODO: Need to sort considering Morph
+    // Transparent pass (sort back-to-front per submesh using bounding sphere center)
+    // NOTE: バウンディングスフィアはバインドポーズ（非スキン・非モーフ）基準で算出しているため、
+    //       スキン／モーフによる形状変化は反映していない。描画順の判断としては保守的に許容する。
+    // NOTE: en: Since the bounding sphere is calculated based on the bind pose (non-skin, non-morph),
+    //       it does not reflect shape changes due to skin/morph. It is conservatively
     struct TransparentDrawItem { let distanceSq: Float; let meshIndex: Int; let submeshIndex: Int }
     var transparentItems: [TransparentDrawItem] = []
+    let spherePtr = boundingSpheresBuffer.contents().bindMemory(to: SIMD4<Float>.self, capacity: meshes.count)
+    let worldPtr = worldTransformBuffer.contents().bindMemory(to: simd_float4x4.self, capacity: worldTransformBuffer.length / MemoryLayout<simd_float4x4>.stride)
     for (mi, mesh) in meshes.enumerated() {
-        let model = mesh.modelMatrix
+        let s = spherePtr[mi]
+        let cModel = SIMD4<Float>(s.x, s.y, s.z, 1.0)
+        let world = worldPtr[max(mesh.transformIndex, 0)]
+        let cWorld4 = world * cModel
+        let cWorld = SIMD3<Float>(cWorld4.x, cWorld4.y, cWorld4.z)
         for (si, submesh) in mesh.submeshes.enumerated() where submesh.alphaMode == .blend {
-            let center = submesh.centerModelSpace
-            let worldPos4 = model * SIMD4<Float>(center.x, center.y, center.z, 1.0)
-            let worldPos = SIMD3<Float>(worldPos4.x, worldPos4.y, worldPos4.z)
-            let d = worldPos - viewPos
+            let d = cWorld - viewPos
             let distSq = simd_dot(d, d)
             transparentItems.append(TransparentDrawItem(distanceSq: distSq, meshIndex: mi, submeshIndex: si))
         }

@@ -13,6 +13,49 @@ class ShaderConnection {
         self.commandQueue = commandQueue
     }
 
+    func computeBoundingSpheres(meshes: [PBRMesh]) throws -> MTLBuffer {
+        let count = meshes.count
+        let outBuffer = device.makeBuffer(
+            length: MemoryLayout<SIMD4<Float>>.stride * max(count, 1),
+            options: .storageModeShared
+        )!
+
+        guard count > 0 else { return outBuffer }
+
+        guard let function = library.makeFunction(name: "computeBoundingSphereForMesh") else {
+            throw SwiftGLTFError.makeRender(.convertShaderCreationFailed, context: .capture(stage: .render))
+        }
+        let pso = try device.makeComputePipelineState(function: function)
+
+        let cb = commandQueue.makeCommandBuffer()!
+        let encoder = cb.makeComputeCommandEncoder()!
+        encoder.setComputePipelineState(pso)
+
+        let threadsPerThreadgroup = MTLSize(width: 256, height: 1, depth: 1)
+        for (i, mesh) in meshes.enumerated() {
+            var vtxCount = UInt32(mesh.vertexCount)
+            var stride = UInt32(mesh.positionStride)
+            var offset = UInt32(mesh.positionOffset)
+            var outIndex = UInt32(i)
+
+            encoder.setBuffer(mesh.vertexBuffer, offset: 0, index: 0)
+            encoder.setBytes(&vtxCount, length: MemoryLayout<UInt32>.size, index: 1)
+            encoder.setBytes(&stride, length: MemoryLayout<UInt32>.size, index: 2)
+            encoder.setBytes(&offset, length: MemoryLayout<UInt32>.size, index: 3)
+            encoder.setBuffer(outBuffer, offset: 0, index: 4)
+            encoder.setBytes(&outIndex, length: MemoryLayout<UInt32>.size, index: 5)
+
+            let groups = MTLSize(width: 1, height: 1, depth: 1)
+            encoder.dispatchThreadgroups(groups, threadsPerThreadgroup: threadsPerThreadgroup)
+        }
+
+        encoder.endEncoding()
+        cb.commit()
+        cb.waitUntilCompleted()
+
+        return outBuffer
+    }
+
     func convertSrgb2Linear(textures: [MTLTexture]) throws -> [MTLTexture] {
         let commandBuffer = commandQueue.makeCommandBuffer()!
         guard let convertShader = library.makeFunction(name: "texture_srgb_2_linear_shader") else {

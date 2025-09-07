@@ -132,6 +132,8 @@ class PBRMeshLoader {
             nodeLevelHierarchy: nodeLevelHierarchy
         )
 
+        let boundingSpheresBuffer = try shaderConnection.computeBoundingSpheres(meshes: pbrMeshes)
+
         return PBRMeshBundle(
             meshes: pbrMeshes,
             worldTransformBuffer: worldTransformsBuffer,
@@ -139,6 +141,7 @@ class PBRMeshLoader {
             inverseBindMatricesBuffer: inverseBindMatricesBuffer,
             morphWeightsBuffer: morphWeightsBuffer,
             morphDispatchesBuffer: morphDispatchesBuffer,
+            boundingSpheresBuffer: boundingSpheresBuffer,
             animations: pbrAnimations,
             nodeLevelHierarchy: nodeLevelHierarchy,
             originMorphWeights: morphWeights,
@@ -397,11 +400,22 @@ class PBRMeshLoader {
             submeshes.append(submeshData)
         }
 
+        // POSITION 属性のレイアウト情報
+        let mdlVD = mdlMesh.vertexDescriptor
+        let positionAttr = (mdlVD.attributes as? [MDLVertexAttribute])?.first(where: { $0.name == MDLVertexAttributePosition })
+        let positionBufferIndex = positionAttr?.bufferIndex ?? 0
+        let positionOffset = positionAttr?.offset ?? 0
+        let positionStride = (mdlVD.layouts[positionBufferIndex] as? MDLVertexBufferLayout)?.stride ?? 0
+
         let pbrMesh = PBRMesh(
             vertexBuffer: vertexBuffer,
             vertexArgumentBuffer: vertexArgumentBuffer,
             submeshes: submeshes,
             modelMatrix: model,
+            transformIndex: transformIndex,
+            vertexCount: mtkMesh.vertexCount,
+            positionStride: positionStride,
+            positionOffset: positionOffset,
             _storedHeapInstance: [
                 morphWeightsBuffer,
                 modelBuffer,

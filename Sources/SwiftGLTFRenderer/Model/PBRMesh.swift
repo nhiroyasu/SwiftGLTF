@@ -12,6 +12,7 @@ struct PBRMeshBundle {
     let inverseBindMatricesBuffer: MTLBuffer
     let morphWeightsBuffer: MTLBuffer
     let morphDispatchesBuffer: MTLBuffer
+    let boundingSpheresBuffer: MTLBuffer
 
     // Animation
     let animations: [PBRMeshAnimation]
@@ -39,6 +40,10 @@ struct PBRMesh {
     let vertexArgumentBuffer: MTLBuffer
     let submeshes: [Submesh]
     let modelMatrix: float4x4 // TODO: delete
+    let transformIndex: Int
+    let vertexCount: Int
+    let positionStride: Int
+    let positionOffset: Int
     let _storedHeapInstance: [MTLResource?]
 
     struct Submesh {

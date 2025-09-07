@@ -146,6 +146,7 @@ final class PBRRenderTests {
             fragmentResources: bundle.fragmentResources + [envMapHeap],
             meshes: bundle.meshes,
             worldTransformBuffer: bundle.worldTransformBuffer,
+            boundingSpheresBuffer: bundle.boundingSpheresBuffer,
             jointsBuffer: bundle.jointsBuffer,
             inverseBindMatricesBuffer: bundle.inverseBindMatricesBuffer,
             morphWeightsBuffer: bundle.morphWeightsBuffer,
