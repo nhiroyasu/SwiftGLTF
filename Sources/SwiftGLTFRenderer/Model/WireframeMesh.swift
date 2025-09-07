@@ -3,7 +3,7 @@ import SwiftGLTFCore
 import SwiftGLTFParser
 import SwiftGLTFShaderTypes
 
-struct WireframeMeshContainer {
+struct WireframeMeshBundle {
     let meshes: [WireframeMesh]
 
     // Buffers

@@ -19,7 +19,7 @@ class WireframeMeshLoader {
         self.shaderConnection = shaderConnection
     }
 
-    func loadMeshes(from asset: MDLAsset) throws -> WireframeMeshContainer {
+    func loadMeshes(from asset: MDLAsset) throws -> WireframeMeshBundle {
         let scene = asset.object(atPath: GLTFAssetPath.scene(SCENE_INDEX))
         let nodeLevelHierarchy = makeNodeLevelHierarchy(root: scene)
         let worldTransformsBuffer = try shaderConnection.computeWorldMatrices(nodeLevelHierarchy: nodeLevelHierarchy)
@@ -31,7 +31,7 @@ class WireframeMeshLoader {
             nodeLevelHierarchy: nodeLevelHierarchy
         )
 
-        return WireframeMeshContainer(
+        return WireframeMeshBundle(
             meshes: wireframeMeshes,
             worldTransformBuffer: worldTransformsBuffer
         )

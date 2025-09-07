@@ -129,7 +129,7 @@ final class PBRRenderTests {
 
         // Load a sample mesh
         let asset = try await makeMDLAsset(from: meshURL)
-        let mc = try await loader.loadMeshes(from: asset)
+        let bundle = try await loader.loadMeshes(from: asset)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
@@ -142,14 +142,14 @@ final class PBRRenderTests {
             pipelineStateTransparent: pipelineConnector.pipelineStateTransparent,
             depthStencilStateWrite: depthStencilStateWrite,
             depthStencilStateNoWrite: depthStencilStateNoWrite,
-            vertexResources: mc.vertexResources,
-            fragmentResources: mc.fragmentResources + [envMapHeap],
-            meshes: mc.meshes,
-            worldTransformBuffer: mc.worldTransformBuffer,
-            jointsBuffer: mc.jointsBuffer,
-            inverseBindMatricesBuffer: mc.inverseBindMatricesBuffer,
-            morphWeightsBuffer: mc.morphWeightsBuffer,
-            morphDispatchesBuffer: mc.morphDispatchesBuffer,
+            vertexResources: bundle.vertexResources,
+            fragmentResources: bundle.fragmentResources + [envMapHeap],
+            meshes: bundle.meshes,
+            worldTransformBuffer: bundle.worldTransformBuffer,
+            jointsBuffer: bundle.jointsBuffer,
+            inverseBindMatricesBuffer: bundle.inverseBindMatricesBuffer,
+            morphWeightsBuffer: bundle.morphWeightsBuffer,
+            morphDispatchesBuffer: bundle.morphDispatchesBuffer,
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams,
             mvpUniformBuffer: mvpUniformBuffer,

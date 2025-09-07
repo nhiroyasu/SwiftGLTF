@@ -8,7 +8,7 @@ import SwiftGLTFCore
 import SwiftGLTFShaderTypes
 
 public class PBRRenderer {
-    private var meshContainer: PBRMeshContainer? = nil
+    private var bundle: PBRMeshBundle? = nil
 
     private var skyboxMesh: SkyboxMesh
     private var envMapArgBuffer: MTLBuffer
@@ -109,13 +109,13 @@ public class PBRRenderer {
         commandEncoder en: MTLComputeCommandEncoder,
         animationState state: RendererAnimationState
     ) {
-        guard let meshContainer else { return }
+        guard let bundle else { return }
 
-        var localTransforms = meshContainer.nodeLevelHierarchy.localTransforms
-        var morphWeights = meshContainer.originMorphWeights
-        var morphDispatches = meshContainer.morphDispatches
+        var localTransforms = bundle.nodeLevelHierarchy.localTransforms
+        var morphWeights = bundle.originMorphWeights
+        var morphDispatches = bundle.morphDispatches
 
-        for animation in meshContainer.animations {
+        for animation in bundle.animations {
             let trs = evaluateTRS(
                 type: animation.type,
                 interpolation: animation.interpolation,
@@ -149,11 +149,11 @@ public class PBRRenderer {
             }
         }
 
-        let nlh = meshContainer.nodeLevelHierarchy.copy(localTransforms: localTransforms)
+        let nlh = bundle.nodeLevelHierarchy.copy(localTransforms: localTransforms)
         do {
             try shaderConnection.computeWorldMatrices(
                 nodeLevelHierarchy: nlh,
-                out: meshContainer.worldTransformBuffer,
+                out: bundle.worldTransformBuffer,
                 commandEncoder: en
             )
         } catch {
@@ -161,11 +161,11 @@ public class PBRRenderer {
             return
         }
 
-        meshContainer.morphWeightsBuffer.contents().copyMemory(
+        bundle.morphWeightsBuffer.contents().copyMemory(
             from: &morphWeights,
             byteCount: MemoryLayout<Float>.size * morphWeights.count
         )
-        meshContainer.morphDispatchesBuffer.contents().copyMemory(
+        bundle.morphDispatchesBuffer.contents().copyMemory(
             from: &morphDispatches,
             byteCount: MemoryLayout<MorphDispatch>.size * morphDispatches.count
         )
@@ -178,7 +178,7 @@ public class PBRRenderer {
         skyboxVP: MTLBuffer,
         viewPos: SIMD3<Float>
     ) {
-        guard let mc = meshContainer else {
+        guard let bundle else {
             os_log("No mesh loaded", type: .error)
             return
         }
@@ -196,14 +196,14 @@ public class PBRRenderer {
             pipelineStateTransparent: pipelineConnector.pipelineStateTransparent,
             depthStencilStateWrite: depthStencilStateWrite,
             depthStencilStateNoWrite: depthStencilStateNoWrite,
-            vertexResources: mc.vertexResources,
-            fragmentResources: mc.fragmentResources + [envMapHeap],
-            meshes: mc.meshes,
-            worldTransformBuffer: mc.worldTransformBuffer,
-            jointsBuffer: mc.jointsBuffer,
-            inverseBindMatricesBuffer: mc.inverseBindMatricesBuffer,
-            morphWeightsBuffer: mc.morphWeightsBuffer,
-            morphDispatchesBuffer: mc.morphDispatchesBuffer,
+            vertexResources: bundle.vertexResources,
+            fragmentResources: bundle.fragmentResources + [envMapHeap],
+            meshes: bundle.meshes,
+            worldTransformBuffer: bundle.worldTransformBuffer,
+            jointsBuffer: bundle.jointsBuffer,
+            inverseBindMatricesBuffer: bundle.inverseBindMatricesBuffer,
+            morphWeightsBuffer: bundle.morphWeightsBuffer,
+            morphDispatchesBuffer: bundle.morphDispatchesBuffer,
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams,
             mvpUniformBuffer: mvpUniformBuffer,
@@ -215,7 +215,7 @@ public class PBRRenderer {
 
     /// Load a gltf asset
     public func load(from asset: MDLAsset) async throws {
-        self.meshContainer = try await meshLoader.loadMeshes(from: asset)
+        self.bundle = try await meshLoader.loadMeshes(from: asset)
     }
 
     /// Set environment from external URL (equirectangular .exr)

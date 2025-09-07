@@ -4,7 +4,7 @@ import os.log
 import SwiftGLTFCore
 
 public class WireframeRenderer {
-    private var meshContainer: WireframeMeshContainer?
+    private var bundle: WireframeMeshBundle?
 
     private var skyboxMesh: SkyboxMesh?
     private var envMapArgBuffer: MTLBuffer?
@@ -82,7 +82,7 @@ public class WireframeRenderer {
         fragmentParams: MTLBuffer,
         skyboxVP: MTLBuffer
     ) {
-        guard let meshContainer else {
+        guard let bundle else {
             os_log("Mesh not loaded", log: .default, type: .error)
             return
         }
@@ -102,9 +102,9 @@ public class WireframeRenderer {
             renderEncoder: renderEncoder,
             pipelineState: pipelineConnector.pipelineState,
             depthStencilState: depthStencilState,
-            meshes: meshContainer.meshes,
+            meshes: bundle.meshes,
             vertexParams: vertexParams,
-            worldTransformBuffer: meshContainer.worldTransformBuffer
+            worldTransformBuffer: bundle.worldTransformBuffer
         )
     }
 
@@ -121,7 +121,7 @@ public class WireframeRenderer {
     // MARK: - Helper
 
     private func _loadAsset(asset: MDLAsset) throws {
-        self.meshContainer = try meshLoader.loadMeshes(from: asset)
+        self.bundle = try meshLoader.loadMeshes(from: asset)
     }
 
     private func _loadSkybox() async throws {

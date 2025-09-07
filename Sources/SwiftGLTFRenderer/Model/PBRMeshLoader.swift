@@ -27,7 +27,7 @@ class PBRMeshLoader {
     func loadMeshes(
         from asset: MDLAsset,
         animationIndex: Int = 0
-    ) async throws -> PBRMeshContainer {
+    ) async throws -> PBRMeshBundle {
         #if DEBUG
         let startTime = Date()
         defer {
@@ -132,7 +132,7 @@ class PBRMeshLoader {
             nodeLevelHierarchy: nodeLevelHierarchy
         )
 
-        return PBRMeshContainer(
+        return PBRMeshBundle(
             meshes: pbrMeshes,
             worldTransformBuffer: worldTransformsBuffer,
             jointsBuffer: jointsBuffer,

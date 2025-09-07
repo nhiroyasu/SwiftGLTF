@@ -108,7 +108,7 @@ final class WireframeRenderTests {
 
         // Load a sample mesh
         let asset = try await makeMDLAsset(from: meshURL)
-        let mc = try loader.loadMeshes(from: asset)
+        let bundle = try loader.loadMeshes(from: asset)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
@@ -119,9 +119,9 @@ final class WireframeRenderTests {
             renderEncoder: encoder,
             pipelineState: pipelineState,
             depthStencilState: depthStencilState,
-            meshes: mc.meshes,
+            meshes: bundle.meshes,
             vertexParams: vertexParams,
-            worldTransformBuffer: mc.worldTransformBuffer
+            worldTransformBuffer: bundle.worldTransformBuffer
         )
 
         encoder.endEncoding()

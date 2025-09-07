@@ -3,7 +3,7 @@ import SwiftGLTFCore
 import SwiftGLTFParser
 import SwiftGLTFShaderTypes
 
-struct PBRMeshContainer {
+struct PBRMeshBundle {
     let meshes: [PBRMesh]
 
     // Buffers
