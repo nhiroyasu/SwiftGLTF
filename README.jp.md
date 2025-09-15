@@ -1,9 +1,11 @@
 # SwiftGLTF
 glTFおよびGLBファイルをSwiftで利用できるようにするプロジェクト
 
-![preview1](./Screenshots/preview1.png)
-![preview2](./Screenshots/preview2.png)
-![preview3](./Screenshots/preview3.png)
+<div>
+    <img height="200" alt="preview1" src="https://github.com/user-attachments/assets/cc06cb52-4cd2-4957-87e9-e2083c264a04" />
+    <img height="200" alt="preview1" src="https://github.com/user-attachments/assets/9bc8de85-b574-431e-ac05-49439461c704" />
+    <img height="200" alt="preview2" src="https://github.com/user-attachments/assets/bb2c9ec4-66b3-4c34-baa7-ae36f04624d1" />
+</div>
 
 ## Features
 - glTFおよびGLBファイルをデコードし、 `MDLAsset` としてSwiftで扱えるようにする
@@ -96,7 +98,11 @@ var body: some View {
 | alphaMode            | ✅         |
 | alphaCutoff          | ✅         |
 | doubleSided          | ✅         |
-| extensions           | ❌         |
+| extensions           | ✅ (以下を参照)  |
+
+#### Supported Extensions for Materials
+- `KHR_materials_transmission`
+- `KHR_materials_volume`
 
 ### Vertex Attributes
 | Attribute     | Supported |

@@ -78,9 +78,8 @@ public class WireframeRenderer {
 
     public func render(
         using renderEncoder: MTLRenderCommandEncoder,
-        vertexParams: MTLBuffer,
+        mvpUniformBuffer: MTLBuffer,
         fragmentParams: MTLBuffer,
-        skyboxVP: MTLBuffer
     ) {
         guard let bundle else {
             os_log("Mesh not loaded", log: .default, type: .error)
@@ -94,7 +93,7 @@ public class WireframeRenderer {
         drawSkybox(
             renderEncoder: renderEncoder,
             mesh: skyboxMesh,
-            vpMatrixBuffer: skyboxVP,
+            mvpUniformBuffer: mvpUniformBuffer,
             specularCubeMapTexture: _specularCubeMapTexture
         )
 
@@ -103,7 +102,7 @@ public class WireframeRenderer {
             pipelineState: pipelineConnector.pipelineState,
             depthStencilState: depthStencilState,
             meshes: bundle.meshes,
-            vertexParams: vertexParams,
+            mvpUniformBuffer: mvpUniformBuffer,
             worldTransformBuffer: bundle.worldTransformBuffer
         )
     }

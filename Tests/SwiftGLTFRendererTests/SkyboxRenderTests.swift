@@ -1,16 +1,10 @@
-//
-//  SkyboxRenderTests.swift
-//  SwiftGLTF
-//
-//  Created by NH on 2025/07/21.
-//
-
 import Testing
 import MetalKit
 import CoreGraphics
 import UniformTypeIdentifiers
 import Img2Cubemap
 import SwiftGLTFParser
+import SwiftGLTFShaderTypes
 @testable import SwiftGLTFRenderer
 
 final class SkyboxRenderTests {
@@ -72,8 +66,12 @@ final class SkyboxRenderTests {
         let skyboxTarget = SIMD3<Float>(0, 0, 1)
         let vMatrix = lookAt(eye: SIMD3<Float>(0, 0, 0), target: skyboxTarget, up: SIMD3<Float>(0, 1, 0))
         let pMatrix = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
-        var vp = pMatrix * vMatrix
-        let vpbuf = device.makeBuffer(bytes: &vp, length: MemoryLayout.size(ofValue: vp), options: [])!
+        var mvpUniform = MVPUniform(
+            view: vMatrix,
+            projection: pMatrix,
+            externalTransform: float4x4(1)
+        )
+        let mvpUniformsBuf = device.makeBuffer(bytes: &mvpUniform, length: MemoryLayout.size(ofValue: mvpUniform))!
         let envMap = try generateCubeTexture(
             device: device,
             exr: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
@@ -98,12 +96,12 @@ final class SkyboxRenderTests {
         drawSkybox(
             renderEncoder: encoder,
             mesh: skyboxMesh,
-            vpMatrixBuffer: vpbuf,
+            mvpUniformBuffer: mvpUniformsBuf,
             specularCubeMapTexture: envMap
         )
         encoder.endEncoding()
         cmdBuf.commit()
-        cmdBuf.waitUntilCompleted()
+        await cmdBuf.completed()
     }
 
     // MARK: - Export golden images

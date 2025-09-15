@@ -15,8 +15,8 @@ class PBRPipelineConnector {
     private let fragmentFunction: MTLFunction
     private let shaderConnection: ShaderConnection
 
-    let pipelineStateOpaque: MTLRenderPipelineState
-    let pipelineStateTransparent: MTLRenderPipelineState
+    let opaquePSO: MTLRenderPipelineState
+    let alphaBlendPSO: MTLRenderPipelineState
 
     init(
         device: MTLDevice,
@@ -37,11 +37,11 @@ class PBRPipelineConnector {
         opaqueDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
         opaqueDescriptor.rasterSampleCount = config.sampleCount
         opaqueDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()
-        self.pipelineStateOpaque = try device.makeRenderPipelineState(descriptor: opaqueDescriptor)
+        self.opaquePSO = try device.makeRenderPipelineState(descriptor: opaqueDescriptor)
 
         // Transparent (premultiplied alpha blending)
-        let transparentDescriptor = opaqueDescriptor.copy() as! MTLRenderPipelineDescriptor
-        let ca0 = transparentDescriptor.colorAttachments[0]!
+        let alphaBlendDescriptor = opaqueDescriptor.copy() as! MTLRenderPipelineDescriptor
+        let ca0 = alphaBlendDescriptor.colorAttachments[0]!
         ca0.isBlendingEnabled = true
         ca0.sourceRGBBlendFactor = .one
         ca0.destinationRGBBlendFactor = .oneMinusSourceAlpha
@@ -49,7 +49,7 @@ class PBRPipelineConnector {
         ca0.sourceAlphaBlendFactor = .one
         ca0.destinationAlphaBlendFactor = .oneMinusSourceAlpha
         ca0.alphaBlendOperation = .add
-        self.pipelineStateTransparent = try device.makeRenderPipelineState(descriptor: transparentDescriptor)
+        self.alphaBlendPSO = try device.makeRenderPipelineState(descriptor: alphaBlendDescriptor)
     }
 
     func makeFragmentArgumentBuffer(
@@ -75,6 +75,15 @@ class PBRPipelineConnector {
         metallicRoughnessTexCoord: UnsafePointer<UInt32>,
         emissiveTexCoord: UnsafePointer<UInt32>,
         occlusionTexCoord: UnsafePointer<UInt32>,
+        // Transmission/Thickness
+        hasTransmissionTexture: UnsafePointer<Bool>,
+        transmissionTexture: MTLTexture?,
+        transmissionSampler: MTLSamplerState?,
+        transmissionTexCoord: UnsafePointer<UInt32>,
+        hasThicknessTexture: UnsafePointer<Bool>,
+        thicknessTexture: MTLTexture?,
+        thicknessSampler: MTLSamplerState?,
+        thicknessTexCoord: UnsafePointer<UInt32>,
         // Alpha params
         alphaMode: UnsafePointer<UInt32>,
         alphaCutoff: UnsafePointer<Float>
@@ -126,6 +135,22 @@ class PBRPipelineConnector {
         alphaModeAddr.copyMemory(from: alphaMode, byteCount: MemoryLayout<UInt32>.size)
         let alphaCutoffAddr = encoder.constantData(at: 22)
         alphaCutoffAddr.copyMemory(from: alphaCutoff, byteCount: MemoryLayout<Float>.size)
+
+        // Transmission
+        let hasTransmissionTextureAddr = encoder.constantData(at: 23)
+        hasTransmissionTextureAddr.copyMemory(from: hasTransmissionTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(transmissionTexture, index: 24)
+        encoder.setSamplerState(transmissionSampler, index: 25)
+        let transmissionCoordAddr = encoder.constantData(at: 26)
+        transmissionCoordAddr.copyMemory(from: transmissionTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        // Thickness
+        let hasThicknessTextureAddr = encoder.constantData(at: 27)
+        hasThicknessTextureAddr.copyMemory(from: hasThicknessTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(thicknessTexture, index: 28)
+        encoder.setSamplerState(thicknessSampler, index: 29)
+        let thicknessCoordAddr = encoder.constantData(at: 30)
+        thicknessCoordAddr.copyMemory(from: thicknessTexCoord, byteCount: MemoryLayout<UInt32>.size)
         return buffer
     }
 
@@ -141,6 +166,32 @@ class PBRPipelineConnector {
         encoder.setTexture(irradianceMap, index: 1)
         encoder.setTexture(brdfLUT, index: 2)
 
+        return buffer
+    }
+
+    func makeScreenColorArgBuffer(
+        sceneColor: MTLTexture,
+        sceneColorSampler: MTLSamplerState
+    ) -> MTLBuffer {
+        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 3)
+        let buffer = device.makeBuffer(length: encoder.encodedLength, options: .storageModeShared)!
+        encoder.setArgumentBuffer(buffer, offset: 0)
+        encoder.setTexture(sceneColor, index: 0)
+        encoder.setSamplerState(sceneColorSampler, index: 1)
+        let flagAddr = encoder.constantData(at: 2)
+        var useSceneColor = true
+        flagAddr.copyMemory(from: &useSceneColor, byteCount: MemoryLayout<Bool>.size)
+        return buffer
+    }
+
+    func makeScreenColorArgDummy() -> MTLBuffer {
+        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 3)
+        let buffer = device.makeBuffer(length: encoder.encodedLength, options: .storageModeShared)!
+        encoder.setArgumentBuffer(buffer, offset: 0)
+
+        let flagAddr = encoder.constantData(at: 2)
+        var useSceneColor: Bool = false
+        flagAddr.copyMemory(from: &useSceneColor, byteCount: MemoryLayout<Bool>.size)
         return buffer
     }
 

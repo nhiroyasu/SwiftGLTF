@@ -509,6 +509,14 @@ func loadTextureSampler(
         filter.sWrapMode = convertWrapMode(gltfSampler.wrapS)
         filter.tWrapMode = convertWrapMode(gltfSampler.wrapT)
         sampler.hardwareFilter = filter
+    } else {
+        // Default sampler settings
+        let filter = MDLTextureFilter()
+        filter.magFilter = .linear
+        filter.minFilter = .linear
+        filter.sWrapMode = .repeat
+        filter.tWrapMode = .repeat
+        sampler.hardwareFilter = filter
     }
     return sampler
 }
@@ -1219,6 +1227,72 @@ private func makeMDLMaterial(
 
         let occlusionStrengthProp = MDLMaterialProperty(name: MaterialPropertyName.occlusionStrength.rawValue, semantic: .ambientOcclusionScale, float: gltfMaterial.occlusionTexture?.strength ?? 1.0)
         material.setProperty(occlusionStrengthProp)
+    }
+
+    // KHR_materials_transmission
+    if let transmission = gltfMaterial.extensions?.khrMaterialsTransmission {
+        let tFactor = MDLMaterialProperty(
+            name: MaterialPropertyName.transmissionFactor.rawValue,
+            semantic: .userDefined,
+            float: transmission.transmissionFactor
+        )
+        material.setProperty(tFactor)
+        if let texInfo = transmission.transmissionTexture,
+           let sampler = loadTextureSampler(for: texInfo, from: gltf, binaryLoader: binaryLoader) {
+            let tTex = MDLMaterialProperty(
+                name: MaterialPropertyName.transmissionTexture.rawValue,
+                semantic: .userDefined,
+                textureSampler: sampler
+            )
+            material.setProperty(tTex)
+            let coordProp = MDLMaterialProperty(
+                name: MaterialPropertyName.transmissionTextureTexCoord.rawValue,
+                semantic: .userDefined,
+                float: Float(texInfo.texCoord)
+            )
+            material.setProperty(coordProp)
+        }
+    }
+
+    // KHR_materials_volume
+    if let volume = gltfMaterial.extensions?.khrMaterialsVolume {
+        let thickFactor = MDLMaterialProperty(
+            name: MaterialPropertyName.thicknessFactor.rawValue,
+            semantic: .userDefined,
+            float: volume.thicknessFactor
+        )
+        material.setProperty(thickFactor)
+        if let texInfo = volume.thicknessTexture,
+           let sampler = loadTextureSampler(for: texInfo, from: gltf, binaryLoader: binaryLoader) {
+            let tTex = MDLMaterialProperty(
+                name: MaterialPropertyName.thicknessTexture.rawValue,
+                semantic: .userDefined,
+                textureSampler: sampler
+            )
+            material.setProperty(tTex)
+            let coordProp = MDLMaterialProperty(
+                name: MaterialPropertyName.thicknessTextureTexCoord.rawValue,
+                semantic: .userDefined,
+                float: Float(texInfo.texCoord)
+            )
+            material.setProperty(coordProp)
+        }
+        if let attnDist = volume.attenuationDistance {
+            let attnDistProp = MDLMaterialProperty(
+                name: MaterialPropertyName.attenuationDistance.rawValue,
+                semantic: .userDefined,
+                float: attnDist
+            )
+            material.setProperty(attnDistProp)
+        }
+        let c = volume.attenuationColor
+        let color = SIMD3<Float>(c.count >= 3 ? c[0] : 1, c.count >= 3 ? c[1] : 1, c.count >= 3 ? c[2] : 1)
+        let attnColorProp = MDLMaterialProperty(
+            name: MaterialPropertyName.attenuationColor.rawValue,
+            semantic: .userDefined,
+            float3: color
+        )
+        material.setProperty(attnColorProp)
     }
 
     return material

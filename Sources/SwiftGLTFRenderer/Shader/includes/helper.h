@@ -22,5 +22,7 @@ float3x3 makeNormalMatrix(float4x4 mvp);
 float toolMultiplier(float value);
 float3x3 make_tbn(float3 normal);
 float3x3 make_tbn(float3 N, float3 T, float Tw);
+float fresnelSchlick(float cosTheta, float F0);
+float3 fresnelSchlick(float cosTheta, float3 F0);
 
 #endif /* helper_h */

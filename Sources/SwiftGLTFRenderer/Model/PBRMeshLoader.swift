@@ -136,6 +136,10 @@ class PBRMeshLoader {
 
         return PBRMeshBundle(
             meshes: pbrMeshes,
+            opaqueMeshes: pbrMeshes.filter { $0.renderingType == .opaque },
+            maskedMeshes: pbrMeshes.filter { $0.renderingType == .masked },
+            blendedMeshes: pbrMeshes.filter { $0.renderingType == .blended },
+            transmissionMeshes: pbrMeshes.filter { $0.renderingType == .transmission },
             worldTransformBuffer: worldTransformsBuffer,
             jointsBuffer: jointsBuffer,
             inverseBindMatricesBuffer: inverseBindMatricesBuffer,
@@ -277,6 +281,7 @@ class PBRMeshLoader {
         )
 
         // Process submeshes
+        var hasTransmission = false
         var submeshes: [PBRMesh.Submesh] = []
         for (mtkSubmesh, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
             // Extract material factors to pass to shader
@@ -302,36 +307,59 @@ class PBRMeshLoader {
             // Occlusion texture and sampler
             var (hasOcclusionTexture, occlusionTexture, occlusionSamplerState) = retrieveTexture(prop: material?.propertyNamed(.occlusion), textureMap: textureMap)
 
+            // Transmission texture and sampler (KHR_materials_transmission)
+            var (hasTransmissionTexture, transmissionTexture, transmissionSamplerState) = retrieveTexture(prop: material?.propertyNamed(.transmissionTexture), textureMap: textureMap)
+            // Thickness texture and sampler (KHR_materials_volume)
+            var (hasThicknessTexture, thicknessTexture, thicknessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.thicknessTexture), textureMap: textureMap)
+
             // Retrieve texture coordinate indices and cast to UInt32
             let baseColorTexCoordF: Float = material?.propertyNamed(.baseColorTextureTexCoord)?.floatValue ?? 0.0
             let normalTexCoordF: Float = material?.propertyNamed(.normalTextureTexCoord)?.floatValue ?? 0.0
             let metalRoughnessTexCoordF: Float = material?.propertyNamed(.metallicRoughnessTextureTexCoord)?.floatValue ?? 0.0
             let emissiveTexCoordF: Float = material?.propertyNamed(.emissiveTextureTexCoord)?.floatValue ?? 0.0
             let occlusionTexCoordF: Float = material?.propertyNamed(.occlusionTextureTexCoord)?.floatValue ?? 0.0
+            let transmissionTexCoordF: Float = material?.propertyNamed(.transmissionTextureTexCoord)?.floatValue ?? 0.0
+            let thicknessTexCoordF: Float = material?.propertyNamed(.thicknessTextureTexCoord)?.floatValue ?? 0.0
             var baseColorTexCoord: UInt32 = UInt32(baseColorTexCoordF)
             var normalTexCoord: UInt32 = UInt32(normalTexCoordF)
             var metalRoughnessTexCoord: UInt32 = UInt32(metalRoughnessTexCoordF)
             var emissiveTexCoord: UInt32 = UInt32(emissiveTexCoordF)
             var occlusionTexCoord: UInt32 = UInt32(occlusionTexCoordF)
+            var transmissionTexCoord: UInt32 = UInt32(transmissionTexCoordF)
+            var thicknessTexCoord: UInt32 = UInt32(thicknessTexCoordF)
+
             // Alpha mode & cutoff
             let alphaModeStr = material?.propertyNamed(.alphaMode)?.stringValue?.uppercased() ?? "OPAQUE"
-            let alphaModeEnum: AlphaMode = {
+            let alphaModeEnum: SwiftGLTFShaderTypes.AlphaMode = {
                 switch alphaModeStr {
-                case "MASK": return .mask
-                case "BLEND": return .blend
-                default: return .opaque
+                case "MASK": return AlphaModeMask
+                case "BLEND": return AlphaModeBlend
+                default: return AlphaModeOpaque
                 }
             }()
             var alphaModeRaw: UInt32 = alphaModeEnum.rawValue
             var alphaCutoff: Float = material?.propertyNamed(.alphaCutoff)?.floatValue ?? 0.5
+
+            // Transmission factor
+            let transmissionFactor: Float = material?.propertyNamed(.transmissionFactor)?.floatValue ?? 0.0
+            hasTransmission = transmissionFactor > 0 || hasTransmissionTexture
+
             // Double sided flag
             let isDoubleSided: Bool = (material?.propertyNamed(.doubleSided)?.floatValue ?? 0) != 0
+
             // Create material uniforms buffer
+            let attenuationDistance: Float = {
+                if let v = material?.propertyNamed(.attenuationDistance)?.floatValue { return v }
+                return -1.0 // <= 0 means infinity (no attenuation)
+            }()
+            let attenuationColor: SIMD3<Float> = material?.propertyNamed(.attenuationColor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
             var materialUniforms = PBRMaterialUniforms(
                 baseColorFactor: baseColorFactor,
                 metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
                 emissiveFactor: SIMD4<Float>(emissiveFactor.x, emissiveFactor.y, emissiveFactor.z, 0),
-                doubleSided: isDoubleSided ? 1 : 0
+                doubleSided: isDoubleSided ? 1 : 0,
+                transmissionThicknessDistance: SIMD4<Float>(transmissionFactor, material?.propertyNamed(.thicknessFactor)?.floatValue ?? 0.0, attenuationDistance, 0),
+                attenuationColor: SIMD4<Float>(attenuationColor.x, attenuationColor.y, attenuationColor.z, 0)
             )
             let tmpMaterialUniformsBuffer = device.makeBuffer(
                 bytes: &materialUniforms,
@@ -365,6 +393,15 @@ class PBRMeshLoader {
                 metallicRoughnessTexCoord: &metalRoughnessTexCoord,
                 emissiveTexCoord: &emissiveTexCoord,
                 occlusionTexCoord: &occlusionTexCoord,
+                // Transmission/Thickness
+                hasTransmissionTexture: &hasTransmissionTexture,
+                transmissionTexture: transmissionTexture,
+                transmissionSampler: transmissionSamplerState,
+                transmissionTexCoord: &transmissionTexCoord,
+                hasThicknessTexture: &hasThicknessTexture,
+                thicknessTexture: thicknessTexture,
+                thicknessSampler: thicknessSamplerState,
+                thicknessTexCoord: &thicknessTexCoord,
                 // Alpha params
                 alphaMode: &alphaModeRaw,
                 alphaCutoff: &alphaCutoff
@@ -394,11 +431,29 @@ class PBRMeshLoader {
                     emissiveTexture,
                     emissiveSamplerState,
                     occlusionTexture,
-                    occlusionSamplerState
+                    occlusionSamplerState,
+                    transmissionTexture,
+                    transmissionSamplerState,
+                    thicknessTexture,
+                    thicknessSamplerState
                 ]
             )
             submeshes.append(submeshData)
         }
+
+        // Decide rendering type based on submeshes
+        let renderingType: PBRMesh.RenderingType = {
+            if hasTransmission {
+                return .transmission
+            }
+            if submeshes.contains(where: { $0.alphaMode == AlphaModeBlend }) {
+                return .blended
+            }
+            if submeshes.contains(where: { $0.alphaMode == AlphaModeMask }) {
+                return .masked
+            }
+            return .opaque
+        }()
 
         // POSITION 属性のレイアウト情報
         let mdlVD = mdlMesh.vertexDescriptor
@@ -416,6 +471,7 @@ class PBRMeshLoader {
             vertexCount: mtkMesh.vertexCount,
             positionStride: positionStride,
             positionOffset: positionOffset,
+            renderingType: renderingType,
             _storedHeapInstance: [
                 morphWeightsBuffer,
                 modelBuffer,

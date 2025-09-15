@@ -5,6 +5,10 @@ import SwiftGLTFShaderTypes
 
 struct PBRMeshBundle {
     let meshes: [PBRMesh]
+    let opaqueMeshes: [PBRMesh]
+    let maskedMeshes: [PBRMesh]
+    let blendedMeshes: [PBRMesh]
+    let transmissionMeshes: [PBRMesh]
 
     // Buffers
     let worldTransformBuffer: MTLBuffer
@@ -44,6 +48,7 @@ struct PBRMesh {
     let vertexCount: Int
     let positionStride: Int
     let positionOffset: Int
+    let renderingType: RenderingType
     let _storedHeapInstance: [MTLResource?]
 
     struct Submesh {
@@ -52,17 +57,18 @@ struct PBRMesh {
         let indexType: MTLIndexType
         let indexBuffer: MTKMeshBuffer
         let fragmentArgumentBuffer: MTLBuffer
-        let alphaMode: AlphaMode
+        let alphaMode: SwiftGLTFShaderTypes.AlphaMode
         let alphaCutoff: Float
         // Center of the mesh primitive in model space
         let centerModelSpace: SIMD3<Float>
         let doubleSided: Bool
         let _storedHeapInstance: [Any?]
     }
-}
 
-enum AlphaMode: UInt32 {
-    case opaque = 0
-    case mask = 1
-    case blend = 2
+    enum RenderingType {
+        case opaque
+        case masked
+        case blended
+        case transmission
+    }
 }

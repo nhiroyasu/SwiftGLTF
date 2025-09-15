@@ -30,6 +30,8 @@ public struct GLTF: Codable {
     public let images: [Image]?
     public let textures: [Texture]?
     public let samplers: [Sampler]?
+    public let extensionsUsed: [String]?
+    public let extensionsRequired: [String]?
 
     enum CodingKeys: String, CodingKey {
         case asset
@@ -46,6 +48,8 @@ public struct GLTF: Codable {
         case images
         case textures
         case samplers
+        case extensionsUsed
+        case extensionsRequired
     }
 
     public init(from decoder: Decoder) throws {
@@ -64,6 +68,8 @@ public struct GLTF: Codable {
         self.images = try container.decodeIfPresent([Image].self, forKey: .images)
         self.textures = try container.decodeIfPresent([Texture].self, forKey: .textures)
         self.samplers = try container.decodeIfPresent([Sampler].self, forKey: .samplers)
+        self.extensionsUsed = try container.decodeIfPresent([String].self, forKey: .extensionsUsed)
+        self.extensionsRequired = try container.decodeIfPresent([String].self, forKey: .extensionsRequired)
     }
 }
 
@@ -770,8 +776,14 @@ public struct KHRMaterialsEmissiveStrength: Codable {
 public struct MaterialExtensions: Codable {
     /// KHR_materials_emissive_strength extension data
     public let khrMaterialsEmissiveStrength: KHRMaterialsEmissiveStrength?
+    /// KHR_materials_transmission extension data
+    public let khrMaterialsTransmission: KHRMaterialsTransmission?
+    /// KHR_materials_volume extension data
+    public let khrMaterialsVolume: KHRMaterialsVolume?
     enum CodingKeys: String, CodingKey {
         case khrMaterialsEmissiveStrength = "KHR_materials_emissive_strength"
+        case khrMaterialsTransmission = "KHR_materials_transmission"
+        case khrMaterialsVolume = "KHR_materials_volume"
     }
 }
 
@@ -780,4 +792,40 @@ public enum AlphaMode: String, Codable {
     case opaque = "OPAQUE"
     case mask = "MASK"
     case blend = "BLEND"
+}
+
+// MARK: - KHR_materials_transmission extension
+public struct KHRMaterialsTransmission: Codable {
+    public let transmissionFactor: Float
+    public let transmissionTexture: TextureInfo?
+    enum CodingKeys: String, CodingKey {
+        case transmissionFactor
+        case transmissionTexture
+    }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.transmissionFactor = try container.decodeIfPresent(Float.self, forKey: .transmissionFactor) ?? 0.0
+        self.transmissionTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .transmissionTexture)
+    }
+}
+
+// MARK: - KHR_materials_volume extension
+public struct KHRMaterialsVolume: Codable {
+    public let thicknessFactor: Float
+    public let thicknessTexture: TextureInfo?
+    public let attenuationDistance: Float?
+    public let attenuationColor: [Float]
+    enum CodingKeys: String, CodingKey {
+        case thicknessFactor
+        case thicknessTexture
+        case attenuationDistance
+        case attenuationColor
+    }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.thicknessFactor = try container.decodeIfPresent(Float.self, forKey: .thicknessFactor) ?? 0.0
+        self.thicknessTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .thicknessTexture)
+        self.attenuationDistance = try container.decodeIfPresent(Float.self, forKey: .attenuationDistance)
+        self.attenuationColor = try container.decodeIfPresent([Float].self, forKey: .attenuationColor) ?? [1, 1, 1]
+    }
 }

@@ -15,7 +15,7 @@ struct WireframeVertexArguments {
 };
 
 vertex VertexOut_Wireframe wireframe_vertex_shader(VertexIn_Wireframe in [[stage_in]],
-                                                   constant MVPUniforms &mvp [[buffer(1)]],
+                                                   constant MVPUniform &mvp [[buffer(1)]],
                                                    constant float4x4* worldTransforms [[buffer(2)]],
                                                    constant int64_t &transformIndex [[buffer(3)]])
 {

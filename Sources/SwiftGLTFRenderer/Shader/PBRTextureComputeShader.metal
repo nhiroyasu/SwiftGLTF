@@ -1,6 +1,6 @@
 #include <metal_stdlib>
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
-#include "includes/metal_helper.h"
+#include "includes/helper.h"
 using namespace metal;
 
 float3 getDirectionForFace(uint faceIndex, float2 uv) {
@@ -136,4 +136,56 @@ kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(
     prefilteredColor = totalWeight > 0.0 ? prefilteredColor / totalWeight : float3(0.0);
 
     outMap.write(float4(prefilteredColor, 1.0), gid.xy, gid.z, params.mipLevel);
+}
+
+kernel void prefilterScene2D(
+    texture2d<float, access::sample> src [[texture(0)]],
+    texture2d<float, access::write>  dst [[texture(1)]],
+    constant Prefilter2DParams& params [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+    uint w = params.width;
+    uint h = params.height;
+    if (gid.x >= w || gid.y >= h) return;
+
+    if (params.mipLevel == 0) { // 安全策：mip0 は生成しない
+        return;
+    }
+
+    // この mip の正規化UV
+    float2 uv = (float2(gid) + 0.5) / float2(w, h);
+
+    // ひとつ上のレベル（mip-1）のテクセルサイズ
+    float2 prevSize = float2(max(int(w) * 2, 1), max(int(h) * 2, 1));
+    float2 texel = 1.0 / prevSize;
+
+    // クランプサンプラ（線形）
+    constexpr sampler s(mag_filter::linear, min_filter::linear,
+                        s_address::clamp_to_edge, t_address::clamp_to_edge);
+
+    // テント核（3x3）— 合計1になるよう正規化
+    //  [1 2 1]
+    //  [2 4 2] / 16
+    //  [1 2 1]
+    const float w00 = 1.0/16.0;
+    const float w01 = 2.0/16.0;
+    const float w11 = 4.0/16.0;
+
+    // sigma を「前レベルのピクセル半径」に掛けてスケール可能
+    float r = 3.0;  // ぼかし強さノブ（1~3あたりが実用）
+    float2 dx = r * texel;
+    float2 dy = r * texel;
+
+    float3 c =
+        w11 * src.sample(s, uv,                        level(params.mipLevel - 1)).rgb +
+        w01 * src.sample(s, uv + float2( dx.x,  0.0),  level(params.mipLevel - 1)).rgb +
+        w01 * src.sample(s, uv + float2(-dx.x,  0.0),  level(params.mipLevel - 1)).rgb +
+        w01 * src.sample(s, uv + float2( 0.0,  dy.y),  level(params.mipLevel - 1)).rgb +
+        w01 * src.sample(s, uv + float2( 0.0, -dy.y),  level(params.mipLevel - 1)).rgb +
+        w00 * src.sample(s, uv + float2( dx.x,  dy.y), level(params.mipLevel - 1)).rgb +
+        w00 * src.sample(s, uv + float2(-dx.x,  dy.y), level(params.mipLevel - 1)).rgb +
+        w00 * src.sample(s, uv + float2( dx.x, -dy.y), level(params.mipLevel - 1)).rgb +
+        w00 * src.sample(s, uv + float2(-dx.x, -dy.y), level(params.mipLevel - 1)).rgb;
+
+    dst.write(float4(c, 1.0), gid, params.mipLevel);
 }

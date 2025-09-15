@@ -9,19 +9,25 @@ typedef struct {
     vector_float4 metalRoughnessOcclusion; // x=metallic, y=roughness, z=occlusion, w=padding
     vector_float4 emissiveFactor;
     uint32_t doubleSided; // 0 or 1
+    vector_float4 transmissionThicknessDistance; // x: transmissionFactor, y: thicknessFactor, z: attenuationDistance, w: padding
+    vector_float4 attenuationColor; // xyz: attenuationColor, w: padding
 } PBRMaterialUniforms;
 
 typedef struct {
     matrix_float4x4 view;
     matrix_float4x4 projection;
     matrix_float4x4 externalTransform;
-} MVPUniforms;
+} MVPUniform;
 
 typedef struct {
     vector_float3 lightPosition; // Position of the light source
     vector_float3 viewPosition; // Position of the camera/viewer
     vector_float3 ambientLightColor; // Ambient light color
-} PBRFragmentVariableParameters;
+    vector_float2 viewportSize; // render target size (width, height)
+    vector_float2 fov; // x: fovx, y: fovy
+    vector_float3 camRight; // right direction in view space (usually float3(1,0,0))
+    vector_float3 camUp;    // up direction in view space (usually float3(0,1,0))
+} SceneUniforms;
 
 typedef struct {
     float roughness;
@@ -33,6 +39,13 @@ typedef struct {
 typedef struct {
     uint32_t cubeSize;
 } IrradianceMapParams;
+
+// Prefilter 2D texture params for scene color pyramid generation
+typedef struct {
+    uint32_t width;
+    uint32_t height;
+    uint32_t mipLevel; // output mip level (reads from mipLevel-1)
+} Prefilter2DParams;
 
 typedef struct {
     int64_t start;   // levelStarts[d]
@@ -111,5 +124,17 @@ enum PBRVertexArgId: int {
     PBRVertexArgIdSkinDispatch,
 };
 
+typedef enum: int {
+    PBRFragmentShaderArgsBuffer = 0,
+    PBRFragmentShaderEnvMapArgsBuffer,
+    PBRFragmentShaderSceneUniformsBuffer,
+    PBRFragmentShaderScreenColorBuffer,
+} PBRFragmentShaderBufferIndex;
+
+typedef enum: uint32_t {
+    AlphaModeOpaque = 0,
+    AlphaModeMask   = 1,
+    AlphaModeBlend  = 2
+} AlphaMode;
 
 #endif /* PBR_h */

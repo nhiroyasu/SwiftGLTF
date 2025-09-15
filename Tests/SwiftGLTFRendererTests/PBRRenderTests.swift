@@ -9,26 +9,15 @@ import SwiftGLTFShaderTypes
 
 final class PBRRenderTests {
     let device: MTLDevice
-    let library: MTLLibrary
     let commandQueue: MTLCommandQueue
-    let shaderConnection: ShaderConnection
-    let depthStencilStateWrite: MTLDepthStencilState
-    let depthStencilStateNoWrite: MTLDepthStencilState
+    let renderer: PBRRenderer
 
     let TEX_SIZE = 256
 
-    init() {
+    init() throws {
         self.device = MTLCreateSystemDefaultDevice()!
-        self.library = try! device.makePackageLibrary()
         self.commandQueue = device.makeCommandQueue()!
-
-        self.shaderConnection = ShaderConnection(
-            device: device,
-            library: library,
-            commandQueue: commandQueue
-        )
-        self.depthStencilStateWrite = try! makeLessEqualDepthStencilState(device: device)
-        self.depthStencilStateNoWrite = try! makeLessEqualNoWriteDepthStencilState(device: device)
+        self.renderer = try PBRRenderer(commandQueue: commandQueue)
     }
 
     // Helper to create a render target texture
@@ -43,68 +32,39 @@ final class PBRRenderTests {
     }
 
     func renderMesh(to output: MTLTexture, meshURL: URL) async throws {
-        let pipelineConnector = try PBRPipelineConnector(
-            device: device,
-            library: library,
-            config: .init(
-                sampleCount: 1,
-                colorPixelFormat: output.pixelFormat,
-                depthPixelFormat: .depth32Float
-            ),
-            shaderConnection: shaderConnection
-        )
-        let loader = PBRMeshLoader(
-            device: device,
-            shaderConnection: shaderConnection,
-            pipelineConnector: pipelineConnector
-        )
-        let envMapLoader = EnvironmentMapLoader(
-            device: device,
-            library: library,
-            shaderConnection: shaderConnection
-        )
-
         // Create view-projection matrix buffer
         let eye = SIMD3<Float>(-2.83, 2.83, -2.83)
         let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
-        let projection = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
-        var vertexVariableParams = MVPUniforms(
+        let aspect: Float = Float(output.width) / Float(output.height)
+        let fovY = Float.pi / 3.0
+        let fovX = 2 * atan(tan(fovY / 2) * aspect)
+        let projection = perspectiveMatrix(fov: fovY, aspect: aspect, near: 0.1, far: 100.0)
+        var vertexVariableParams = MVPUniform(
             view: view,
             projection: projection,
             externalTransform: simd_float4x4(1)
         )
         let mvpUniformBuffer = device.makeBuffer(
             bytes: &vertexVariableParams,
-            length: MemoryLayout<MVPUniforms>.size,
+            length: MemoryLayout<MVPUniform>.size,
             options: .storageModeShared
         )!
 
         // Create a pbr scene uniforms buffer
-        var pbrSceneUniforms = PBRFragmentVariableParameters(
+        var pbrSceneUniforms = SceneUniforms(
             lightPosition: SIMD3<Float>(0, 5, -5),
             viewPosition: eye,
-            ambientLightColor: SIMD3<Float>(5, 5, 5)
+            ambientLightColor: SIMD3<Float>(5, 5, 5),
+            viewportSize: SIMD2<Float>(Float(output.width), Float(output.height)),
+            fov: SIMD2<Float>(fovX, fovY),
+            camRight: SIMD3<Float>(1, 0, 0),
+            camUp: SIMD3<Float>(0, 1, 0)
         )
         let fragmentParams = device.makeBuffer(
             bytes: &pbrSceneUniforms,
-            length: MemoryLayout<PBRFragmentVariableParameters>.size,
+            length: MemoryLayout<SceneUniforms>.size,
             options: .storageModeShared
         )!
-
-
-        let (
-            envMapHeap,
-            prefilterEnvMap,
-            irradianceMap,
-            brdfLUT
-        ) = try envMapLoader.makeEnvMapHeapAndTexture(
-            url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
-        )
-        let envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
-            prefilterEnvMap: prefilterEnvMap,
-            irradianceMap: irradianceMap,
-            brdfLUT: brdfLUT
-        )
 
         let depthTextureDesc = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .depth32Float,
@@ -129,37 +89,24 @@ final class PBRRenderTests {
 
         // Load a sample mesh
         let asset = try await makeMDLAsset(from: meshURL)
-        let bundle = try await loader.loadMeshes(from: asset)
+        try await renderer.load(from: asset)
+        try await renderer.setEnvironment(url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
-        let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc)!
 
-        // Draw the mesh
-        drawPBR(
-            renderEncoder: encoder,
-            pipelineStateOpaque: pipelineConnector.pipelineStateOpaque,
-            pipelineStateTransparent: pipelineConnector.pipelineStateTransparent,
-            depthStencilStateWrite: depthStencilStateWrite,
-            depthStencilStateNoWrite: depthStencilStateNoWrite,
-            vertexResources: bundle.vertexResources,
-            fragmentResources: bundle.fragmentResources + [envMapHeap],
-            meshes: bundle.meshes,
-            worldTransformBuffer: bundle.worldTransformBuffer,
-            boundingSpheresBuffer: bundle.boundingSpheresBuffer,
-            jointsBuffer: bundle.jointsBuffer,
-            inverseBindMatricesBuffer: bundle.inverseBindMatricesBuffer,
-            morphWeightsBuffer: bundle.morphWeightsBuffer,
-            morphDispatchesBuffer: bundle.morphDispatchesBuffer,
-            envMapArgBuffer: envMapArgBuffer,
-            fragmentParams: fragmentParams,
+        renderer.render(
+            commandBuffer: cmdBuf,
+            viewRenderPassDescriptor: passDesc,
+            drawableSize: CGSize(width: output.width, height: output.height),
             mvpUniformBuffer: mvpUniformBuffer,
-            viewPos: eye
+            fragmentParams: fragmentParams,
+            viewPos: eye,
+            showsSkybox: false
         )
 
-        encoder.endEncoding()
         cmdBuf.commit()
-        cmdBuf.waitUntilCompleted()
+        await cmdBuf.completed()
     }
 
     // MARK: - Export golden images
@@ -180,7 +127,8 @@ final class PBRRenderTests {
         ("MultiUVTest", "glb"),
         ("TextureSettingsTest", "glb"),
         ("SimpleSkin", "gltf"),
-        ("MorphPrimitivesTest", "glb")
+        ("MorphPrimitivesTest", "glb"),
+        ("CompareTransmission", "glb"),
     ]
 
     // Export baseline textures

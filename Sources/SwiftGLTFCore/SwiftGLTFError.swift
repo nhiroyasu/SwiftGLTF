@@ -163,6 +163,7 @@ public enum RenderErrorCode: Sendable, Equatable {
     case skeletonHeapCreateFailed
     case heapBufferCreateFailed
     case meshCreationFailed
+    case samplerCreateFailed
 }
 
 public enum ValidateErrorCode: Sendable, Equatable {
@@ -325,6 +326,7 @@ extension SwiftGLTFError: LocalizedError {
         case .skeletonHeapCreateFailed: return "Failed to create skeleton heap"
         case .heapBufferCreateFailed: return "Failed to create heap buffer"
         case .meshCreationFailed: return "Failed to create mesh"
+        case .samplerCreateFailed: return "Failed to create sampler"
         }
     }
 
@@ -429,6 +431,7 @@ extension SwiftGLTFError: CustomNSError {
         case .skeletonHeapCreateFailed: return 15
         case .heapBufferCreateFailed: return 16
         case .meshCreationFailed: return 17
+        case .samplerCreateFailed: return 18
         }
     }
 

@@ -23,8 +23,8 @@ public class PBRRenderer {
     private let envMapLoader: EnvironmentMapLoader
     private let shaderConnection: ShaderConnection
 
-    private let depthStencilStateWrite: MTLDepthStencilState
-    private let depthStencilStateNoWrite: MTLDepthStencilState
+    private let defaultDSO: MTLDepthStencilState
+    private let noWriteDSO: MTLDepthStencilState
 
     private let device: MTLDevice
     private let library: MTLLibrary
@@ -33,6 +33,20 @@ public class PBRRenderer {
     private let sampleCount: Int
     private let colorPixelFormat: MTLPixelFormat
     private let depthPixelFormat: MTLPixelFormat
+
+    // Offscreen targets
+    private var screenColorMSAATexture: MTLTexture? = nil // offscreen color (opaque + mask + blend)
+    private var screenColorTexture: MTLTexture? = nil
+    private var sceneTransmissionMSAATexture: MTLTexture? = nil // transmission only
+    private var sceneTransmissionTexture: MTLTexture? = nil
+    private var screenPrefilterTexture: MTLTexture? = nil // mip-chain prefiltered scene for rough transmission
+    private var sceneDepthMSAATexture: MTLTexture? = nil
+    private let sceneColorSampler: MTLSamplerState
+    private var screenColorRPD: MTLRenderPassDescriptor? = nil
+    private var transmissionRPD: MTLRenderPassDescriptor? = nil
+    private var composeRPD: MTLRenderPassDescriptor? = nil
+
+    private let composePipelineState: MTLRenderPipelineState
 
     public init(
         commandQueue: MTLCommandQueue,
@@ -55,8 +69,8 @@ public class PBRRenderer {
 
         let pipelineStateConfig = PipelineStateLoaderConfig(
             sampleCount: sampleCount,
-            colorPixelFormat: colorPixelFormat,
-            depthPixelFormat: depthPixelFormat
+            colorPixelFormat: .rgba16Float,
+            depthPixelFormat: .depth32Float
         )
         self.pipelineConnector = try PBRPipelineConnector(
             device: device,
@@ -75,13 +89,13 @@ public class PBRRenderer {
             shaderConnection: shaderConnection
         )
 
-        self.depthStencilStateWrite = try makeLessEqualDepthStencilState(device: device)
-        self.depthStencilStateNoWrite = try makeLessEqualNoWriteDepthStencilState(device: device)
+        self.defaultDSO = try makeLessEqualDepthStencilState(device: device)
+        self.noWriteDSO = try makeLessEqualNoWriteDepthStencilState(device: device)
 
         let skyboxConfig = SkyboxPipelineConfig(
             sampleCount: sampleCount,
-            colorPixelFormat: colorPixelFormat,
-            depthPixelFormat: depthPixelFormat
+            colorPixelFormat: .rgba16Float,
+            depthPixelFormat: .depth32Float
         )
         let skyboxLoader = try SkyboxMeshLoader(
             device: device,
@@ -101,15 +115,47 @@ public class PBRRenderer {
             irradianceMap: _irradianceMap,
             brdfLUT: _brdfLUT
         )
+
+        // Scene color sampler
+        let samplerDesc = MTLSamplerDescriptor()
+        samplerDesc.minFilter = .linear
+        samplerDesc.magFilter = .linear
+        samplerDesc.mipFilter = .nearest
+        samplerDesc.sAddressMode = .clampToEdge
+        samplerDesc.tAddressMode = .clampToEdge
+        samplerDesc.supportArgumentBuffers = true
+        guard let screenColorSampler = device.makeSamplerState(descriptor: samplerDesc) else {
+            throw SwiftGLTFError.makeRender(.samplerCreateFailed, context: .capture(stage: .render))
+        }
+        self.sceneColorSampler = screenColorSampler
+
+        // Compose pipeline (full-screen quad)
+        let vFun = library.makeFunction(name: "fullscreen_vertex")!
+        let fFun = library.makeFunction(name: "compose_fragment")!
+        let composeDesc = MTLRenderPipelineDescriptor()
+        composeDesc.vertexFunction = vFun
+        composeDesc.fragmentFunction = fFun
+        composeDesc.colorAttachments[0].pixelFormat = colorPixelFormat
+        composeDesc.depthAttachmentPixelFormat = depthPixelFormat
+        composeDesc.rasterSampleCount = sampleCount
+        self.composePipelineState = try device.makeRenderPipelineState(descriptor: composeDesc)
     }
 
     // MARK: - Rendering
 
     public func animation(
-        commandEncoder en: MTLComputeCommandEncoder,
+        commandBuffer cb: MTLCommandBuffer,
         animationState state: RendererAnimationState
-    ) {
-        guard let bundle else { return }
+    ) -> MTLFence? {
+        guard let bundle else {
+            os_log("No mesh loaded", type: .error)
+            return nil
+        }
+        guard let en = cb.makeComputeCommandEncoder() else {
+            os_log("Failed to create compute command encoder", type: .error)
+            return nil
+        }
+        en.label = "[SwiftGLTF] Animation Update Encoder"
 
         var localTransforms = bundle.nodeLevelHierarchy.localTransforms
         var morphWeights = bundle.originMorphWeights
@@ -158,8 +204,14 @@ public class PBRRenderer {
             )
         } catch {
             os_log("Failed to compute world matrices: %@", type: .error, String(describing: error))
-            return
+            return nil
         }
+
+        guard let fence = device.makeFence() else {
+            os_log("Failed to create fence", type: .error)
+            return nil
+        }
+        en.updateFence(fence)
 
         bundle.morphWeightsBuffer.contents().copyMemory(
             from: &morphWeights,
@@ -169,36 +221,60 @@ public class PBRRenderer {
             from: &morphDispatches,
             byteCount: MemoryLayout<MorphDispatch>.size * morphDispatches.count
         )
+
+        return fence
     }
 
     public func render(
-        using renderEncoder: MTLRenderCommandEncoder,
+        commandBuffer: MTLCommandBuffer,
+        viewRenderPassDescriptor: MTLRenderPassDescriptor,
+        drawableSize: CGSize,
         mvpUniformBuffer: MTLBuffer,
         fragmentParams: MTLBuffer,
-        skyboxVP: MTLBuffer,
-        viewPos: SIMD3<Float>
+        viewPos: SIMD3<Float>,
+        showsSkybox: Bool = true,
+        waitFence: MTLFence? = nil
     ) {
         guard let bundle else {
             os_log("No mesh loaded", type: .error)
             return
         }
 
-        drawSkybox(
-            renderEncoder: renderEncoder,
-            mesh: skyboxMesh,
-            vpMatrixBuffer: skyboxVP,
-            specularCubeMapTexture: _prefilterEnvMap
-        )
+        // Ensure offscreen textures
+        ensureOffscreenTargets(size: drawableSize)
+        guard let screenColorTexture, let sceneTransmissionTexture, let screenColorRPD, let transmissionRPD, let screenPrefilterTexture else {
+            os_log("Failed to create offscreen render targets", type: .error)
+            return
+        }
 
-        drawPBR(
-            renderEncoder: renderEncoder,
-            pipelineStateOpaque: pipelineConnector.pipelineStateOpaque,
-            pipelineStateTransparent: pipelineConnector.pipelineStateTransparent,
-            depthStencilStateWrite: depthStencilStateWrite,
-            depthStencilStateNoWrite: depthStencilStateNoWrite,
+        // sceneColor is handled via separate argument buffer bound per pass (no change to envMapArgBuffer)
+        guard let screenColorRCE = commandBuffer.makeRenderCommandEncoder(descriptor: screenColorRPD) else { return }
+        screenColorRCE.label = "[SwiftGLTF] PBR Screen Color Render Encoder"
+        if let waitFence { screenColorRCE.waitForFence(waitFence, before: .vertex) }
+
+        if showsSkybox {
+            // Draw skybox into offscreen
+            drawSkybox(
+                renderEncoder: screenColorRCE,
+                mesh: skyboxMesh,
+                mvpUniformBuffer: mvpUniformBuffer,
+                specularCubeMapTexture: _prefilterEnvMap
+            )
+        }
+
+        // Draw opaque + masked + blended
+        drawPBRScreen(
+            renderEncoder: screenColorRCE,
+            opaquePSO: pipelineConnector.opaquePSO,
+            alphaBlendPSO: pipelineConnector.alphaBlendPSO,
+            defaultDSO: defaultDSO,
+            noWriteDSO: noWriteDSO,
             vertexResources: bundle.vertexResources,
             fragmentResources: bundle.fragmentResources + [envMapHeap],
-            meshes: bundle.meshes,
+            opaqueMeshes: bundle.opaqueMeshes,
+            maskedMeshes: bundle.maskedMeshes,
+            blendedMeshes: bundle.blendedMeshes,
+            transmissionMeshes: bundle.transmissionMeshes,
             worldTransformBuffer: bundle.worldTransformBuffer,
             boundingSpheresBuffer: bundle.boundingSpheresBuffer,
             jointsBuffer: bundle.jointsBuffer,
@@ -208,8 +284,125 @@ public class PBRRenderer {
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams,
             mvpUniformBuffer: mvpUniformBuffer,
+            screenColorArgsBuffer: pipelineConnector.makeScreenColorArgDummy(),
             viewPos: viewPos
         )
+        screenColorRCE.endEncoding()
+
+        // Generate prefiltered scene texture for rough transmission sampling on the same command buffer
+        shaderConnection.generatePrefilterSceneTexture(from: screenColorTexture, to: screenPrefilterTexture, commandBuffer: commandBuffer)
+
+        guard let transmissionRCE = commandBuffer.makeRenderCommandEncoder(descriptor: transmissionRPD) else { return }
+        transmissionRCE.label = "[SwiftGLTF] PBR Transmission Render Encoder"
+        let sceneColorArgBuffer = pipelineConnector.makeScreenColorArgBuffer(
+            sceneColor: screenPrefilterTexture,
+            sceneColorSampler: sceneColorSampler
+        )
+        transmissionRCE.useResources([screenPrefilterTexture], usage: .read, stages: .fragment) // TODO: move to heap
+
+        // draw transmission
+        drawPBRTransmission(
+            renderEncoder: transmissionRCE,
+            alphaBlendPSO: pipelineConnector.alphaBlendPSO,
+            defaultDSO: defaultDSO,
+            vertexResources: bundle.vertexResources,
+            fragmentResources: bundle.fragmentResources + [envMapHeap],
+            meshes: bundle.blendedMeshes + bundle.transmissionMeshes,
+            worldTransformBuffer: bundle.worldTransformBuffer,
+            boundingSpheresBuffer: bundle.boundingSpheresBuffer,
+            jointsBuffer: bundle.jointsBuffer,
+            inverseBindMatricesBuffer: bundle.inverseBindMatricesBuffer,
+            morphWeightsBuffer: bundle.morphWeightsBuffer,
+            morphDispatchesBuffer: bundle.morphDispatchesBuffer,
+            envMapArgBuffer: envMapArgBuffer,
+            fragmentParams: fragmentParams,
+            mvpUniformBuffer: mvpUniformBuffer,
+            screenColorArgsBuffer: sceneColorArgBuffer,
+            viewPos: viewPos
+        )
+        transmissionRCE.endEncoding()
+
+        // Pass 3: full-screen compose to screen
+        guard let finalEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: viewRenderPassDescriptor) else { return }
+        finalEncoder.label = "[SwiftGLTF] PBR Final Compose Render Encoder"
+        finalEncoder.setRenderPipelineState(composePipelineState)
+        finalEncoder.setFragmentTexture(screenColorTexture, index: 0)
+        finalEncoder.setFragmentTexture(sceneTransmissionTexture, index: 1)
+        finalEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        finalEncoder.endEncoding()
+    }
+
+    private func ensureOffscreenTargets(size: CGSize) {
+        let width = max(Int(size.width), 1)
+        let height = max(Int(size.height), 1)
+        if screenColorMSAATexture?.width == width && screenColorMSAATexture?.height == height { return } // already correct size
+
+        let msaaDesc = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba16Float,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        msaaDesc.usage = [.renderTarget, .shaderRead]
+        msaaDesc.storageMode = .private
+        msaaDesc.textureType = .type2DMultisample
+        msaaDesc.sampleCount = sampleCount
+        screenColorMSAATexture = device.makeTexture(descriptor: msaaDesc)
+        sceneTransmissionMSAATexture = device.makeTexture(descriptor: msaaDesc)
+
+        let resolveDesc = msaaDesc.copy() as! MTLTextureDescriptor
+        resolveDesc.textureType = .type2D
+        resolveDesc.sampleCount = 1
+        screenColorTexture = device.makeTexture(descriptor: resolveDesc)
+        sceneTransmissionTexture = device.makeTexture(descriptor: resolveDesc)
+
+        let depthMSAADesc = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .depth32Float,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        depthMSAADesc.usage = [.renderTarget]
+        depthMSAADesc.storageMode = .private
+        depthMSAADesc.textureType = .type2DMultisample
+        depthMSAADesc.sampleCount = sampleCount
+        sceneDepthMSAATexture = device.makeTexture(descriptor: depthMSAADesc)
+
+        let scPRD = MTLRenderPassDescriptor()
+        let scColorAtt = scPRD.colorAttachments[0]!
+        scColorAtt.texture = screenColorMSAATexture
+        scColorAtt.resolveTexture = screenColorTexture
+        scColorAtt.loadAction = .clear
+        scColorAtt.storeAction = .multisampleResolve
+        scColorAtt.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+        scPRD.depthAttachment.texture = sceneDepthMSAATexture
+        scPRD.depthAttachment.loadAction = .clear
+        scPRD.depthAttachment.clearDepth = 1.0
+        scPRD.depthAttachment.storeAction = .store
+        self.screenColorRPD = scPRD
+
+        let transRPD = MTLRenderPassDescriptor()
+        let transColorAttr = transRPD.colorAttachments[0]!
+        transColorAttr.texture = sceneTransmissionMSAATexture
+        transColorAttr.resolveTexture = sceneTransmissionTexture
+        transColorAttr.loadAction = .clear
+        transColorAttr.clearColor = MTLClearColorMake(0, 0, 0, 0)
+        transColorAttr.storeAction = .multisampleResolve
+        transRPD.depthAttachment.texture = sceneDepthMSAATexture
+        transRPD.depthAttachment.loadAction = .load
+        transRPD.depthAttachment.storeAction = .store
+        self.transmissionRPD = transRPD
+
+        // Create destination mipmapped texture
+        let prefilDesc = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba16Float,
+            width: width,
+            height: height,
+            mipmapped: true
+        )
+        prefilDesc.usage = [.shaderRead, .shaderWrite]
+        prefilDesc.storageMode = .shared
+        self.screenPrefilterTexture = device.makeTexture(descriptor: prefilDesc)
     }
 
     // MARK: - Update states

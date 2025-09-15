@@ -100,7 +100,11 @@ var body: some View {
 | alphaMode            | ✅         |
 | alphaCutoff          | ✅         |
 | doubleSided          | ✅         |
-| extensions           | ❌         |
+| extensions           | ✅ (see blow) |
+
+#### Supported Extensions for Materials
+- `KHR_materials_transmission`
+- `KHR_materials_volume`
 
 ### Vertex Attributes
 | Attribute     | Supported |
