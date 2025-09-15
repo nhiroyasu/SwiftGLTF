@@ -24,11 +24,7 @@ fragment float4 compose_fragment(VSOut in [[stage_in]],
     constexpr sampler s(mag_filter::linear, min_filter::linear, s_address::clamp_to_edge, t_address::clamp_to_edge);
     float2 uv = clamp(in.uv, float2(0.0), float2(1.0));
     float4 base = baseTex.sample(s, uv);
-    if (useTransTex) {
-        float4 trans = transTex.sample(s, uv);
-        float3 rgb = base.rgb * (1.0 - trans.a) + trans.rgb;
-        return float4(rgb, 1);
-    } else {
-        return base;
-    }
+    float4 trans = useTransTex ? transTex.sample(s, uv) : float4(0,0,0,0);
+    float3 rgb = base.rgb * (1.0 - trans.a) + trans.rgb;
+    return float4(rgb, 1);
 }

@@ -47,7 +47,12 @@ public class PBRRenderer {
     private var composeRPD: MTLRenderPassDescriptor? = nil
     private let composePipelineState: MTLRenderPipelineState
 
-    private var needsTransmissionPass: Bool = false
+    private var needsTransmissionPass: Bool {
+        bundle?.transmissionMeshes.count ?? 0 > 0
+    }
+    private var needsAnimationPass: Bool {
+        bundle?.animations.count ?? 0 > 0
+    }
 
     public init(
         commandQueue: MTLCommandQueue,
@@ -150,6 +155,10 @@ public class PBRRenderer {
     ) -> MTLFence? {
         guard let bundle else {
             os_log("No mesh loaded", type: .error)
+            return nil
+        }
+        guard needsAnimationPass else {
+            // No animation to process
             return nil
         }
         guard let en = cb.makeComputeCommandEncoder() else {
@@ -468,7 +477,6 @@ public class PBRRenderer {
     /// Load a gltf asset
     public func load(from asset: MDLAsset) async throws {
         self.bundle = try await meshLoader.loadMeshes(from: asset)
-        self.needsTransmissionPass = bundle!.transmissionMeshes.count > 0
     }
 
     /// Set environment from external URL (equirectangular .exr)

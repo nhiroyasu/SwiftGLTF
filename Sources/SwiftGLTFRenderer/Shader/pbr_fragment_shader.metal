@@ -86,27 +86,25 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     : float3(0, 0, 1);
     float3 normal = normalize(TBN * normalTexValue);
     // Flip normal for back faces when double-sided
-    if (fragArgs.material.doubleSided != 0 && !isFrontFacing) {
-        normal = -normal;
-    }
+    normal = fragArgs.material.doubleSided != 0 && !isFrontFacing ? -normal : normal;
 
     // Select UV coordinate for transmission
     uint tCoord = fragArgs.transmissionTexCoord;
     float2 uvT = (tCoord == 0) ? uv0 : uv1;
     // Transmission factor
     float transmission = mUni.transmissionThicknessDistance.x;
-    if (fragArgs.hasTransmissionTexture) {
-        transmission *= fragArgs.transmissionTexture.sample(fragArgs.transmissionSampler, uvT).r;
-    }
+    transmission *= fragArgs.hasTransmissionTexture
+    ? fragArgs.transmissionTexture.sample(fragArgs.transmissionSampler, uvT).r
+    : 1.0;
 
     // Select UV coordinate for thickness
     uint thCoord = fragArgs.thicknessTexCoord;
     float2 uvTh = (thCoord == 0) ? uv0 : uv1;
     // Thickness
     float thickness = mUni.transmissionThicknessDistance.y;
-    if (fragArgs.hasThicknessTexture) {
-        thickness *= fragArgs.thicknessTexture.sample(fragArgs.thicknessSampler, uvTh).r;
-    }
+    thickness *= fragArgs.hasThicknessTexture
+    ? fragArgs.thicknessTexture.sample(fragArgs.thicknessSampler, uvTh).r
+    : 1.0;
 
     // Attenuation
     float attenDist = mUni.transmissionThicknessDistance.z;
@@ -114,38 +112,31 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
 
     // Transmittance calculation
     // (Beer-Lambert): sigma_a = -ln(color) / distance;  T = exp(-sigma_a * thickness)
-    float3 attenuation = float3(1.0);
-    if (attenDist > 0.0 && thickness > 0.0) {
-        float3 attColor = clamp(attenColor, float3(1e-6), float3(1.0));
-        float3 sigma_a = -log(attColor) / attenDist;
-        attenuation = exp(-sigma_a * thickness);
-    }
+    float3 attColor = clamp(attenColor, float3(1e-6), float3(1.0));
+    float3 sigma_a = attenDist > 0.0 ? -log(attColor) / attenDist : float3(0.0);
+    float3 attenuation = thickness > 0.0 ? exp(-sigma_a * thickness) : float3(1.0);
 
     // Background color from previous pass (with refraction offset)
-    float3 Lbg = float3(0.0);
-    if (scArgs.useSceneColor) {
-        float maxMip = scArgs.sceneColorTexture.get_num_mip_levels() - 1;
-        float lod = clamp(roughness * maxMip, 0.0, maxMip);
-
-        float ior = 1.5; // fixed IOR
-
-        /* Minimum refraction model (not physically accurate)
-        float eta = 1.0 / max(ior, 1e-5);
-        float3 R = refract(-normalize(viewPosition), normalize(normal), eta);
-        float2 dUV = R.xy * thickness * 0.1;
-         */
-
-        float2 dUV = refract_uv_offset_thin_slab(normalize(in.positionVS),
-                                                 normalize(in.normalVS),
-                                                 thickness,
-                                                 ior,
-                                                 in.positionVS,
-                                                 scene.fov,
-                                                 scene.viewportSize,
-                                                 scene.camRight,
-                                                 scene.camUp);
-        Lbg = scArgs.sceneColorTexture.sample(scArgs.sceneColorSampler, screenUV + dUV, level(lod)).rgb;
-    }
+    float maxMip = scArgs.useSceneColor ? scArgs.sceneColorTexture.get_num_mip_levels() - 1 : 0;
+    float lod = clamp(roughness * maxMip, 0.0, maxMip);
+    float ior = 1.5; // fixed IOR
+    /* Minimum refraction model (not physically accurate)
+     float eta = 1.0 / max(ior, 1e-5);
+     float3 R = refract(-normalize(viewPosition), normalize(normal), eta);
+     float2 dUV = R.xy * thickness * 0.1;
+     */
+    float2 dUV = refract_uv_offset_thin_slab(normalize(in.positionVS),
+                                             normalize(in.normalVS),
+                                             thickness,
+                                             ior,
+                                             in.positionVS,
+                                             scene.fov,
+                                             scene.viewportSize,
+                                             scene.camRight,
+                                             scene.camUp);
+    float3 Lbg = scArgs.useSceneColor
+    ? scArgs.sceneColorTexture.sample(scArgs.sceneColorSampler, screenUV + dUV, level(lod)).rgb
+    : float3(0.0);
 
     float3 worldPosition = in.worldPosition;
     float3 viewPosition = scene.viewPosition;
@@ -188,23 +179,16 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     float3 color = directLighting + indirectLighting + transmissionLighting + emissive;
 
     // Alpha: baseColor.a * modulation.a * materialFactor.a
-    float baseAlpha = 1.0;
-    if (fragArgs.hasBaseColorTexture) {
-        baseAlpha = baseColorTexture.sample(baseColorSampler, uvBC).a;
-    }
+    float baseAlpha = fragArgs.hasBaseColorTexture ? baseColorTexture.sample(baseColorSampler, uvBC).a : 1.0;
     float alpha = baseAlpha * modulationColor.a * mUni.baseColorFactor.a;
 
     // Alpha test (MASK)
-    if (fragArgs.alphaMode == AlphaModeMask) {
-        if (alpha < fragArgs.alphaCutoff) {
-            discard_fragment();
-        }
+    if (fragArgs.alphaMode == AlphaModeMask && alpha < fragArgs.alphaCutoff) {
+        discard_fragment();
     }
 
     // Premultiply if blending (BLEND)
-    if (fragArgs.alphaMode == AlphaModeBlend) {
-        color *= alpha;
-    }
+    color *= fragArgs.alphaMode == AlphaModeBlend ? alpha : 1.0;
 
     return float4(color, alpha);
 }
