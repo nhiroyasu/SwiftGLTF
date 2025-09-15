@@ -311,6 +311,9 @@ class PBRMeshLoader {
             var (hasTransmissionTexture, transmissionTexture, transmissionSamplerState) = retrieveTexture(prop: material?.propertyNamed(.transmissionTexture), textureMap: textureMap)
             // Thickness texture and sampler (KHR_materials_volume)
             var (hasThicknessTexture, thicknessTexture, thicknessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.thicknessTexture), textureMap: textureMap)
+            // Specular textures (KHR_materials_specular)
+            var (hasSpecularTexture, specularTexture, specularSamplerState) = retrieveTexture(prop: material?.propertyNamed(.specularTexture), textureMap: textureMap)
+            var (hasSpecularColorTexture, specularColorTexture, specularColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.specularColorTexture), textureMap: textureMap)
 
             // Retrieve texture coordinate indices and cast to UInt32
             let baseColorTexCoordF: Float = material?.propertyNamed(.baseColorTextureTexCoord)?.floatValue ?? 0.0
@@ -320,6 +323,8 @@ class PBRMeshLoader {
             let occlusionTexCoordF: Float = material?.propertyNamed(.occlusionTextureTexCoord)?.floatValue ?? 0.0
             let transmissionTexCoordF: Float = material?.propertyNamed(.transmissionTextureTexCoord)?.floatValue ?? 0.0
             let thicknessTexCoordF: Float = material?.propertyNamed(.thicknessTextureTexCoord)?.floatValue ?? 0.0
+            let specularTexCoordF: Float = material?.propertyNamed(.specularTextureTexCoord)?.floatValue ?? 0.0
+            let specularColorTexCoordF: Float = material?.propertyNamed(.specularColorTextureTexCoord)?.floatValue ?? 0.0
             var baseColorTexCoord: UInt32 = UInt32(baseColorTexCoordF)
             var normalTexCoord: UInt32 = UInt32(normalTexCoordF)
             var metalRoughnessTexCoord: UInt32 = UInt32(metalRoughnessTexCoordF)
@@ -327,6 +332,8 @@ class PBRMeshLoader {
             var occlusionTexCoord: UInt32 = UInt32(occlusionTexCoordF)
             var transmissionTexCoord: UInt32 = UInt32(transmissionTexCoordF)
             var thicknessTexCoord: UInt32 = UInt32(thicknessTexCoordF)
+            var specularTexCoord: UInt32 = UInt32(specularTexCoordF)
+            var specularColorTexCoord: UInt32 = UInt32(specularColorTexCoordF)
 
             // Alpha mode & cutoff
             let alphaModeStr = material?.propertyNamed(.alphaMode)?.stringValue?.uppercased() ?? "OPAQUE"
@@ -353,13 +360,19 @@ class PBRMeshLoader {
                 return -1.0 // <= 0 means infinity (no attenuation)
             }()
             let attenuationColor: SIMD3<Float> = material?.propertyNamed(.attenuationColor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
+            let ior: Float = material?.propertyNamed(.ior)?.floatValue ?? 1.5
+            let specularFactor: Float = material?.propertyNamed(.specularFactor)?.floatValue ?? 1.0
+            let specularColorFactor: SIMD3<Float> = material?.propertyNamed(.specularColorFactor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
             var materialUniforms = PBRMaterialUniforms(
                 baseColorFactor: baseColorFactor,
                 metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
                 emissiveFactor: SIMD4<Float>(emissiveFactor.x, emissiveFactor.y, emissiveFactor.z, 0),
                 doubleSided: isDoubleSided ? 1 : 0,
                 transmissionThicknessDistance: SIMD4<Float>(transmissionFactor, material?.propertyNamed(.thicknessFactor)?.floatValue ?? 0.0, attenuationDistance, 0),
-                attenuationColor: SIMD4<Float>(attenuationColor.x, attenuationColor.y, attenuationColor.z, 0)
+                attenuationColor: SIMD4<Float>(attenuationColor.x, attenuationColor.y, attenuationColor.z, 0),
+                ior: ior,
+                specularFactor: specularFactor,
+                specularFactorColor: SIMD4<Float>(specularColorFactor.x, specularColorFactor.y, specularColorFactor.z, 0)
             )
             let tmpMaterialUniformsBuffer = device.makeBuffer(
                 bytes: &materialUniforms,
@@ -402,6 +415,15 @@ class PBRMeshLoader {
                 thicknessTexture: thicknessTexture,
                 thicknessSampler: thicknessSamplerState,
                 thicknessTexCoord: &thicknessTexCoord,
+                // Specular
+                hasSpecularTexture: &hasSpecularTexture,
+                specularTexture: specularTexture,
+                specularSampler: specularSamplerState,
+                specularTexCoord: &specularTexCoord,
+                hasSpecularColorTexture: &hasSpecularColorTexture,
+                specularColorTexture: specularColorTexture,
+                specularColorSampler: specularColorSamplerState,
+                specularColorTexCoord: &specularColorTexCoord,
                 // Alpha params
                 alphaMode: &alphaModeRaw,
                 alphaCutoff: &alphaCutoff
@@ -435,7 +457,11 @@ class PBRMeshLoader {
                     transmissionTexture,
                     transmissionSamplerState,
                     thicknessTexture,
-                    thicknessSamplerState
+                    thicknessSamplerState,
+                    specularTexture,
+                    specularSamplerState,
+                    specularColorTexture,
+                    specularColorSamplerState
                 ]
             )
             submeshes.append(submeshData)

@@ -1295,6 +1295,64 @@ private func makeMDLMaterial(
         material.setProperty(attnColorProp)
     }
 
+    // KHR_materials_ior
+    if let iorExt = gltfMaterial.extensions?.khrMaterialsIOR {
+        let iorProp = MDLMaterialProperty(
+            name: MaterialPropertyName.ior.rawValue,
+            semantic: .userDefined,
+            float: iorExt.ior
+        )
+        material.setProperty(iorProp)
+    }
+
+    // KHR_materials_specular
+    if let spec = gltfMaterial.extensions?.khrMaterialsSpecular {
+        let sFactor = MDLMaterialProperty(
+            name: MaterialPropertyName.specularFactor.rawValue,
+            semantic: .userDefined,
+            float: spec.specularFactor
+        )
+        material.setProperty(sFactor)
+        let scfArr = spec.specularColorFactor
+        let scf = SIMD3<Float>(scfArr.count >= 3 ? scfArr[0] : 1, scfArr.count >= 3 ? scfArr[1] : 1, scfArr.count >= 3 ? scfArr[2] : 1)
+        let scProp = MDLMaterialProperty(
+            name: MaterialPropertyName.specularColorFactor.rawValue,
+            semantic: .userDefined,
+            float3: scf
+        )
+        material.setProperty(scProp)
+        if let texInfo = spec.specularTexture,
+           let sampler = loadTextureSampler(for: texInfo, from: gltf, binaryLoader: binaryLoader) {
+            let sTex = MDLMaterialProperty(
+                name: MaterialPropertyName.specularTexture.rawValue,
+                semantic: .userDefined,
+                textureSampler: sampler
+            )
+            material.setProperty(sTex)
+            let coordProp = MDLMaterialProperty(
+                name: MaterialPropertyName.specularTextureTexCoord.rawValue,
+                semantic: .userDefined,
+                float: Float(texInfo.texCoord)
+            )
+            material.setProperty(coordProp)
+        }
+        if let texInfo = spec.specularColorTexture,
+           let sampler = loadTextureSampler(for: texInfo, from: gltf, binaryLoader: binaryLoader) {
+            let scTex = MDLMaterialProperty(
+                name: MaterialPropertyName.specularColorTexture.rawValue,
+                semantic: .userDefined,
+                textureSampler: sampler
+            )
+            material.setProperty(scTex)
+            let coordProp = MDLMaterialProperty(
+                name: MaterialPropertyName.specularColorTextureTexCoord.rawValue,
+                semantic: .userDefined,
+                float: Float(texInfo.texCoord)
+            )
+            material.setProperty(coordProp)
+        }
+    }
+
     return material
 }
 

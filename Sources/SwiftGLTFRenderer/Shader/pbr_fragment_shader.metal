@@ -88,6 +88,17 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Flip normal for back faces when double-sided
     normal = fragArgs.material.doubleSided != 0 && !isFrontFacing ? -normal : normal;
 
+    // Specular extension
+    uint sCoord = fragArgs.specularTexCoord;
+    float2 uvS = (sCoord == 0) ? uv0 : uv1;
+    float specularFactor = mUni.specularFactor;
+    specularFactor *= fragArgs.hasSpecularTexture ? fragArgs.specularTexture.sample(fragArgs.specularSampler, uvS).r : 1.0;
+
+    uint scCoord = fragArgs.specularColorTexCoord;
+    float2 uvSC = (scCoord == 0) ? uv0 : uv1;
+    float3 specularColor = mUni.specularFactorColor.xyz;
+    specularColor *= fragArgs.hasSpecularColorTexture ? fragArgs.specularColorTexture.sample(fragArgs.specularColorSampler, uvSC).rgb : float3(1.0);
+
     // Select UV coordinate for transmission
     uint tCoord = fragArgs.transmissionTexCoord;
     float2 uvT = (tCoord == 0) ? uv0 : uv1;
@@ -119,7 +130,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Background color from previous pass (with refraction offset)
     float maxMip = scArgs.useSceneColor ? scArgs.sceneColorTexture.get_num_mip_levels() - 1 : 0;
     float lod = clamp(roughness * maxMip, 0.0, maxMip);
-    float ior = 1.5; // fixed IOR
+    float ior = mUni.ior;
     /* Minimum refraction model (not physically accurate)
      float eta = 1.0 / max(ior, 1e-5);
      float3 R = refract(-normalize(viewPosition), normalize(normal), eta);
@@ -150,7 +161,10 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                     transmission,
                                                     viewPosition,
                                                     scene.lightPosition,
-                                                    scene.ambientLightColor);
+                                                    scene.ambientLightColor,
+                                                    ior,
+                                                    specularFactor,
+                                                    specularColor);
 
     // Indirect lighting
     float3 indirectLighting = compute_indirect_lighting(normal,
@@ -163,7 +177,10 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                         transmission,
                                                         prefilterEnvMap,
                                                         irradianceMap,
-                                                        brdfLUT);
+                                                        brdfLUT,
+                                                        ior,
+                                                        specularFactor,
+                                                        specularColor);
 
     // Transmission effect (approximation)
     float3 transmissionLighting = compute_transmission_lighting(Lbg,
@@ -173,7 +190,10 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                                 transmission,
                                                                 attenuation,
                                                                 worldPosition,
-                                                                viewPosition);
+                                                                viewPosition,
+                                                                ior,
+                                                                specularFactor,
+                                                                specularColor);
 
     // Final color
     float3 color = directLighting + indirectLighting + transmissionLighting + emissive;
