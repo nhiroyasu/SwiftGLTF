@@ -353,13 +353,16 @@ class PBRMeshLoader {
                 return -1.0 // <= 0 means infinity (no attenuation)
             }()
             let attenuationColor: SIMD3<Float> = material?.propertyNamed(.attenuationColor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
+            let ior: Float = material?.propertyNamed(.ior)?.floatValue ?? 1.5
+            // CODEX: PBRMaterialUniformsにiorプロパティを新規追加して実装してください。
             var materialUniforms = PBRMaterialUniforms(
                 baseColorFactor: baseColorFactor,
                 metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
                 emissiveFactor: SIMD4<Float>(emissiveFactor.x, emissiveFactor.y, emissiveFactor.z, 0),
                 doubleSided: isDoubleSided ? 1 : 0,
                 transmissionThicknessDistance: SIMD4<Float>(transmissionFactor, material?.propertyNamed(.thicknessFactor)?.floatValue ?? 0.0, attenuationDistance, 0),
-                attenuationColor: SIMD4<Float>(attenuationColor.x, attenuationColor.y, attenuationColor.z, 0)
+                attenuationColor: SIMD4<Float>(attenuationColor.x, attenuationColor.y, attenuationColor.z, 0),
+                ior: ior
             )
             let tmpMaterialUniformsBuffer = device.makeBuffer(
                 bytes: &materialUniforms,

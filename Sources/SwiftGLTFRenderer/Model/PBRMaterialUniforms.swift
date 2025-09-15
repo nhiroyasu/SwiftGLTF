@@ -8,4 +8,5 @@ struct PBRMaterialUniforms {
     let doubleSided: UInt32
     let transmissionThicknessDistance: simd_float4
     let attenuationColor: simd_float4
+    let ior: Float
 }

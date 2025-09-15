@@ -119,7 +119,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Background color from previous pass (with refraction offset)
     float maxMip = scArgs.useSceneColor ? scArgs.sceneColorTexture.get_num_mip_levels() - 1 : 0;
     float lod = clamp(roughness * maxMip, 0.0, maxMip);
-    float ior = 1.5; // fixed IOR
+    float ior = mUni.ior;
     /* Minimum refraction model (not physically accurate)
      float eta = 1.0 / max(ior, 1e-5);
      float3 R = refract(-normalize(viewPosition), normalize(normal), eta);
@@ -150,7 +150,8 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                     transmission,
                                                     viewPosition,
                                                     scene.lightPosition,
-                                                    scene.ambientLightColor);
+                                                    scene.ambientLightColor,
+                                                    ior);
 
     // Indirect lighting
     float3 indirectLighting = compute_indirect_lighting(normal,
@@ -163,7 +164,8 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                         transmission,
                                                         prefilterEnvMap,
                                                         irradianceMap,
-                                                        brdfLUT);
+                                                        brdfLUT,
+                                                        ior);
 
     // Transmission effect (approximation)
     float3 transmissionLighting = compute_transmission_lighting(Lbg,
@@ -173,7 +175,8 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                                 transmission,
                                                                 attenuation,
                                                                 worldPosition,
-                                                                viewPosition);
+                                                                viewPosition,
+                                                                ior);
 
     // Final color
     float3 color = directLighting + indirectLighting + transmissionLighting + emissive;

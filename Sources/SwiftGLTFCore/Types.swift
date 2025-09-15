@@ -780,10 +780,13 @@ public struct MaterialExtensions: Codable {
     public let khrMaterialsTransmission: KHRMaterialsTransmission?
     /// KHR_materials_volume extension data
     public let khrMaterialsVolume: KHRMaterialsVolume?
+    /// KHR_materials_ior extension data
+    public let khrMaterialsIOR: KHRMaterialsIOR?
     enum CodingKeys: String, CodingKey {
         case khrMaterialsEmissiveStrength = "KHR_materials_emissive_strength"
         case khrMaterialsTransmission = "KHR_materials_transmission"
         case khrMaterialsVolume = "KHR_materials_volume"
+        case khrMaterialsIOR = "KHR_materials_ior"
     }
 }
 
@@ -827,5 +830,17 @@ public struct KHRMaterialsVolume: Codable {
         self.thicknessTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .thicknessTexture)
         self.attenuationDistance = try container.decodeIfPresent(Float.self, forKey: .attenuationDistance)
         self.attenuationColor = try container.decodeIfPresent([Float].self, forKey: .attenuationColor) ?? [1, 1, 1]
+    }
+}
+
+// MARK: - KHR_materials_ior extension
+public struct KHRMaterialsIOR: Codable {
+    public let ior: Float
+    enum CodingKeys: String, CodingKey {
+        case ior
+    }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.ior = try container.decodeIfPresent(Float.self, forKey: .ior) ?? 1.5
     }
 }

@@ -32,4 +32,5 @@ public enum MaterialPropertyName: String {
     case thicknessTextureTexCoord
     case attenuationDistance
     case attenuationColor
+    case ior
 }

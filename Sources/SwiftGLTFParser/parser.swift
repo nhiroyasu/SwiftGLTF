@@ -1295,6 +1295,16 @@ private func makeMDLMaterial(
         material.setProperty(attnColorProp)
     }
 
+    // KHR_materials_ior
+    if let iorExt = gltfMaterial.extensions?.khrMaterialsIOR {
+        let iorProp = MDLMaterialProperty(
+            name: MaterialPropertyName.ior.rawValue,
+            semantic: .userDefined,
+            float: iorExt.ior
+        )
+        material.setProperty(iorProp)
+    }
+
     return material
 }
 
