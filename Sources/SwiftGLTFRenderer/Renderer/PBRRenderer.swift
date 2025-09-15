@@ -45,8 +45,9 @@ public class PBRRenderer {
     private var screenColorRPD: MTLRenderPassDescriptor? = nil
     private var transmissionRPD: MTLRenderPassDescriptor? = nil
     private var composeRPD: MTLRenderPassDescriptor? = nil
-
     private let composePipelineState: MTLRenderPipelineState
+
+    private var needsTransmissionPass: Bool = false
 
     public init(
         commandQueue: MTLCommandQueue,
@@ -247,24 +248,71 @@ public class PBRRenderer {
             return
         }
 
-        // sceneColor is handled via separate argument buffer bound per pass (no change to envMapArgBuffer)
-        guard let screenColorRCE = commandBuffer.makeRenderCommandEncoder(descriptor: screenColorRPD) else { return }
-        screenColorRCE.label = "[SwiftGLTF] PBR Screen Color Render Encoder"
-        if let waitFence { screenColorRCE.waitForFence(waitFence, before: .vertex) }
+        // Pass 1: draw opaque + masked + blended to offscreen
+        guard let screenColorRE = commandBuffer.makeRenderCommandEncoder(descriptor: screenColorRPD) else { return }
+        screenColorRE.label = "[SwiftGLTF] PBR Screen Color Render Encoder"
+        encodeScreenPass(
+            renderEncoder: screenColorRE,
+            bundle: bundle,
+            mvpUniformBuffer: mvpUniformBuffer,
+            fragmentParams: fragmentParams,
+            viewPos: viewPos,
+            showsSkybox: showsSkybox,
+            waitFence: waitFence
+        )
+
+        if needsTransmissionPass {
+            // Pass 2: Generate prefiltered scene texture
+            shaderConnection.generatePrefilterSceneTexture(from: screenColorTexture, to: screenPrefilterTexture, commandBuffer: commandBuffer)
+            
+            // Pass 3: draw transmission to offscreen
+            guard let transmissionRE = commandBuffer.makeRenderCommandEncoder(descriptor: transmissionRPD) else { return }
+            transmissionRE.label = "[SwiftGLTF] PBR Transmission Render Encoder"
+            encodeTransmissionPass(
+                renderEncoder: transmissionRE,
+                screenPrefilterTexture: screenPrefilterTexture,
+                bundle: bundle,
+                mvpUniformBuffer: mvpUniformBuffer,
+                fragmentParams: fragmentParams,
+                viewPos: viewPos
+            )
+        }
+
+        // Pass 4: full-screen compose to screen
+        guard let composeRE = commandBuffer.makeRenderCommandEncoder(descriptor: viewRenderPassDescriptor) else { return }
+        composeRE.label = "[SwiftGLTF] PBR Compose Render Encoder"
+        encodeComposePass(
+            renderEncoder: composeRE,
+            screenColorTexture: screenColorTexture,
+            sceneTransmissionTexture: sceneTransmissionTexture,
+            useTransmissionTexture: needsTransmissionPass ? 1 : 0
+        )
+    }
+
+    // MARK: - Encoding passes
+
+    private func encodeScreenPass(
+        renderEncoder: MTLRenderCommandEncoder,
+        bundle: PBRMeshBundle,
+        mvpUniformBuffer: MTLBuffer,
+        fragmentParams: MTLBuffer,
+        viewPos: SIMD3<Float>,
+        showsSkybox: Bool,
+        waitFence: MTLFence?
+    ) {
+        if let waitFence { renderEncoder.waitForFence(waitFence, before: .vertex) }
 
         if showsSkybox {
-            // Draw skybox into offscreen
             drawSkybox(
-                renderEncoder: screenColorRCE,
+                renderEncoder: renderEncoder,
                 mesh: skyboxMesh,
                 mvpUniformBuffer: mvpUniformBuffer,
                 specularCubeMapTexture: _prefilterEnvMap
             )
         }
 
-        // Draw opaque + masked + blended
         drawPBRScreen(
-            renderEncoder: screenColorRCE,
+            renderEncoder: renderEncoder,
             opaquePSO: pipelineConnector.opaquePSO,
             alphaBlendPSO: pipelineConnector.alphaBlendPSO,
             defaultDSO: defaultDSO,
@@ -287,22 +335,25 @@ public class PBRRenderer {
             screenColorArgsBuffer: pipelineConnector.makeScreenColorArgDummy(),
             viewPos: viewPos
         )
-        screenColorRCE.endEncoding()
+        renderEncoder.endEncoding()
+    }
 
-        // Generate prefiltered scene texture for rough transmission sampling on the same command buffer
-        shaderConnection.generatePrefilterSceneTexture(from: screenColorTexture, to: screenPrefilterTexture, commandBuffer: commandBuffer)
-
-        guard let transmissionRCE = commandBuffer.makeRenderCommandEncoder(descriptor: transmissionRPD) else { return }
-        transmissionRCE.label = "[SwiftGLTF] PBR Transmission Render Encoder"
+    private func encodeTransmissionPass(
+        renderEncoder: MTLRenderCommandEncoder,
+        screenPrefilterTexture: MTLTexture,
+        bundle: PBRMeshBundle,
+        mvpUniformBuffer: MTLBuffer,
+        fragmentParams: MTLBuffer,
+        viewPos: SIMD3<Float>
+    ) {
         let sceneColorArgBuffer = pipelineConnector.makeScreenColorArgBuffer(
             sceneColor: screenPrefilterTexture,
             sceneColorSampler: sceneColorSampler
         )
-        transmissionRCE.useResources([screenPrefilterTexture], usage: .read, stages: .fragment) // TODO: move to heap
+        renderEncoder.useResources([screenPrefilterTexture], usage: .read, stages: .fragment) // TODO: move to heap
 
-        // draw transmission
         drawPBRTransmission(
-            renderEncoder: transmissionRCE,
+            renderEncoder: renderEncoder,
             alphaBlendPSO: pipelineConnector.alphaBlendPSO,
             defaultDSO: defaultDSO,
             vertexResources: bundle.vertexResources,
@@ -320,16 +371,23 @@ public class PBRRenderer {
             screenColorArgsBuffer: sceneColorArgBuffer,
             viewPos: viewPos
         )
-        transmissionRCE.endEncoding()
+        renderEncoder.endEncoding()
+    }
 
-        // Pass 3: full-screen compose to screen
-        guard let finalEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: viewRenderPassDescriptor) else { return }
-        finalEncoder.label = "[SwiftGLTF] PBR Final Compose Render Encoder"
-        finalEncoder.setRenderPipelineState(composePipelineState)
-        finalEncoder.setFragmentTexture(screenColorTexture, index: 0)
-        finalEncoder.setFragmentTexture(sceneTransmissionTexture, index: 1)
-        finalEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-        finalEncoder.endEncoding()
+    private func encodeComposePass(
+        renderEncoder: MTLRenderCommandEncoder,
+        screenColorTexture: MTLTexture,
+        sceneTransmissionTexture: MTLTexture,
+        useTransmissionTexture: UInt32
+    ) {
+        renderEncoder.setRenderPipelineState(composePipelineState)
+        renderEncoder.setFragmentTexture(screenColorTexture, index: 0)
+        renderEncoder.setFragmentTexture(sceneTransmissionTexture, index: 1)
+
+        var useTransTex: UInt32 = useTransmissionTexture
+        renderEncoder.setFragmentBytes(&useTransTex, length: MemoryLayout<UInt32>.size, index: 0)
+        renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        renderEncoder.endEncoding()
     }
 
     private func ensureOffscreenTargets(size: CGSize) {
@@ -410,6 +468,7 @@ public class PBRRenderer {
     /// Load a gltf asset
     public func load(from asset: MDLAsset) async throws {
         self.bundle = try await meshLoader.loadMeshes(from: asset)
+        self.needsTransmissionPass = bundle!.transmissionMeshes.count > 0
     }
 
     /// Set environment from external URL (equirectangular .exr)
