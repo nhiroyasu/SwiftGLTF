@@ -1,5 +1,5 @@
 #include <metal_stdlib>
-#include "includes/metal_helper.h"
+#include "includes/helper.h"
 using namespace metal;
 
 kernel void srgb_2_linear_shader(constant float *srgb [[buffer(0)]],

@@ -59,14 +59,14 @@ final class WireframeRenderTests {
         let eye = SIMD3<Float>(-2.83, 2.83, -2.83)
         let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
         let projection = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
-        var vertexVariableParams = MVPUniforms(
+        var mvpUniform = MVPUniform(
             view: view,
             projection: projection,
             externalTransform: simd_float4x4(1)
         )
-        let vertexParams = device.makeBuffer(
-            bytes: &vertexVariableParams,
-            length: MemoryLayout<MVPUniforms>.size,
+        let mvpUniformBuffer = device.makeBuffer(
+            bytes: &mvpUniform,
+            length: MemoryLayout<MVPUniform>.size,
             options: .storageModeShared
         )!
 
@@ -120,13 +120,13 @@ final class WireframeRenderTests {
             pipelineState: pipelineState,
             depthStencilState: depthStencilState,
             meshes: bundle.meshes,
-            vertexParams: vertexParams,
+            mvpUniformBuffer: mvpUniformBuffer,
             worldTransformBuffer: bundle.worldTransformBuffer
         )
 
         encoder.endEncoding()
         cmdBuf.commit()
-        cmdBuf.waitUntilCompleted()
+        await cmdBuf.completed()
     }
 
     // MARK: - Export golden images

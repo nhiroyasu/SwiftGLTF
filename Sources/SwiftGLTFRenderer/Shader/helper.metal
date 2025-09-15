@@ -1,5 +1,5 @@
 #include <metal_stdlib>
-#include "includes/metal_helper.h"
+#include "includes/helper.h"
 
 using namespace metal;
 
@@ -199,4 +199,12 @@ float3x3 make_tbn(float3 normal) {
 float3x3 make_tbn(float3 N, float3 T, float Tw) {
     float3 B = cross(N, T) * Tw;
     return float3x3(T, B, N);
+}
+
+float fresnelSchlick(float cosTheta, float F0) {
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+float3 fresnelSchlick(float cosTheta, float3 F0) {
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }

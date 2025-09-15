@@ -6,4 +6,6 @@ struct PBRMaterialUniforms {
     let metalRoughnessOcclusion: simd_float4
     let emissiveFactor: simd_float4
     let doubleSided: UInt32
+    let transmissionThicknessDistance: simd_float4
+    let attenuationColor: simd_float4
 }

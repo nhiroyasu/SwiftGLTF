@@ -22,4 +22,14 @@ public enum MaterialPropertyName: String {
     case emissiveTextureTexCoord
     case occlusionTextureTexCoord
     case doubleSided
+    // Transmission (KHR_materials_transmission)
+    case transmissionFactor
+    case transmissionTexture
+    case transmissionTextureTexCoord
+    // Volume (KHR_materials_volume)
+    case thicknessFactor
+    case thicknessTexture
+    case thicknessTextureTexCoord
+    case attenuationDistance
+    case attenuationColor
 }

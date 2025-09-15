@@ -1,0 +1,210 @@
+#include <metal_stdlib>
+#include "includes/helper.h"
+#include "includes/refract.h"
+#include "includes/env_arguments.h"
+#include "includes/screen_arguments.h"
+#include "includes/pbr_lighting.h"
+#include "includes/pbr_vertex.h"
+#include "includes/pbr_arguments.h"
+#include "../../SwiftGLTFShaderTypes/includes/pbr.h"
+
+using namespace metal;
+
+fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
+                                    constant PBRFragmentArguments &fragArgs [[buffer(PBRFragmentShaderArgsBuffer)]],
+                                    constant PBREnvMapArguments &envMapArgs [[buffer(PBRFragmentShaderEnvMapArgsBuffer)]],
+                                    constant SceneUniforms &scene [[buffer(PBRFragmentShaderSceneUniformsBuffer)]],
+                                    constant PBRScreenColorArguments &scArgs [[buffer(PBRFragmentShaderScreenColorBuffer)]],
+                                    bool isFrontFacing [[front_facing]])
+{
+    constant PBRMaterialUniforms &mUni = fragArgs.material;
+    texture2d<float> baseColorTexture = fragArgs.baseColorTexture;
+    sampler baseColorSampler = fragArgs.baseColorSampler;
+    texture2d<float> normalTexture = fragArgs.normalTexture;
+    sampler normalSampler = fragArgs.normalSampler;
+    texture2d<float> metallicRoughnessTexture = fragArgs.metallicRoughnessTexture;
+    sampler metallicRoughnessSampler = fragArgs.metallicRoughnessSampler;
+    texture2d<float> emissiveTexture = fragArgs.emissiveTexture;
+    sampler emissiveSampler = fragArgs.emissiveSampler;
+    texture2d<float> occlusionTexture = fragArgs.occlusionTexture;
+    sampler occlusionSampler = fragArgs.occlusionSampler;
+
+    texturecube<float> prefilterEnvMap = envMapArgs.prefilterEnvMap;
+    texturecube<float> irradianceMap = envMapArgs.irradianceMap;
+    texture2d<float> brdfLUT = envMapArgs.brdfLUT;
+
+    float2 uv0 = in.uv;
+    float2 uv1 = in.uv1;
+    float4 modulationColor = in.modulationColor;
+    // Screen UV from fragment position and viewport size
+    float2 screenUV = float2(in.position.xy) / scene.viewportSize;
+    screenUV = clamp(screenUV, float2(0.0), float2(1.0));
+
+    // Select UV coordinate for base color
+    uint bcCoord = fragArgs.baseColorTexCoord;
+    float2 uvBC = (bcCoord == 0) ? uv0 : uv1;
+    // Apply base color texture, vertex modulation color, and material base color factor
+    float3 albedo = fragArgs.hasBaseColorTexture
+    ? baseColorTexture.sample(baseColorSampler, uvBC).rgb * modulationColor.rgb * mUni.baseColorFactor.rgb
+    : float3(1, 1, 1) * modulationColor.rgb * mUni.baseColorFactor.rgb;
+
+    // Select UV coordinate for metallic-roughness
+    uint mrCoord = fragArgs.metallicRoughnessTexCoord;
+    float2 uvMR = (mrCoord == 0) ? uv0 : uv1;
+    // Sample metallic-roughness and apply material factors
+    float metallic = fragArgs.hasMetallicRoughnessTexture
+    ? metallicRoughnessTexture.sample(metallicRoughnessSampler, uvMR).b * mUni.metalRoughnessOcclusion.x
+    : 1.0 * mUni.metalRoughnessOcclusion.x;
+    float roughness = fragArgs.hasMetallicRoughnessTexture
+    ? metallicRoughnessTexture.sample(metallicRoughnessSampler, uvMR).g * mUni.metalRoughnessOcclusion.y
+    : 1.0 * mUni.metalRoughnessOcclusion.y;
+
+    // Select UV coordinate for emissive
+    uint eCoord = fragArgs.emissiveTexCoord;
+    float2 uvE = (eCoord == 0) ? uv0 : uv1;
+    // Emissive lighting: apply material emissive factor
+    float3 emissive = fragArgs.hasEmissiveTexture
+    ? emissiveTexture.sample(emissiveSampler, uvE).rgb * mUni.emissiveFactor.rgb
+    : float3(1, 1, 1) * mUni.emissiveFactor.rgb;
+
+    // Select UV coordinate for occlusion
+    uint ocCoord = fragArgs.occlusionTexCoord;
+    float2 uvOC = (ocCoord == 0) ? uv0 : uv1;
+    // Ambient occlusion: apply material occlusion factor
+    float ambientOcclusion = fragArgs.hasOcclusionTexture
+    ? occlusionTexture.sample(occlusionSampler, uvOC).r * mUni.metalRoughnessOcclusion.z
+    : 1.0 * mUni.metalRoughnessOcclusion.z;
+
+    float3 N = normalize(in.normal);
+    float3x3 TBN = make_tbn(N, in.tangent.xyz, in.tangent.w);
+
+    // Select UV coordinate for normal map
+    uint nCoord = fragArgs.normalTexCoord;
+    float2 uvN = (nCoord == 0) ? uv0 : uv1;
+    float3 normalTexValue = fragArgs.hasNormalTexture
+    ? normalTexture.sample(normalSampler, uvN).rgb * 2.0 - 1.0
+    : float3(0, 0, 1);
+    float3 normal = normalize(TBN * normalTexValue);
+    // Flip normal for back faces when double-sided
+    if (fragArgs.material.doubleSided != 0 && !isFrontFacing) {
+        normal = -normal;
+    }
+
+    // Select UV coordinate for transmission
+    uint tCoord = fragArgs.transmissionTexCoord;
+    float2 uvT = (tCoord == 0) ? uv0 : uv1;
+    // Transmission factor
+    float transmission = mUni.transmissionThicknessDistance.x;
+    if (fragArgs.hasTransmissionTexture) {
+        transmission *= fragArgs.transmissionTexture.sample(fragArgs.transmissionSampler, uvT).r;
+    }
+
+    // Select UV coordinate for thickness
+    uint thCoord = fragArgs.thicknessTexCoord;
+    float2 uvTh = (thCoord == 0) ? uv0 : uv1;
+    // Thickness
+    float thickness = mUni.transmissionThicknessDistance.y;
+    if (fragArgs.hasThicknessTexture) {
+        thickness *= fragArgs.thicknessTexture.sample(fragArgs.thicknessSampler, uvTh).r;
+    }
+
+    // Attenuation
+    float attenDist = mUni.transmissionThicknessDistance.z;
+    float3 attenColor = mUni.attenuationColor.rgb;
+
+    // Transmittance calculation
+    // (Beer-Lambert): sigma_a = -ln(color) / distance;  T = exp(-sigma_a * thickness)
+    float3 attenuation = float3(1.0);
+    if (attenDist > 0.0 && thickness > 0.0) {
+        float3 attColor = clamp(attenColor, float3(1e-6), float3(1.0));
+        float3 sigma_a = -log(attColor) / attenDist;
+        attenuation = exp(-sigma_a * thickness);
+    }
+
+    // Background color from previous pass (with refraction offset)
+    float3 Lbg = float3(0.0);
+    if (scArgs.useSceneColor) {
+        float maxMip = scArgs.sceneColorTexture.get_num_mip_levels() - 1;
+        float lod = clamp(roughness * maxMip, 0.0, maxMip);
+
+        float ior = 1.5; // fixed IOR
+
+        /* Minimum refraction model (not physically accurate)
+        float eta = 1.0 / max(ior, 1e-5);
+        float3 R = refract(-normalize(viewPosition), normalize(normal), eta);
+        float2 dUV = R.xy * thickness * 0.1;
+         */
+
+        float2 dUV = refract_uv_offset_thin_slab(normalize(in.positionVS),
+                                                 normalize(in.normalVS),
+                                                 thickness,
+                                                 ior,
+                                                 in.positionVS,
+                                                 scene.fov,
+                                                 scene.viewportSize,
+                                                 scene.camRight,
+                                                 scene.camUp);
+        Lbg = scArgs.sceneColorTexture.sample(scArgs.sceneColorSampler, screenUV + dUV, level(lod)).rgb;
+    }
+
+    float3 worldPosition = in.worldPosition;
+    float3 viewPosition = scene.viewPosition;
+
+    // Direct lighting
+    float3 directLighting = compute_direct_lighting(normal,
+                                                    worldPosition,
+                                                    albedo,
+                                                    metallic,
+                                                    roughness,
+                                                    transmission,
+                                                    viewPosition,
+                                                    scene.lightPosition,
+                                                    scene.ambientLightColor);
+
+    // Indirect lighting
+    float3 indirectLighting = compute_indirect_lighting(normal,
+                                                        worldPosition,
+                                                        viewPosition,
+                                                        albedo,
+                                                        metallic,
+                                                        roughness,
+                                                        ambientOcclusion,
+                                                        transmission,
+                                                        prefilterEnvMap,
+                                                        irradianceMap,
+                                                        brdfLUT);
+
+    // Transmission effect (approximation)
+    float3 transmissionLighting = compute_transmission_lighting(Lbg,
+                                                                normal,
+                                                                albedo,
+                                                                metallic,
+                                                                transmission,
+                                                                attenuation,
+                                                                worldPosition,
+                                                                viewPosition);
+
+    // Final color
+    float3 color = directLighting + indirectLighting + transmissionLighting + emissive;
+
+    // Alpha: baseColor.a * modulation.a * materialFactor.a
+    float baseAlpha = 1.0;
+    if (fragArgs.hasBaseColorTexture) {
+        baseAlpha = baseColorTexture.sample(baseColorSampler, uvBC).a;
+    }
+    float alpha = baseAlpha * modulationColor.a * mUni.baseColorFactor.a;
+
+    // Alpha test (MASK)
+    if (fragArgs.alphaMode == AlphaModeMask) {
+        if (alpha < fragArgs.alphaCutoff) {
+            discard_fragment();
+        }
+    }
+
+    // Premultiply if blending (BLEND)
+    if (fragArgs.alphaMode == AlphaModeBlend) {
+        color *= alpha;
+    }
+
+    return float4(color, alpha);
+}

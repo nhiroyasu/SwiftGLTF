@@ -1,5 +1,5 @@
 #include <metal_stdlib>
-#include "includes/metal_helper.h"
+#include "includes/helper.h"
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
 
 using namespace metal;

@@ -12,9 +12,8 @@ public class GLTFView: MTKView {
 
     private let renderer: PBRRenderer
 
-    private let fragmentParamsBuffer: FrameInFlightBuffer
+    private let sceneUniformsBuffer: FrameInFlightBuffer
     private let mvpUniformBuffer: FrameInFlightBuffer
-    private let skyboxVPMatrixBuffer: FrameInFlightBuffer
 
     private var displayType: DisplayType = .loading {
         didSet { onChange(displayType) }
@@ -71,21 +70,15 @@ public class GLTFView: MTKView {
 
         self.frameSemaphores = DispatchSemaphore(value: maxFramesInFlight)
 
-        self.fragmentParamsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+        self.sceneUniformsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
-                length: MemoryLayout<PBRFragmentVariableParameters>.size,
+                length: MemoryLayout<SceneUniforms>.size,
                 options: []
             )!
         }
         self.mvpUniformBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
-                length: MemoryLayout<MVPUniforms>.size,
-                options: .storageModeShared
-            )!
-        }
-        self.skyboxVPMatrixBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
-            device.makeBuffer(
-                length: MemoryLayout<simd_float4x4>.size,
+                length: MemoryLayout<MVPUniform>.size,
                 options: .storageModeShared
             )!
         }
@@ -186,36 +179,6 @@ public class GLTFView: MTKView {
 
     // MARK: - Buffer Management
 
-    private func updateSkyboxBuffer(
-        toVPMatrix: MTLBuffer,
-        rotationX: Float32,
-        rotationY: Float32,
-        upSign: Float32,
-        drawableSize: CGSize
-    ) {
-        let skyboxTarget = SIMD3<Float>(
-            -cos(rotationX) * sin(rotationY),
-            -cos(rotationY),
-            -sin(rotationX) * sin(rotationY)
-        )
-        let skyboxViewMatrix = lookAt(
-            eye: SIMD3<Float>(0, 0, 0),
-            target: skyboxTarget,
-            up: SIMD3<Float>(0, upSign, 0)
-        )
-        let skyboxProjectionMatrix = perspectiveMatrix(
-            fov: .pi / 3,
-            aspect: Float(drawableSize.width / drawableSize.height),
-            near: 0.1,
-            far: 100.0
-        )
-        var skyboxVPMatrix = skyboxProjectionMatrix * skyboxViewMatrix
-        toVPMatrix.contents().copyMemory(
-            from: &skyboxVPMatrix,
-            byteCount: MemoryLayout<simd_float4x4>.size
-        )
-    }
-
     private func updateSceneBuffer(
         toVertexParams: MTLBuffer,
         toFragmentParams: MTLBuffer,
@@ -230,31 +193,39 @@ public class GLTFView: MTKView {
             target: simd_float3(0, 0, 0),
             up: simd_float3(0, upSign, 0)
         )
+
+        let aspect = Float(drawableSize.width / drawableSize.height)
+        let fovY = Float.pi / 3.0
+        let fovX = 2 * atan(tan(fovY / 2) * aspect)
         let projection = perspectiveMatrix(
-            fov: .pi / 3,
-            aspect: Float(drawableSize.width / drawableSize.height),
+            fov: fovY,
+            aspect: aspect,
             near: 0.1,
             far: 1000.0
         )
         let offset = translationMatrix(targetOffset.x, targetOffset.y, targetOffset.z)
-        var vpUniforms = MVPUniforms(
+        var vpUniforms = MVPUniform(
             view: view,
             projection: projection,
             externalTransform: offset
         )
         toVertexParams.contents().copyMemory(
             from: &vpUniforms,
-            byteCount: MemoryLayout<MVPUniforms>.size
+            byteCount: MemoryLayout<MVPUniform>.size
         )
 
-        var pbrSceneUniforms = PBRFragmentVariableParameters(
+        var pbrSceneUniforms = SceneUniforms(
             lightPosition: lightPosition,
             viewPosition: eye,
-            ambientLightColor: ambientLightColor
+            ambientLightColor: ambientLightColor,
+            viewportSize: SIMD2<Float>(Float(drawableSize.width), Float(drawableSize.height)),
+            fov: SIMD2<Float>(fovX, fovY),
+            camRight: SIMD3<Float>(1, 0, 0),
+            camUp: SIMD3<Float>(0, 1, 0)
         )
         toFragmentParams.contents().copyMemory(
             from: &pbrSceneUniforms,
-            byteCount: MemoryLayout<PBRFragmentVariableParameters>.size
+            byteCount: MemoryLayout<SceneUniforms>.size
         )
     }
 
@@ -272,16 +243,9 @@ public class GLTFView: MTKView {
         currentBuffer = (currentBuffer + 1) % maxFramesInFlight
 
         // Update buffers
-        updateSkyboxBuffer(
-            toVPMatrix: skyboxVPMatrixBuffer.buffer(currentBuffer),
-            rotationX: rotationX,
-            rotationY: rotationY,
-            upSign: upSign,
-            drawableSize: drawableSize
-        )
         updateSceneBuffer(
             toVertexParams: mvpUniformBuffer.buffer(currentBuffer),
-            toFragmentParams: fragmentParamsBuffer.buffer(currentBuffer),
+            toFragmentParams: sceneUniformsBuffer.buffer(currentBuffer),
             eye: eye,
             lightPosition: lightPosition,
             ambientLightColor: ambientLightColor,
@@ -297,40 +261,24 @@ public class GLTFView: MTKView {
             lastFrameTime = now
             animationState.time += Float(dt) * animationState.speed
 
-            if let en = commandBuffer.makeComputeCommandEncoder(),
-               let fence = commandQueue.device.makeFence() {
-                en.updateFence(fence)
-                animationFence = fence
-
-                renderer.animation(
-                    commandEncoder: en,
-                    animationState: animationState
-                )
-            }
+            animationFence = renderer.animation(
+                commandBuffer: commandBuffer,
+                animationState: animationState
+            )
         } else {
             lastFrameTime = CACurrentMediaTime()
         }
 
-        guard let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
-            return
-        }
-
-        if let animationFence {
-            renderEncoder.waitForFence(animationFence, before: .vertex)
-        }
-
-        // Rendering
+        // Rendering (two-pass: offscreen -> transparent to screen)
         renderer.render(
-            using: renderEncoder,
+            commandBuffer: commandBuffer,
+            viewRenderPassDescriptor: descriptor,
+            drawableSize: drawableSize,
             mvpUniformBuffer: mvpUniformBuffer.buffer(currentBuffer),
-            fragmentParams: fragmentParamsBuffer.buffer(currentBuffer),
-            skyboxVP: skyboxVPMatrixBuffer.buffer(currentBuffer),
-            viewPos: eye
+            fragmentParams: sceneUniformsBuffer.buffer(currentBuffer),
+            viewPos: eye,
+            waitFence: animationFence
         )
-
-        // Finalize rendering
-
-        renderEncoder.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.addCompletedHandler { [weak frameSemaphores] _ in
             frameSemaphores?.signal()
