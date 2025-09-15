@@ -1,6 +1,7 @@
 #include <metal_stdlib>
 #include "includes/helper.h"
 #include "includes/pbr_lighting.h"
+#include "includes/pbr_fresnel.h"
 
 using namespace metal;
 
@@ -20,9 +21,7 @@ float3 compute_direct_lighting(float3 normal,
     float3 V = normalize(viewPosition - worldPosition);
     float3 L = normalize(lightPosition - worldPosition);
     float3 H = normalize(V + L);
-    float f0_dielectric = pow((ior - 1.0) / (ior + 1.0), 2.0);
-    float3 F0_diel_rgb = clamp(float3(f0_dielectric) * specularFactor * specularColor, float3(0.0), float3(0.99));
-    float3 F0 = mix(F0_diel_rgb, albedo, metallic);
+    float3 F0 = compute_f0_rgb(ior, specularFactor, specularColor, albedo, metallic);
 
     // Fresnel-Schlick approximation
     float3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
@@ -83,8 +82,7 @@ float3 compute_indirect_lighting(float3 normal,
     float3 diffuse = irradianceCubeMap.sample(texSampler, N).rgb;
 
     // Fresnel-Schlick
-    float f0_dielectric = pow((ior - 1.0) / (ior + 1.0), 2.0);
-    float3 F0_diel_rgb = clamp(float3(f0_dielectric) * specularFactor * specularColor, float3(0.0), float3(0.99));
+    float3 F0_diel_rgb = compute_f0_dielectric_rgb(ior, specularFactor, specularColor);
     float3 specularColorRGB = mix(F0_diel_rgb, albedo, metallic);
     float3 diffuseColor = albedo * (1.0 - metallic) * (1.0 - F0_diel_rgb) * (1.0 - transmission);
 
@@ -121,8 +119,7 @@ float3 compute_transmission_lighting(float3 Lbg,
     float3 N = normalize(normal);
     float3 V = normalize(viewPosition - worldPosition);
 
-    float f0_dielectric = pow((ior - 1.0) / (ior + 1.0), 2.0);
-    float3 F0_diel_rgb = clamp(float3(f0_dielectric) * specularFactor * specularColor, float3(0.0), float3(0.99));
+    float3 F0_diel_rgb = compute_f0_dielectric_rgb(ior, specularFactor, specularColor);
     float F = fresnelSchlick(max(dot(N, V), 0.0), max(max(F0_diel_rgb.r, F0_diel_rgb.g), F0_diel_rgb.b));
 
     float kTrans = saturate(transmission * (1.0 - metallic) * (1.0 - F));
