@@ -84,6 +84,15 @@ class PBRPipelineConnector {
         thicknessTexture: MTLTexture?,
         thicknessSampler: MTLSamplerState?,
         thicknessTexCoord: UnsafePointer<UInt32>,
+        // Specular
+        hasSpecularTexture: UnsafePointer<Bool>,
+        specularTexture: MTLTexture?,
+        specularSampler: MTLSamplerState?,
+        specularTexCoord: UnsafePointer<UInt32>,
+        hasSpecularColorTexture: UnsafePointer<Bool>,
+        specularColorTexture: MTLTexture?,
+        specularColorSampler: MTLSamplerState?,
+        specularColorTexCoord: UnsafePointer<UInt32>,
         // Alpha params
         alphaMode: UnsafePointer<UInt32>,
         alphaCutoff: UnsafePointer<Float>
@@ -151,6 +160,21 @@ class PBRPipelineConnector {
         encoder.setSamplerState(thicknessSampler, index: 29)
         let thicknessCoordAddr = encoder.constantData(at: 30)
         thicknessCoordAddr.copyMemory(from: thicknessTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        // Specular
+        let hasSpecularTextureAddr = encoder.constantData(at: 31)
+        hasSpecularTextureAddr.copyMemory(from: hasSpecularTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(specularTexture, index: 32)
+        encoder.setSamplerState(specularSampler, index: 33)
+        let specularCoordAddr = encoder.constantData(at: 34)
+        specularCoordAddr.copyMemory(from: specularTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        let hasSpecularColorTextureAddr = encoder.constantData(at: 35)
+        hasSpecularColorTextureAddr.copyMemory(from: hasSpecularColorTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(specularColorTexture, index: 36)
+        encoder.setSamplerState(specularColorSampler, index: 37)
+        let specularColorCoordAddr = encoder.constantData(at: 38)
+        specularColorCoordAddr.copyMemory(from: specularColorTexCoord, byteCount: MemoryLayout<UInt32>.size)
         return buffer
     }
 

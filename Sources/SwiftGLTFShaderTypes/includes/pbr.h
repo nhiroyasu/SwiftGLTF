@@ -12,6 +12,8 @@ typedef struct {
     vector_float4 transmissionThicknessDistance; // x: transmissionFactor, y: thicknessFactor, z: attenuationDistance, w: padding
     vector_float4 attenuationColor; // xyz: attenuationColor, w: padding
     float ior; // index of refraction
+    float specularFactor; // scalar specular multiplier
+    vector_float4 specularFactorColor; // xyz: specularColorFactor, w: padding
 } PBRMaterialUniforms;
 
 typedef struct {

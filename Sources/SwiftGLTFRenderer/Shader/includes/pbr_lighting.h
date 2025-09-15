@@ -10,7 +10,9 @@ float3 compute_direct_lighting(float3 normal,
                                float3 viewPosition,
                                float3 lightPosition,
                                float3 ambientLightColor,
-                               float ior);
+                               float ior,
+                               float specularFactor,
+                               float3 specularColor);
 
 float3 compute_indirect_lighting(float3 normal,
                                  float3 worldPosition,
@@ -23,7 +25,9 @@ float3 compute_indirect_lighting(float3 normal,
                                  texturecube<float, access::sample> prefilterEnvMap,
                                  texturecube<float, access::sample> irradianceCubeMap,
                                  texture2d<float, access::sample> brdfLUT,
-                                 float ior);
+                                 float ior,
+                                 float specularFactor,
+                                 float3 specularColor);
 
 float3 compute_transmission_lighting(float3 Lbg,
                                      float3 normal,
@@ -33,6 +37,8 @@ float3 compute_transmission_lighting(float3 Lbg,
                                      float3 attenuation,
                                      float3 worldPosition,
                                      float3 viewPosition,
-                                     float ior);
+                                     float ior,
+                                     float specularFactor,
+                                     float3 specularColor);
 
 #endif /* pbr_lighting_h */

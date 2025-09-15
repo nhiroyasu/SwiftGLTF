@@ -33,4 +33,11 @@ public enum MaterialPropertyName: String {
     case attenuationDistance
     case attenuationColor
     case ior
+    // Specular (KHR_materials_specular)
+    case specularFactor
+    case specularTexture
+    case specularTextureTexCoord
+    case specularColorFactor
+    case specularColorTexture
+    case specularColorTextureTexCoord
 }

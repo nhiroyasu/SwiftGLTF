@@ -9,4 +9,6 @@ struct PBRMaterialUniforms {
     let transmissionThicknessDistance: simd_float4
     let attenuationColor: simd_float4
     let ior: Float
+    let specularFactor: Float
+    let specularFactorColor: simd_float4
 }

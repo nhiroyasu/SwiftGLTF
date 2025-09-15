@@ -13,13 +13,16 @@ float3 compute_direct_lighting(float3 normal,
                                float3 viewPosition,
                                float3 lightPosition,
                                float3 ambientLightColor,
-                               float ior) {
+                               float ior,
+                               float specularFactor,
+                               float3 specularColor) {
     float3 N = normalize(normal);
     float3 V = normalize(viewPosition - worldPosition);
     float3 L = normalize(lightPosition - worldPosition);
     float3 H = normalize(V + L);
     float f0_dielectric = pow((ior - 1.0) / (ior + 1.0), 2.0);
-    float3 F0 = mix(float3(f0_dielectric), albedo, metallic);
+    float3 F0_diel_rgb = clamp(float3(f0_dielectric) * specularFactor * specularColor, float3(0.0), float3(0.99));
+    float3 F0 = mix(F0_diel_rgb, albedo, metallic);
 
     // Fresnel-Schlick approximation
     float3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
@@ -66,7 +69,9 @@ float3 compute_indirect_lighting(float3 normal,
                                  texturecube<float, access::sample> prefilterEnvMap,
                                  texturecube<float, access::sample> irradianceCubeMap,
                                  texture2d<float, access::sample> brdfLUT,
-                                 float ior) {
+                                 float ior,
+                                 float specularFactor,
+                                 float3 specularColor) {
     constexpr sampler mipMapSampler(mag_filter::linear, min_filter::linear, mip_filter::linear, s_address::clamp_to_edge, t_address::clamp_to_edge);
     constexpr sampler texSampler(mag_filter::linear, min_filter::linear, s_address::clamp_to_edge, t_address::clamp_to_edge);
 
@@ -79,9 +84,9 @@ float3 compute_indirect_lighting(float3 normal,
 
     // Fresnel-Schlick
     float f0_dielectric = pow((ior - 1.0) / (ior + 1.0), 2.0);
-    float3 f0 = float3(f0_dielectric);
-    float3 specularColor = mix(f0, albedo, metallic);
-    float3 diffuseColor = albedo * (1.0 - metallic) * (1.0 - f0) * (1.0 - transmission);
+    float3 F0_diel_rgb = clamp(float3(f0_dielectric) * specularFactor * specularColor, float3(0.0), float3(0.99));
+    float3 specularColorRGB = mix(F0_diel_rgb, albedo, metallic);
+    float3 diffuseColor = albedo * (1.0 - metallic) * (1.0 - F0_diel_rgb) * (1.0 - transmission);
 
     // Specular IBL
     float textureSize = prefilterEnvMap.get_width();
@@ -94,7 +99,7 @@ float3 compute_indirect_lighting(float3 normal,
 
 
     // result
-    float3 result = diffuse * diffuseColor + specular * (specularColor * brdf.x + brdf.y);
+    float3 result = diffuse * diffuseColor + specular * (specularColorRGB * brdf.x + brdf.y);
 
     // Apply ambient occlusion
     result *= ambientOcclusion;
@@ -110,12 +115,15 @@ float3 compute_transmission_lighting(float3 Lbg,
                                      float3 attenuation,
                                      float3 worldPosition,
                                      float3 viewPosition,
-                                     float ior) {
+                                     float ior,
+                                     float specularFactor,
+                                     float3 specularColor) {
     float3 N = normalize(normal);
     float3 V = normalize(viewPosition - worldPosition);
 
     float f0_dielectric = pow((ior - 1.0) / (ior + 1.0), 2.0);
-    float F = fresnelSchlick(max(dot(N, V), 0.0), f0_dielectric);
+    float3 F0_diel_rgb = clamp(float3(f0_dielectric) * specularFactor * specularColor, float3(0.0), float3(0.99));
+    float F = fresnelSchlick(max(dot(N, V), 0.0), max(max(F0_diel_rgb.r, F0_diel_rgb.g), F0_diel_rgb.b));
 
     float kTrans = saturate(transmission * (1.0 - metallic) * (1.0 - F));
     float3 refractedColor = Lbg * attenuation * albedo * kTrans;

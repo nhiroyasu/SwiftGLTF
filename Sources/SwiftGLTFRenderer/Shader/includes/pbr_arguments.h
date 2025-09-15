@@ -64,6 +64,15 @@ struct PBRFragmentArguments {
     texture2d<float> thicknessTexture [[id(28)]];
     sampler thicknessSampler [[id(29)]];
     uint thicknessTexCoord [[id(30)]];
+    // Specular (KHR_materials_specular)
+    bool hasSpecularTexture [[id(31)]]; // R: specularFactor multiplier
+    texture2d<float> specularTexture [[id(32)]];
+    sampler specularSampler [[id(33)]];
+    uint specularTexCoord [[id(34)]];
+    bool hasSpecularColorTexture [[id(35)]]; // RGB: specularColor multiplier
+    texture2d<float> specularColorTexture [[id(36)]];
+    sampler specularColorSampler [[id(37)]];
+    uint specularColorTexCoord [[id(38)]];
 };
 
 #endif /* pbr_arguments_h */
