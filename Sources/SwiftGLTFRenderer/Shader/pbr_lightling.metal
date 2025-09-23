@@ -85,11 +85,10 @@ float3 compute_indirect_lighting(float3 normal,
     float3 specular = prefilterEnvMap.sample(mipMapSampler, R, level(mipLevel)).rgb;
 
     // BRDF LUT
-    float2 brdf = brdfLUT.sample(texSampler, float2(max(dot(N, V), 0.0), roughness)).rg;
-
+    float2 lut = brdfLUT.sample(texSampler, float2(max(dot(N, V), 0.0), roughness)).rg;
 
     // result
-    float3 result = diffuse * diffuseColor + specular * (specularColorRGB * brdf.x + brdf.y);
+    float3 result = diffuse * diffuseColor + specular * (specularColorRGB * lut.x + lut.y);
 
     // Apply ambient occlusion
     result *= ambientOcclusion;
