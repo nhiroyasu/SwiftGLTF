@@ -8,6 +8,8 @@ uint bitfieldReverse(uint x);
 float2 hammersley(uint i, uint N);
 float geometrySchlickGGX(float NdotV, float roughness);
 float geometrySmith(float NdotV, float NdotL, float roughness);
+float geometrySmith(float3 N, float3 V, float3 L, float roughness);
+float distributionGGX(float3 N, float3 H, float roughness);
 float3 ACESFilm(float3 x);
 float3 ImportanceSampleCosineWeighted(float2 Xi, float3 N);
 float3 linearToSrgb(float3 color_linear);

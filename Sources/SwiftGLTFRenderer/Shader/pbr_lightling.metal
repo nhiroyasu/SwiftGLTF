@@ -21,26 +21,18 @@ float3 compute_direct_lighting(float3 normal,
     float3 V = normalize(viewPosition - worldPosition);
     float3 L = normalize(lightPosition - worldPosition);
     float3 H = normalize(V + L);
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
     float3 F0 = compute_f0_rgb(ior, specularFactor, specularColor, albedo, metallic);
 
     // Fresnel-Schlick approximation
     float3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
     // Geometry term (simplified Schlick-GGX)
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    float roughness2 = roughness * roughness;
-    float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
-    float G_V = NdotV / (NdotV * (1.0 - k) + k);
-    float G_L = NdotL / (NdotL * (1.0 - k) + k);
-    float G = G_V * G_L;
+    float G = geometrySmith(N, V, L, roughness);
 
     // Normal Distribution Function (GGX)
-    float NdotH = max(dot(N, H), 0.0);
-    float alpha = roughness2;
-    float alpha2 = alpha * alpha;
-    float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
-    float D = alpha2 / (M_PI_F * denom * denom + 1e-4);
+    float D = distributionGGX(N, H, roughness);
 
     float3 numerator = D * G * F;
     float denominator = 4.0 * NdotL * NdotV + 1e-4;

@@ -57,6 +57,21 @@ float geometrySmith(float NdotV, float NdotL, float roughness)
     return geometrySchlickGGX(NdotV, roughness) * geometrySchlickGGX(NdotL, roughness);
 }
 
+float geometrySmith(float3 N, float3 V, float3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    return geometrySmith(NdotV, NdotL, roughness);
+}
+
+float distributionGGX(float3 N, float3 H, float roughness) {
+    float NdotH = max(dot(N, H), 0.0);
+    float alpha = roughness * roughness;
+    float alpha2 = alpha * alpha;
+    float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
+    return alpha2 / (M_PI_F * denom * denom + 1e-4);
+}
+
 float3 ACESFilm(float3 x) {
     float a = 2.51;
     float b = 0.03;
