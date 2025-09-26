@@ -32,6 +32,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     texturecube<float> prefilterEnvMap = envMapArgs.prefilterEnvMap;
     texturecube<float> irradianceMap = envMapArgs.irradianceMap;
     texture2d<float> brdfLUT = envMapArgs.brdfLUT;
+    texturecube<float> prefilterSheenMap = envMapArgs.prefilterSheenMap;
 
     float2 uv0 = in.uv;
     float2 uv1 = in.uv1;
@@ -99,6 +100,19 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     float3 specularColor = mUni.specularFactorColor.xyz;
     specularColor *= fragArgs.hasSpecularColorTexture ? fragArgs.specularColorTexture.sample(fragArgs.specularColorSampler, uvSC).rgb : float3(1.0);
 
+    // Sheen extension
+    uint shcCoord = fragArgs.sheenColorTexCoord;
+    float2 uvShC = (shcCoord == 0) ? uv0 : uv1;
+    float3 sheenColor = mUni.sheenColorRoughness.xyz;
+    sheenColor *= fragArgs.hasSheenColorTexture ? fragArgs.sheenColorTexture.sample(fragArgs.sheenColorSampler, uvShC).rgb : float3(1.0);
+    sheenColor = clamp(sheenColor, float3(0.0), float3(1.0));
+
+    uint shrCoord = fragArgs.sheenRoughnessTexCoord;
+    float2 uvShR = (shrCoord == 0) ? uv0 : uv1;
+    float sheenRoughness = mUni.sheenColorRoughness.w;
+    sheenRoughness *= fragArgs.hasSheenRoughnessTexture ? fragArgs.sheenRoughnessTexture.sample(fragArgs.sheenRoughnessSampler, uvShR).g : 1.0;
+    sheenRoughness = clamp(sheenRoughness, 0.0, 1.0);
+
     // Select UV coordinate for transmission
     uint tCoord = fragArgs.transmissionTexCoord;
     float2 uvT = (tCoord == 0) ? uv0 : uv1;
@@ -152,6 +166,8 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     float3 worldPosition = in.worldPosition;
     float3 viewPosition = scene.viewPosition;
 
+    constexpr sampler brdfLUTSampler(mag_filter::linear, min_filter::linear, s_address::clamp_to_edge, t_address::clamp_to_edge);
+
     // Direct lighting
     float3 directLighting = compute_direct_lighting(normal,
                                                     worldPosition,
@@ -164,7 +180,11 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                     scene.ambientLightColor,
                                                     ior,
                                                     specularFactor,
-                                                    specularColor);
+                                                    specularColor,
+                                                    sheenColor,
+                                                    sheenRoughness,
+                                                    brdfLUT,
+                                                    brdfLUTSampler);
 
     // Indirect lighting
     float3 indirectLighting = compute_indirect_lighting(normal,
@@ -180,7 +200,10 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                         brdfLUT,
                                                         ior,
                                                         specularFactor,
-                                                        specularColor);
+                                                        specularColor,
+                                                        sheenColor,
+                                                        sheenRoughness,
+                                                        prefilterSheenMap);
 
     // Transmission effect (approximation)
     float3 transmissionLighting = compute_transmission_lighting(Lbg,

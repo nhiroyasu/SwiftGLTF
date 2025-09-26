@@ -55,11 +55,16 @@ class EnvironmentMapLoader {
                             prefilterSheenSize.alignedSize
 
         let heap = device.makeHeap(descriptor: descriptor)!
+        heap.label = "[SwiftGLTF] Environment Map Heap"
 
         let results = try shaderConnection.moveResourcesToHeap(
             from: [prefilterEnvMapTexture, irradianceCubeMapTexture, brdfLUT, prefilterSheenTexture],
             use: heap
         )
+        results[0].label = "[SwiftGLTF] Prefilter Environment Map"
+        results[1].label = "[SwiftGLTF] Irradiance Map"
+        results[2].label = "[SwiftGLTF] BRDF LUT"
+        results[3].label = "[SwiftGLTF] Prefilter Sheen Map"
 
         return (
             heap,

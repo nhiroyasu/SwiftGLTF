@@ -235,3 +235,68 @@ float3 getDirectionForFace(uint faceIndex, float2 uv) {
         default: return float3(0.0);
     }
 }
+
+// --- Luminance (Rec.709 / sRGB primaries, linear RGB 入力) ---
+float luminance709(float3 linearRGB)
+{
+    // Rec.709 (=sRGB) の相対輝度係数
+    return dot(linearRGB, float3(0.2126f, 0.7152f, 0.0722f));
+}
+
+// --- sRGBテクスチャから直接 輝度 ---
+float luminanceFromSRGB(float3 srgbRGB)
+{
+    return luminance709(srgbToLinear(srgbRGB));
+}
+
+float D_Charlie(float NoH, float alpha)
+{
+    alpha = clamp(alpha, 0.07, 1.0);
+    float invA = 1.0 / alpha;
+    float c    = max(NoH, 1e-5);
+    // ((2 + 1/alpha) / (2π)) * (cosθ)^(1/alpha)
+    return ((2.0 + invA) * pow(c, invA)) * (0.5f / M_PI_F);
+}
+
+float3 sampleHalfVectorCharlie(float2 xi, float3 N, float a, thread float* outPdfH)
+{
+    a = clamp(a, 0.07, 1.0);
+    float invA  = 1.0 / a;
+    float phi   = 2.0f * M_PI_F * xi.x;
+    // cosθ = (1 - u.y)^(1/(2 + 1/α))
+    float cosT  = pow(1.0f - xi.y, 1.0f / (2.0f + invA));
+    float sinT  = sqrt(1.0f - cosT * cosT);
+    float3 Ht   = float3(cos(phi)*sinT, sin(phi)*sinT, cosT);
+    float3 H    = toWorld(Ht, N);
+
+    float NoH = max(dot(N, H), 1e-6f);
+    if (outPdfH) *outPdfH = D_Charlie(NoH, a) * NoH;
+    return H;
+}
+
+float3 toWorld(float3 h, float3 N)
+{
+    float3 up = (abs(N.z) < 0.999) ? float3(0,0,1) : float3(1,0,0);
+    float3 T  = normalize(cross(up, N));
+    float3 B  = cross(N, T);
+    return normalize(T*h.x + B*h.y + N*h.z);
+}
+
+uint wangHash(uint x) {
+    x = (x ^ 61u) ^ (x >> 16);
+    x *= 9u;
+    x = x ^ (x >> 4);
+    x *= 0x27d4eb2du;
+    x = x ^ (x >> 15);
+    return x;
+}
+
+float2 hash2(uint x, uint y, uint z, uint w) {
+    // 4つの入力を XOR でミックス
+    uint seed1 = wangHash(x ^ (y * 374761393u) ^ (z * 668265263u) ^ (w * 982451653u));
+    uint seed2 = wangHash(y ^ (z * 362437u)    ^ (w * 521288629u) ^ (x * 88675123u));
+
+    // 0..1 に正規化 (0xFFFFFFFF = 4294967295)
+    float2 jitter = float2(seed1, seed2) * (1.0f / 4294967295.0f);
+    return jitter;
+}

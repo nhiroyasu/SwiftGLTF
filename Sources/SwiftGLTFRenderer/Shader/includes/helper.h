@@ -27,5 +27,12 @@ float3x3 make_tbn(float3 N, float3 T, float Tw);
 float fresnelSchlick(float cosTheta, float F0);
 float3 fresnelSchlick(float cosTheta, float3 F0);
 float3 getDirectionForFace(uint faceIndex, float2 uv);
+float luminance709(float3 linearRGB);
+float luminanceFromSRGB(float3 srgbRGB);
+float D_Charlie(float NoH, float alpha);
+float3 sampleHalfVectorCharlie(float2 xi, float3 N, float a, thread float* outPdfH);
+float3 toWorld(float3 h, float3 N);
+uint wangHash(uint x);
+float2 hash2(uint x, uint y, uint z, uint w);
 
 #endif /* helper_h */

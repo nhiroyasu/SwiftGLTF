@@ -315,6 +315,10 @@ class PBRMeshLoader {
             var (hasSpecularTexture, specularTexture, specularSamplerState) = retrieveTexture(prop: material?.propertyNamed(.specularTexture), textureMap: textureMap)
             var (hasSpecularColorTexture, specularColorTexture, specularColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.specularColorTexture), textureMap: textureMap)
 
+            // Sheen textures
+            var (hasSheenColorTexture, sheenColorTexture, sheenColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.sheenColorTexture), textureMap: textureMap)
+            var (hasSheenRoughnessTexture, sheenRoughnessTexture, sheenRoughnessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.sheenRoughnessTexture), textureMap: textureMap)
+
             // Retrieve texture coordinate indices and cast to UInt32
             let baseColorTexCoordF: Float = material?.propertyNamed(.baseColorTextureTexCoord)?.floatValue ?? 0.0
             let normalTexCoordF: Float = material?.propertyNamed(.normalTextureTexCoord)?.floatValue ?? 0.0
@@ -325,6 +329,8 @@ class PBRMeshLoader {
             let thicknessTexCoordF: Float = material?.propertyNamed(.thicknessTextureTexCoord)?.floatValue ?? 0.0
             let specularTexCoordF: Float = material?.propertyNamed(.specularTextureTexCoord)?.floatValue ?? 0.0
             let specularColorTexCoordF: Float = material?.propertyNamed(.specularColorTextureTexCoord)?.floatValue ?? 0.0
+            let sheenColorTexCoordF: Float = material?.propertyNamed(.sheenColorTextureTexCoord)?.floatValue ?? 0.0
+            let sheenRoughnessTexCoordF: Float = material?.propertyNamed(.sheenRoughnessTextureTexCoord)?.floatValue ?? 0.0
             var baseColorTexCoord: UInt32 = UInt32(baseColorTexCoordF)
             var normalTexCoord: UInt32 = UInt32(normalTexCoordF)
             var metalRoughnessTexCoord: UInt32 = UInt32(metalRoughnessTexCoordF)
@@ -334,6 +340,8 @@ class PBRMeshLoader {
             var thicknessTexCoord: UInt32 = UInt32(thicknessTexCoordF)
             var specularTexCoord: UInt32 = UInt32(specularTexCoordF)
             var specularColorTexCoord: UInt32 = UInt32(specularColorTexCoordF)
+            var sheenColorTexCoord: UInt32 = UInt32(sheenColorTexCoordF)
+            var sheenRoughnessTexCoord: UInt32 = UInt32(sheenRoughnessTexCoordF)
 
             // Alpha mode & cutoff
             let alphaModeStr = material?.propertyNamed(.alphaMode)?.stringValue?.uppercased() ?? "OPAQUE"
@@ -363,6 +371,8 @@ class PBRMeshLoader {
             let ior: Float = material?.propertyNamed(.ior)?.floatValue ?? 1.5
             let specularFactor: Float = material?.propertyNamed(.specularFactor)?.floatValue ?? 1.0
             let specularColorFactor: SIMD3<Float> = material?.propertyNamed(.specularColorFactor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
+            let sheenColorFactor: SIMD3<Float> = material?.propertyNamed(.sheenColorFactor)?.float3Value ?? SIMD3<Float>(0, 0, 0)
+            let sheenRoughnessFactor: Float = material?.propertyNamed(.sheenRoughnessFactor)?.floatValue ?? 0.0
             var materialUniforms = PBRMaterialUniforms(
                 baseColorFactor: baseColorFactor,
                 metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
@@ -372,7 +382,8 @@ class PBRMeshLoader {
                 attenuationColor: SIMD4<Float>(attenuationColor.x, attenuationColor.y, attenuationColor.z, 0),
                 ior: ior,
                 specularFactor: specularFactor,
-                specularFactorColor: SIMD4<Float>(specularColorFactor.x, specularColorFactor.y, specularColorFactor.z, 0)
+                specularFactorColor: SIMD4<Float>(specularColorFactor.x, specularColorFactor.y, specularColorFactor.z, 0),
+                sheenColorRoughness: SIMD4<Float>(sheenColorFactor.x, sheenColorFactor.y, sheenColorFactor.z, sheenRoughnessFactor)
             )
             let tmpMaterialUniformsBuffer = device.makeBuffer(
                 bytes: &materialUniforms,
@@ -424,6 +435,15 @@ class PBRMeshLoader {
                 specularColorTexture: specularColorTexture,
                 specularColorSampler: specularColorSamplerState,
                 specularColorTexCoord: &specularColorTexCoord,
+                // Sheen
+                hasSheenColorTexture: &hasSheenColorTexture,
+                sheenColorTexture: sheenColorTexture,
+                sheenColorSampler: sheenColorSamplerState,
+                sheenColorTexCoord: &sheenColorTexCoord,
+                hasSheenRoughnessTexture: &hasSheenRoughnessTexture,
+                sheenRoughnessTexture: sheenRoughnessTexture,
+                sheenRoughnessSampler: sheenRoughnessSamplerState,
+                sheenRoughnessTexCoord: &sheenRoughnessTexCoord,
                 // Alpha params
                 alphaMode: &alphaModeRaw,
                 alphaCutoff: &alphaCutoff
@@ -461,7 +481,11 @@ class PBRMeshLoader {
                     specularTexture,
                     specularSamplerState,
                     specularColorTexture,
-                    specularColorSamplerState
+                    specularColorSamplerState,
+                    sheenColorTexture,
+                    sheenColorSamplerState,
+                    sheenRoughnessTexture,
+                    sheenRoughnessSamplerState
                 ]
             )
             submeshes.append(submeshData)
@@ -646,7 +670,9 @@ class PBRMeshLoader {
                     textureMap[texture] = mtlTexture
 
                     if property.name == MaterialPropertyName.emissiveTexture.rawValue ||
-                        property.name == MaterialPropertyName.baseColorTexture.rawValue {
+                        property.name == MaterialPropertyName.baseColorTexture.rawValue ||
+                        property.name == MaterialPropertyName.specularColorTexture.rawValue ||
+                        property.name == MaterialPropertyName.sheenColorTexture.rawValue {
                         needConvertionLinearSpace[texture] = mtlTexture
                     }
                 }

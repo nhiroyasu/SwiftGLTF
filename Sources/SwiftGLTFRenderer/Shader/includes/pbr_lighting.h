@@ -12,7 +12,11 @@ float3 compute_direct_lighting(float3 normal,
                                float3 ambientLightColor,
                                float ior,
                                float specularFactor,
-                               float3 specularColor);
+                               float3 specularColor,
+                               float3 sheenColor,
+                               float sheenRoughness,
+                               texture2d<float, access::sample> brdfLUT,
+                               sampler brdfLUTSampler);
 
 float3 compute_indirect_lighting(float3 normal,
                                  float3 worldPosition,
@@ -27,7 +31,10 @@ float3 compute_indirect_lighting(float3 normal,
                                  texture2d<float, access::sample> brdfLUT,
                                  float ior,
                                  float specularFactor,
-                                 float3 specularColor);
+                                 float3 specularColor,
+                                 float3 sheenColor,
+                                 float sheenRoughness,
+                                 texturecube<float, access::sample> prefilterSheenMap);
 
 float3 compute_transmission_lighting(float3 Lbg,
                                      float3 normal,

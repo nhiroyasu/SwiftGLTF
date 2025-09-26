@@ -44,9 +44,19 @@ kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)
             float Fc = pow(1.0 - VdotH, 5.0);
             A += (1.0 - Fc) * G_Vis;
             B += Fc * G_Vis;
+        }
+    }
 
+    for (int i = 0; i < SAMPLE_COUNT; i++) {
+        float2 xi = hammersley(i, SAMPLE_COUNT);
+        float3 H = sampleHalfVectorCharlie(xi, N, roughness, nullptr);
+        float3 L = normalize(2.0 * dot(V, H) * H - V);
+
+        float NdotL = max(L.z, 0.0);
+        if (NdotL > 0.0) {
             // Simple approximation of sheen (Charlie) visibility: V ≈ 1 / (4 (V·H)(L·H))
             // When L = reflect(-V, H), L·H = V·H
+            float VdotH = max(dot(V, H), 0.0);
             float Vis_sheen = 1.0 / max(4.0 * VdotH * VdotH, 1e-4);
             E_sheen += Vis_sheen * NdotL;
         }
@@ -118,6 +128,11 @@ kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(
 
     for (uint i = 0; i < params.sampleCount; ++i) {
         float2 xi = hammersley(i, params.sampleCount);
+        // NOTE: jitterを入れることでhammersleyの規則性を崩す
+        // en: Adding jitter breaks the regularity of hammersley
+        float2 jitter = hash2(gid.x, gid.y, gid.z, params.mipLevel);
+        xi = fract(xi + jitter);
+        
         float3 H = importanceSampleGGX(xi, N, params.roughness);
         float3 L = normalize(2.0 * dot(V, H) * H - V);
 

@@ -327,7 +327,7 @@ class ShaderConnection {
 
     func generateBRDFLUT(width: Int, height: Int) -> MTLTexture {
         let brdfLUTTextureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .rg16Float,
+            pixelFormat: .rgba16Float,
             width: width,
             height: height,
             mipmapped: false
@@ -391,7 +391,7 @@ class ShaderConnection {
                 roughness: roughness,
                 mipLevel: UInt32(mipLevel),
                 cubeSize: UInt32(cubeSize),
-                sampleCount: 1024
+                sampleCount: 2048
             )
             commandEncoder.setBytes(&params, length: MemoryLayout<PreFilterSheenEnvMapParams>.size, index: 0)
             let threads = MTLSize(width: 16, height: 16, depth: 1)

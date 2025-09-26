@@ -784,12 +784,15 @@ public struct MaterialExtensions: Codable {
     public let khrMaterialsIOR: KHRMaterialsIOR?
     /// KHR_materials_specular extension data
     public let khrMaterialsSpecular: KHRMaterialsSpecular?
+    /// KHR_materials_sheen extension data
+    public let khrMaterialsSheen: KHRMaterialsSheen?
     enum CodingKeys: String, CodingKey {
         case khrMaterialsEmissiveStrength = "KHR_materials_emissive_strength"
         case khrMaterialsTransmission = "KHR_materials_transmission"
         case khrMaterialsVolume = "KHR_materials_volume"
         case khrMaterialsIOR = "KHR_materials_ior"
         case khrMaterialsSpecular = "KHR_materials_specular"
+        case khrMaterialsSheen = "KHR_materials_sheen"
     }
 }
 
@@ -866,5 +869,26 @@ public struct KHRMaterialsSpecular: Codable {
         self.specularTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .specularTexture)
         self.specularColorFactor = try container.decodeIfPresent([Float].self, forKey: .specularColorFactor) ?? [1, 1, 1]
         self.specularColorTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .specularColorTexture)
+    }
+}
+
+// MARK: - KHR_materials_sheen extension
+public struct KHRMaterialsSheen: Codable {
+    public let sheenColorFactor: [Float]
+    public let sheenColorTexture: TextureInfo?
+    public let sheenRoughnessFactor: Float
+    public let sheenRoughnessTexture: TextureInfo?
+    enum CodingKeys: String, CodingKey {
+        case sheenColorFactor
+        case sheenColorTexture
+        case sheenRoughnessFactor
+        case sheenRoughnessTexture
+    }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.sheenColorFactor = try container.decodeIfPresent([Float].self, forKey: .sheenColorFactor) ?? [0, 0, 0]
+        self.sheenColorTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .sheenColorTexture)
+        self.sheenRoughnessFactor = try container.decodeIfPresent(Float.self, forKey: .sheenRoughnessFactor) ?? 0.0
+        self.sheenRoughnessTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .sheenRoughnessTexture)
     }
 }
