@@ -36,6 +36,7 @@ kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)
 
     float A = 0.0;
     float B = 0.0;
+    float E_sheen = 0.0; // for sheen rendering
 
     // フレネル項と幾何減衰項の計算
     // en: Calculation of Fresnel terms and geometric attenuation terms
@@ -55,13 +56,19 @@ kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)
             float Fc = pow(1.0 - VdotH, 5.0);
             A += (1.0 - Fc) * G_Vis;
             B += Fc * G_Vis;
+
+            // Simple approximation of sheen (Charlie) visibility: V ≈ 1 / (4 (V·H)(L·H))
+            // When L = reflect(-V, H), L·H = V·H
+            float Vis_sheen = 1.0 / max(4.0 * VdotH * VdotH, 1e-4);
+            E_sheen += Vis_sheen * NdotL;
         }
     }
 
     A /= float(SAMPLE_COUNT);
     B /= float(SAMPLE_COUNT);
+    E_sheen = saturate(E_sheen / float(SAMPLE_COUNT));
 
-    brdfLUT.write(float4(A, B, 0.0, 1.0), gid);
+    brdfLUT.write(float4(A, B, E_sheen, 1.0), gid);
 }
 
 kernel void irradianceMap(texturecube<float, access::sample> envMap [[texture(0)]],
@@ -116,7 +123,7 @@ kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(
     float3 N = normalize(R);
     float3 V = N;
 
-    constexpr sampler sampler(filter::linear);
+    constexpr sampler sampler(filter::linear, mip_filter::linear);
 
     float3 prefilteredColor = float3(0.0);
     float totalWeight = 0.0;
@@ -128,7 +135,9 @@ kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(
 
         float NdotL = max(dot(N, L), 0.0);
         if (NdotL > 0.0) {
-            prefilteredColor += envMap.sample(sampler, L, level(0)).rgb * NdotL;
+            level lod = level(params.roughness * params.roughness * (envMap.get_num_mip_levels()-1));
+
+            prefilteredColor += envMap.sample(sampler, L, lod).rgb * NdotL;
             totalWeight += NdotL;
         }
     }

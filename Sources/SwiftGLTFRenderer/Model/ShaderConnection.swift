@@ -233,6 +233,11 @@ class ShaderConnection {
     }
 
     func generatePrefilterEnvMapTexture(envMap: MTLTexture) -> MTLTexture {
+        // TODO: prefilterSheenMapを実装
+        // TODO: SheenをShaderに統合
+        guard envMap.mipmapLevelCount > 1 else {
+            fatalError("Environment map must have mipmaps for prefiltering.")
+        }
         let prefilterEnvMapKernel = library.makeFunction(name: "prefilterEnvMap")!
         let pso = try! device.makeComputePipelineState(function: prefilterEnvMapKernel)
         let commandBuffer = commandQueue.makeCommandBuffer()!
