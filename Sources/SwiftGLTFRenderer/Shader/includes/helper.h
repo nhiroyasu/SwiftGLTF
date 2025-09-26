@@ -26,5 +26,6 @@ float3x3 make_tbn(float3 normal);
 float3x3 make_tbn(float3 N, float3 T, float Tw);
 float fresnelSchlick(float cosTheta, float F0);
 float3 fresnelSchlick(float cosTheta, float3 F0);
+float3 getDirectionForFace(uint faceIndex, float2 uv);
 
 #endif /* helper_h */

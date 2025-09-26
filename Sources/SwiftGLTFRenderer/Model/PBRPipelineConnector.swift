@@ -181,7 +181,8 @@ class PBRPipelineConnector {
     func makeEnvMapArgBuffer(
         prefilterEnvMap: MTLTexture,
         irradianceMap: MTLTexture,
-        brdfLUT: MTLTexture
+        brdfLUT: MTLTexture,
+        prefilterSheenMap: MTLTexture
     ) throws -> MTLBuffer {
         let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 1)
         let buffer = device.makeBuffer(length: encoder.encodedLength, options: .storageModeShared)!
@@ -189,6 +190,7 @@ class PBRPipelineConnector {
         encoder.setTexture(prefilterEnvMap, index: 0)
         encoder.setTexture(irradianceMap, index: 1)
         encoder.setTexture(brdfLUT, index: 2)
+        encoder.setTexture(prefilterSheenMap, index: 3)
 
         return buffer
     }

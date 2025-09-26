@@ -29,6 +29,7 @@ public class WireframeRenderer {
     private var _specularCubeMapTexture: MTLTexture?
     private var _irradianceCubeMapTexture: MTLTexture?
     private var _brdfLUT: MTLTexture?
+    private var _prefilterSheenTexture: MTLTexture?
 
     public init(
         commandQueue: MTLCommandQueue,
@@ -156,11 +157,13 @@ public class WireframeRenderer {
             envMapHeap,
             prefilterEnvMap,
             irradianceMap,
-            brdfLUT
+            brdfLUT,
+            prefilterSheenTexture
         ) = try envMapLoader.makeEnvMapHeapAndTexture(url: envMapUrl)
         self.envMapHeap = envMapHeap
         self._specularCubeMapTexture = prefilterEnvMap
         self._irradianceCubeMapTexture = irradianceMap
         self._brdfLUT = brdfLUT
+        self._prefilterSheenTexture = prefilterSheenTexture
     }
 }

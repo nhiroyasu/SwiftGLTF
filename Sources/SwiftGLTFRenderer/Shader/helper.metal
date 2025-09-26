@@ -223,3 +223,15 @@ float fresnelSchlick(float cosTheta, float F0) {
 float3 fresnelSchlick(float cosTheta, float3 F0) {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
+
+float3 getDirectionForFace(uint faceIndex, float2 uv) {
+    switch (faceIndex) {
+        case 0: return normalize(float3(1.0, -uv.y, -uv.x)); // +X
+        case 1: return normalize(float3(-1.0, -uv.y, uv.x)); // -X
+        case 2: return normalize(float3(uv.x, 1.0, uv.y));    // +Y
+        case 3: return normalize(float3(uv.x, -1.0, -uv.y));  // -Y
+        case 4: return normalize(float3(uv.x, -uv.y, 1.0));   // +Z
+        case 5: return normalize(float3(-uv.x, -uv.y, -1.0)); // -Z
+        default: return float3(0.0);
+    }
+}

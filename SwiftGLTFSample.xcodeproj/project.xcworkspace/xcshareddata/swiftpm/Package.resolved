@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nhiroyasu/Img2Cubemap.git",
       "state" : {
-        "revision" : "25b109051f84cb5fcd304a4e44ea84d944668253",
-        "version" : "0.1.7"
+        "revision" : "601479d356f849a245e2ccd402d5680413216289",
+        "version" : "0.1.9"
       }
     },
     {

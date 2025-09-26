@@ -1,19 +1,7 @@
 #include <metal_stdlib>
-#include "../../SwiftGLTFShaderTypes/includes/pbr.h"
 #include "includes/helper.h"
+#include "../../SwiftGLTFShaderTypes/includes/pbr.h"
 using namespace metal;
-
-float3 getDirectionForFace(uint faceIndex, float2 uv) {
-    switch (faceIndex) {
-        case 0: return normalize(float3(1.0, -uv.y, -uv.x)); // +X
-        case 1: return normalize(float3(-1.0, -uv.y, uv.x)); // -X
-        case 2: return normalize(float3(uv.x, 1.0, uv.y));    // +Y
-        case 3: return normalize(float3(uv.x, -1.0, -uv.y));  // -Y
-        case 4: return normalize(float3(uv.x, -uv.y, 1.0));   // +Z
-        case 5: return normalize(float3(-uv.x, -uv.y, -1.0)); // -Z
-        default: return float3(0.0);
-    }
-}
 
 kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)]],
                             uint2 gid [[thread_position_in_grid]])
@@ -123,7 +111,7 @@ kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(
     float3 N = normalize(R);
     float3 V = N;
 
-    constexpr sampler sampler(filter::linear, mip_filter::linear);
+    constexpr sampler s(filter::linear, mip_filter::linear);
 
     float3 prefilteredColor = float3(0.0);
     float totalWeight = 0.0;
@@ -135,14 +123,16 @@ kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(
 
         float NdotL = max(dot(N, L), 0.0);
         if (NdotL > 0.0) {
-            level lod = level(params.roughness * params.roughness * (envMap.get_num_mip_levels()-1));
-
-            prefilteredColor += envMap.sample(sampler, L, lod).rgb * NdotL;
+            float lod = params.roughness * params.roughness * (envMap.get_num_mip_levels() - 1);
+            prefilteredColor += envMap.sample(s, L, level(lod)).rgb * NdotL;
             totalWeight += NdotL;
         }
     }
 
     prefilteredColor = totalWeight > 0.0 ? prefilteredColor / totalWeight : float3(0.0);
+    if (envMap.get_num_mip_levels() > 9) {
+        prefilteredColor = float3(1, 1, 1);
+    }
 
     outMap.write(float4(prefilteredColor, 1.0), gid.xy, gid.z, params.mipLevel);
 }

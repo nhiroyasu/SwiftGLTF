@@ -39,6 +39,8 @@ typedef struct {
     uint32_t sampleCount;
 } PreFilterEnvMapParams;
 
+typedef PreFilterEnvMapParams PreFilterSheenEnvMapParams;
+
 typedef struct {
     uint32_t cubeSize;
 } IrradianceMapParams;
