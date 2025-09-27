@@ -233,6 +233,11 @@ class ShaderConnection {
     }
 
     func generatePrefilterEnvMapTexture(envMap: MTLTexture) -> MTLTexture {
+        // TODO: prefilterSheenMapを実装
+        // TODO: SheenをShaderに統合
+        guard envMap.mipmapLevelCount > 1 else {
+            fatalError("Environment map must have mipmaps for prefiltering.")
+        }
         let prefilterEnvMapKernel = library.makeFunction(name: "prefilterEnvMap")!
         let pso = try! device.makeComputePipelineState(function: prefilterEnvMapKernel)
         let commandBuffer = commandQueue.makeCommandBuffer()!
@@ -322,7 +327,7 @@ class ShaderConnection {
 
     func generateBRDFLUT(width: Int, height: Int) -> MTLTexture {
         let brdfLUTTextureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .rg16Float,
+            pixelFormat: .rgba16Float,
             width: width,
             height: height,
             mipmapped: false
@@ -352,6 +357,58 @@ class ShaderConnection {
         brdfCommandBuffer.waitUntilCompleted()
 
         return lut
+    }
+
+    func generatePrefilterSheenTexture(envMap: MTLTexture) -> MTLTexture {
+        guard envMap.mipmapLevelCount > 1 else {
+            fatalError("Environment map must have mipmaps for prefiltering.")
+        }
+        let prefilterSheenKernel = library.makeFunction(name: "prefilterSheenEnvMap")!
+        let pso = try! device.makeComputePipelineState(function: prefilterSheenKernel)
+        let commandBuffer = commandQueue.makeCommandBuffer()!
+        let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
+        commandEncoder.setComputePipelineState(pso)
+
+        let prefilterSheenDescriptor = MTLTextureDescriptor.textureCubeDescriptor(
+            pixelFormat: .rgba16Float,
+            size: envMap.width,
+            mipmapped: true
+        )
+        prefilterSheenDescriptor.usage = [.shaderRead, .shaderWrite]
+        prefilterSheenDescriptor.storageMode = .shared
+        let sheenTex = device.makeTexture(descriptor: prefilterSheenDescriptor)!
+
+        commandEncoder.setTexture(envMap, index: 0)
+        commandEncoder.setTexture(sheenTex, index: 1)
+
+        let mipCount = envMap.mipmapLevelCount
+        let textureSize = envMap.width
+        for mipLevel in 0..<mipCount {
+            let roughness = Float(mipLevel) / Float(mipCount - 1)
+            let cubeSize = max(textureSize >> mipLevel, 1)
+
+            var params = PreFilterSheenEnvMapParams(
+                roughness: roughness,
+                mipLevel: UInt32(mipLevel),
+                cubeSize: UInt32(cubeSize),
+                sampleCount: 2048
+            )
+            commandEncoder.setBytes(&params, length: MemoryLayout<PreFilterSheenEnvMapParams>.size, index: 0)
+            let threads = MTLSize(width: 16, height: 16, depth: 1)
+            let threadGroups = MTLSize(
+                width: (cubeSize + threads.width - 1) / threads.width,
+                height: (cubeSize + threads.height - 1) / threads.height,
+                depth: 6
+            )
+            commandEncoder.dispatchThreadgroups(
+                threadGroups,
+                threadsPerThreadgroup: threads
+            )
+        }
+        commandEncoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        return sheenTex
     }
 
     // Generate a prefiltered 2D texture pyramid from a base color buffer for rough transmission sampling

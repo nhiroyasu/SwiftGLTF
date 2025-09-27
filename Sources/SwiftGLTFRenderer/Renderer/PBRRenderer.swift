@@ -17,6 +17,7 @@ public class PBRRenderer {
     private var _prefilterEnvMap: MTLTexture
     private var _irradianceMap: MTLTexture
     private var _brdfLUT: MTLTexture
+    private var _prefilterSheenMap: MTLTexture
 
     private let meshLoader: PBRMeshLoader
     private let pipelineConnector: PBRPipelineConnector
@@ -114,12 +115,14 @@ public class PBRRenderer {
             self.envMapHeap,
             self._prefilterEnvMap,
             self._irradianceMap,
-            self._brdfLUT
+            self._brdfLUT,
+            self._prefilterSheenMap
         ) = try envMapLoader.makeEnvMapHeapAndTexture(from: CGColor(gray: 0.35, alpha: 1.0))
         self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
             prefilterEnvMap: _prefilterEnvMap,
             irradianceMap: _irradianceMap,
-            brdfLUT: _brdfLUT
+            brdfLUT: _brdfLUT,
+            prefilterSheenMap: _prefilterSheenMap
         )
 
         // Scene color sampler
@@ -485,12 +488,14 @@ public class PBRRenderer {
             self.envMapHeap,
             self._prefilterEnvMap,
             self._irradianceMap,
-            self._brdfLUT
+            self._brdfLUT,
+            self._prefilterSheenMap
         ) = try envMapLoader.makeEnvMapHeapAndTexture(url: url)
         self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
             prefilterEnvMap: _prefilterEnvMap,
             irradianceMap: _irradianceMap,
-            brdfLUT: _brdfLUT
+            brdfLUT: _brdfLUT,
+            prefilterSheenMap: _prefilterSheenMap
         )
     }
 
@@ -500,12 +505,14 @@ public class PBRRenderer {
             self.envMapHeap,
             self._prefilterEnvMap,
             self._irradianceMap,
-            self._brdfLUT
+            self._brdfLUT,
+            self._prefilterSheenMap
         ) = try envMapLoader.makeEnvMapHeapAndTexture(fromCube: cubeTexture)
         self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
             prefilterEnvMap: _prefilterEnvMap,
             irradianceMap: _irradianceMap,
-            brdfLUT: _brdfLUT
+            brdfLUT: _brdfLUT,
+            prefilterSheenMap: _prefilterSheenMap
         )
     }
 }

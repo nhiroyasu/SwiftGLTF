@@ -19,7 +19,13 @@ class EnvironmentMapLoader {
         self.shaderConnection = shaderConnection
     }
 
-    func makeEnvMapHeapAndTexture(url: URL) throws -> (MTLHeap, MTLTexture, MTLTexture, MTLTexture) {
+    func makeEnvMapHeapAndTexture(url: URL) throws -> (
+        MTLHeap,
+        MTLTexture, // prefiltered specular
+        MTLTexture, // irradiance
+        MTLTexture, // brdfLUT
+        MTLTexture  // prefiltered sheen
+    ) {
         let envMap = try generateCubeTexture(device: device, exr: url)
         let prefilterEnvMapTexture = shaderConnection.generatePrefilterEnvMapTexture(envMap: envMap)
         let irradianceCubeMapTexture = shaderConnection.generateIrradianceTexture(
@@ -30,38 +36,55 @@ class EnvironmentMapLoader {
             width: envMap.width,
             height: envMap.height
         )
+        let prefilterSheenTexture = shaderConnection.generatePrefilterSheenTexture(envMap: envMap)
 
         let descriptor = MTLHeapDescriptor()
         descriptor.storageMode = .private
         let prefilterEnvMapDescriptor = newDescriptorFromTexture(prefilterEnvMapTexture, storageMode: .private)
         let irradianceDescriptor = newDescriptorFromTexture(irradianceCubeMapTexture, storageMode: .private)
         let brdfLUTDescriptor = newDescriptorFromTexture(brdfLUT, storageMode: .private)
+        let prefilterSheenDescriptor = newDescriptorFromTexture(prefilterSheenTexture, storageMode: .private)
+
         let prefilterEnvMapSize = device.heapTextureSizeAndAlign(descriptor: prefilterEnvMapDescriptor)
         let irradianceSize = device.heapTextureSizeAndAlign(descriptor: irradianceDescriptor)
         let brdfLUTSize = device.heapTextureSizeAndAlign(descriptor: brdfLUTDescriptor)
+        let prefilterSheenSize = device.heapTextureSizeAndAlign(descriptor: prefilterSheenDescriptor)
         descriptor.size = prefilterEnvMapSize.alignedSize +
                             irradianceSize.alignedSize +
-                            brdfLUTSize.alignedSize
+                            brdfLUTSize.alignedSize +
+                            prefilterSheenSize.alignedSize
 
         let heap = device.makeHeap(descriptor: descriptor)!
+        heap.label = "[SwiftGLTF] Environment Map Heap"
 
         let results = try shaderConnection.moveResourcesToHeap(
-            from: [prefilterEnvMapTexture, irradianceCubeMapTexture, brdfLUT],
+            from: [prefilterEnvMapTexture, irradianceCubeMapTexture, brdfLUT, prefilterSheenTexture],
             use: heap
         )
+        results[0].label = "[SwiftGLTF] Prefilter Environment Map"
+        results[1].label = "[SwiftGLTF] Irradiance Map"
+        results[2].label = "[SwiftGLTF] BRDF LUT"
+        results[3].label = "[SwiftGLTF] Prefilter Sheen Map"
 
         return (
             heap,
             results[0],
             results[1],
-            results[2]
+            results[2],
+            results[3]
         )
     }
 
     /// Generate IBL from an already cubemap texture
     /// - Parameter cubeTexture: Assumes a `.typeCube` texture.
     /// - Returns: `(heap, prefilteredSpecular, irradiance, brdfLUT)`
-    func makeEnvMapHeapAndTexture(fromCube cubeTexture: MTLTexture) throws -> (MTLHeap, MTLTexture, MTLTexture, MTLTexture) {
+    func makeEnvMapHeapAndTexture(fromCube cubeTexture: MTLTexture) throws -> (
+        MTLHeap,
+        MTLTexture, // prefiltered specular
+        MTLTexture, // irradiance
+        MTLTexture, // brdfLUT
+        MTLTexture  // prefiltered sheen
+    ) {
         guard cubeTexture.textureType == .typeCube else {
             throw SwiftGLTFError.makeRender(.cubeTextureExpected, context: .capture(stage: .render))
         }
@@ -75,23 +98,28 @@ class EnvironmentMapLoader {
             width: cubeTexture.width,
             height: cubeTexture.height
         )
+        let prefilterSheenTexture = shaderConnection.generatePrefilterSheenTexture(envMap: cubeTexture)
 
         let descriptor = MTLHeapDescriptor()
         descriptor.storageMode = .private
         let prefilterEnvMapDescriptor = newDescriptorFromTexture(prefilterEnvMapTexture, storageMode: .private)
         let irradianceDescriptor = newDescriptorFromTexture(irradianceCubeMapTexture, storageMode: .private)
         let brdfLUTDescriptor = newDescriptorFromTexture(brdfLUT, storageMode: .private)
+        let prefilterSheenDescriptor = newDescriptorFromTexture(prefilterSheenTexture, storageMode: .private)
+
         let prefilterEnvMapSize = device.heapTextureSizeAndAlign(descriptor: prefilterEnvMapDescriptor)
         let irradianceSize = device.heapTextureSizeAndAlign(descriptor: irradianceDescriptor)
         let brdfLUTSize = device.heapTextureSizeAndAlign(descriptor: brdfLUTDescriptor)
+        let prefilterSheenSize = device.heapTextureSizeAndAlign(descriptor: prefilterSheenDescriptor)
         descriptor.size = prefilterEnvMapSize.alignedSize +
                             irradianceSize.alignedSize +
-                            brdfLUTSize.alignedSize
+                            brdfLUTSize.alignedSize +
+                            prefilterSheenSize.alignedSize
 
         let heap = device.makeHeap(descriptor: descriptor)!
 
         let results = try shaderConnection.moveResourcesToHeap(
-            from: [prefilterEnvMapTexture, irradianceCubeMapTexture, brdfLUT],
+            from: [prefilterEnvMapTexture, irradianceCubeMapTexture, brdfLUT, prefilterSheenTexture],
             use: heap
         )
 
@@ -99,11 +127,18 @@ class EnvironmentMapLoader {
             heap,
             results[0],
             results[1],
-            results[2]
+            results[2],
+            results[3]
         )
     }
 
-    func makeEnvMapHeapAndTexture(from color: CGColor) throws -> (MTLHeap, MTLTexture, MTLTexture, MTLTexture) {
+    func makeEnvMapHeapAndTexture(from color: CGColor) throws -> (
+        MTLHeap,
+        MTLTexture, // prefiltered specular
+        MTLTexture, // irradiance
+        MTLTexture, // brdfLUT
+        MTLTexture  // prefiltered sheen
+    ) {
         let size = 1
         let descriptor = MTLTextureDescriptor.textureCubeDescriptor(
             pixelFormat: .rgba8Unorm,
@@ -167,6 +202,7 @@ class EnvironmentMapLoader {
 
         return (
             heap,
+            results[0],
             results[0],
             results[0],
             results[0]

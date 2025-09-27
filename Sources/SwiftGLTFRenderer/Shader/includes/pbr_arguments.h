@@ -73,6 +73,15 @@ struct PBRFragmentArguments {
     texture2d<float> specularColorTexture [[id(36)]];
     sampler specularColorSampler [[id(37)]];
     uint specularColorTexCoord [[id(38)]];
+    // Sheen (KHR_materials_sheen)
+    bool hasSheenColorTexture [[id(39)]]; // RGB
+    texture2d<float> sheenColorTexture [[id(40)]];
+    sampler sheenColorSampler [[id(41)]];
+    uint sheenColorTexCoord [[id(42)]];
+    bool hasSheenRoughnessTexture [[id(43)]]; // G channel
+    texture2d<float> sheenRoughnessTexture [[id(44)]];
+    sampler sheenRoughnessSampler [[id(45)]];
+    uint sheenRoughnessTexCoord [[id(46)]];
 };
 
 #endif /* pbr_arguments_h */

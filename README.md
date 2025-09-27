@@ -107,6 +107,7 @@ var body: some View {
 - `KHR_materials_volume`
 - `KHR_materials_ior`
 - `KHR_materials_specular`
+- `KHR_materials_sheen`
 
 ### Vertex Attributes
 | Attribute     | Supported |

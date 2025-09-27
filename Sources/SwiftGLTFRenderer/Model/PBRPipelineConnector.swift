@@ -93,6 +93,15 @@ class PBRPipelineConnector {
         specularColorTexture: MTLTexture?,
         specularColorSampler: MTLSamplerState?,
         specularColorTexCoord: UnsafePointer<UInt32>,
+        // Sheen
+        hasSheenColorTexture: UnsafePointer<Bool>,
+        sheenColorTexture: MTLTexture?,
+        sheenColorSampler: MTLSamplerState?,
+        sheenColorTexCoord: UnsafePointer<UInt32>,
+        hasSheenRoughnessTexture: UnsafePointer<Bool>,
+        sheenRoughnessTexture: MTLTexture?,
+        sheenRoughnessSampler: MTLSamplerState?,
+        sheenRoughnessTexCoord: UnsafePointer<UInt32>,
         // Alpha params
         alphaMode: UnsafePointer<UInt32>,
         alphaCutoff: UnsafePointer<Float>
@@ -175,13 +184,28 @@ class PBRPipelineConnector {
         encoder.setSamplerState(specularColorSampler, index: 37)
         let specularColorCoordAddr = encoder.constantData(at: 38)
         specularColorCoordAddr.copyMemory(from: specularColorTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        let hasSheenColorTextureAddr = encoder.constantData(at: 39)
+        hasSheenColorTextureAddr.copyMemory(from: hasSheenColorTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(sheenColorTexture, index: 40)
+        encoder.setSamplerState(sheenColorSampler, index: 41)
+        let sheenColorCoordAddr = encoder.constantData(at: 42)
+        sheenColorCoordAddr.copyMemory(from: sheenColorTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        let hasSheenRoughnessTextureAddr = encoder.constantData(at: 43)
+        hasSheenRoughnessTextureAddr.copyMemory(from: hasSheenRoughnessTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(sheenRoughnessTexture, index: 44)
+        encoder.setSamplerState(sheenRoughnessSampler, index: 45)
+        let sheenRoughnessCoordAddr = encoder.constantData(at: 46)
+        sheenRoughnessCoordAddr.copyMemory(from: sheenRoughnessTexCoord, byteCount: MemoryLayout<UInt32>.size)
         return buffer
     }
 
     func makeEnvMapArgBuffer(
         prefilterEnvMap: MTLTexture,
         irradianceMap: MTLTexture,
-        brdfLUT: MTLTexture
+        brdfLUT: MTLTexture,
+        prefilterSheenMap: MTLTexture
     ) throws -> MTLBuffer {
         let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 1)
         let buffer = device.makeBuffer(length: encoder.encodedLength, options: .storageModeShared)!
@@ -189,6 +213,7 @@ class PBRPipelineConnector {
         encoder.setTexture(prefilterEnvMap, index: 0)
         encoder.setTexture(irradianceMap, index: 1)
         encoder.setTexture(brdfLUT, index: 2)
+        encoder.setTexture(prefilterSheenMap, index: 3)
 
         return buffer
     }

@@ -40,4 +40,11 @@ public enum MaterialPropertyName: String {
     case specularColorFactor
     case specularColorTexture
     case specularColorTextureTexCoord
+    // Sheen (KHR_materials_sheen)
+    case sheenColorFactor
+    case sheenColorTexture
+    case sheenColorTextureTexCoord
+    case sheenRoughnessFactor
+    case sheenRoughnessTexture
+    case sheenRoughnessTextureTexCoord
 }

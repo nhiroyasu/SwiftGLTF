@@ -1,19 +1,7 @@
 #include <metal_stdlib>
-#include "../../SwiftGLTFShaderTypes/includes/pbr.h"
 #include "includes/helper.h"
+#include "../../SwiftGLTFShaderTypes/includes/pbr.h"
 using namespace metal;
-
-float3 getDirectionForFace(uint faceIndex, float2 uv) {
-    switch (faceIndex) {
-        case 0: return normalize(float3(1.0, -uv.y, -uv.x)); // +X
-        case 1: return normalize(float3(-1.0, -uv.y, uv.x)); // -X
-        case 2: return normalize(float3(uv.x, 1.0, uv.y));    // +Y
-        case 3: return normalize(float3(uv.x, -1.0, -uv.y));  // -Y
-        case 4: return normalize(float3(uv.x, -uv.y, 1.0));   // +Z
-        case 5: return normalize(float3(-uv.x, -uv.y, -1.0)); // -Z
-        default: return float3(0.0);
-    }
-}
 
 kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)]],
                             uint2 gid [[thread_position_in_grid]])
@@ -58,10 +46,32 @@ kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)
         }
     }
 
+    float E_sheen = 0.0; // Sheen energy
+    float V_sheen = 0.0; // Sheen Visibility
+    float sheenRoughness = remapSheenRoughness(roughness);
+    for (int i = 0; i < SAMPLE_COUNT; i++) {
+        float2 xi = hammersley(i, SAMPLE_COUNT);
+        float3 H = sampleHalfVectorCharlie(xi, N, sheenRoughness, nullptr);
+        float3 L = normalize(2.0 * dot(V, H) * H - V);
+
+        float NdotL = max(L.z, 0.0);
+        if (NdotL > 0.0) {
+            float VdotH = max(dot(V, H), 1e-5);
+            float Vis_sheen = 1.0 / max(4.0 * VdotH * VdotH, 1e-4);
+
+            // TODO: それっぽいLUTになってるけど、roughnessが低いときにE_sheenが比較的多くなっている（本来は逆）。
+            // remapSheenRoughnessで0.07以下に落ちないようにしているのが原因っぽいけど、外していいのか不明。
+            E_sheen += Vis_sheen * NdotL;
+            V_sheen += Vis_sheen;
+        }
+    }
+
     A /= float(SAMPLE_COUNT);
     B /= float(SAMPLE_COUNT);
+    E_sheen = saturate(E_sheen / float(SAMPLE_COUNT));
+    V_sheen = saturate(V_sheen / float(SAMPLE_COUNT));
 
-    brdfLUT.write(float4(A, B, 0.0, 1.0), gid);
+    brdfLUT.write(float4(A, B, E_sheen, V_sheen), gid);
 }
 
 kernel void irradianceMap(texturecube<float, access::sample> envMap [[texture(0)]],
@@ -116,19 +126,25 @@ kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(
     float3 N = normalize(R);
     float3 V = N;
 
-    constexpr sampler sampler(filter::linear);
+    constexpr sampler s(filter::linear, mip_filter::linear);
 
     float3 prefilteredColor = float3(0.0);
     float totalWeight = 0.0;
 
     for (uint i = 0; i < params.sampleCount; ++i) {
         float2 xi = hammersley(i, params.sampleCount);
+        // NOTE: jitterを入れることでhammersleyの規則性を崩す
+        // en: Adding jitter breaks the regularity of hammersley
+        float2 jitter = hash2(gid.x, gid.y, gid.z, params.mipLevel);
+        xi = fract(xi + jitter);
+        
         float3 H = importanceSampleGGX(xi, N, params.roughness);
         float3 L = normalize(2.0 * dot(V, H) * H - V);
 
         float NdotL = max(dot(N, L), 0.0);
         if (NdotL > 0.0) {
-            prefilteredColor += envMap.sample(sampler, L, level(0)).rgb * NdotL;
+            float lod = params.roughness * params.roughness * (envMap.get_num_mip_levels() - 1);
+            prefilteredColor += envMap.sample(s, L, level(lod)).rgb * NdotL;
             totalWeight += NdotL;
         }
     }

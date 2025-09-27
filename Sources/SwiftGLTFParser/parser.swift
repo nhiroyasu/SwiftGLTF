@@ -1353,6 +1353,54 @@ private func makeMDLMaterial(
         }
     }
 
+    // KHR_materials_sheen
+    if let sheen = gltfMaterial.extensions?.khrMaterialsSheen {
+        let scfArr = sheen.sheenColorFactor
+        let scf = SIMD3<Float>(scfArr.count >= 3 ? scfArr[0] : 0, scfArr.count >= 3 ? scfArr[1] : 0, scfArr.count >= 3 ? scfArr[2] : 0)
+        let scfProp = MDLMaterialProperty(
+            name: MaterialPropertyName.sheenColorFactor.rawValue,
+            semantic: .userDefined,
+            float3: scf
+        )
+        material.setProperty(scfProp)
+        let srfProp = MDLMaterialProperty(
+            name: MaterialPropertyName.sheenRoughnessFactor.rawValue,
+            semantic: .userDefined,
+            float: sheen.sheenRoughnessFactor
+        )
+        material.setProperty(srfProp)
+        if let texInfo = sheen.sheenColorTexture,
+           let sampler = loadTextureSampler(for: texInfo, from: gltf, binaryLoader: binaryLoader) {
+            let scTex = MDLMaterialProperty(
+                name: MaterialPropertyName.sheenColorTexture.rawValue,
+                semantic: .userDefined,
+                textureSampler: sampler
+            )
+            material.setProperty(scTex)
+            let coordProp = MDLMaterialProperty(
+                name: MaterialPropertyName.sheenColorTextureTexCoord.rawValue,
+                semantic: .userDefined,
+                float: Float(texInfo.texCoord)
+            )
+            material.setProperty(coordProp)
+        }
+        if let texInfo = sheen.sheenRoughnessTexture,
+           let sampler = loadTextureSampler(for: texInfo, from: gltf, binaryLoader: binaryLoader) {
+            let srTex = MDLMaterialProperty(
+                name: MaterialPropertyName.sheenRoughnessTexture.rawValue,
+                semantic: .userDefined,
+                textureSampler: sampler
+            )
+            material.setProperty(srTex)
+            let coordProp = MDLMaterialProperty(
+                name: MaterialPropertyName.sheenRoughnessTextureTexCoord.rawValue,
+                semantic: .userDefined,
+                float: Float(texInfo.texCoord)
+            )
+            material.setProperty(coordProp)
+        }
+    }
+
     return material
 }
 

@@ -16,43 +16,55 @@ float3 compute_direct_lighting(float3 normal,
                                float3 ambientLightColor,
                                float ior,
                                float specularFactor,
-                               float3 specularColor) {
+                               float3 specularColor,
+                               float3 sheenColor,
+                               float sheenRoughness,
+                               texture2d<float, access::sample> brdfLUT,
+                               sampler brdfLUTSampler) {
     float3 N = normalize(normal);
     float3 V = normalize(viewPosition - worldPosition);
     float3 L = normalize(lightPosition - worldPosition);
     float3 H = normalize(V + L);
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
     float3 F0 = compute_f0_rgb(ior, specularFactor, specularColor, albedo, metallic);
 
     // Fresnel-Schlick approximation
     float3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
     // Geometry term (simplified Schlick-GGX)
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    float roughness2 = roughness * roughness;
-    float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
-    float G_V = NdotV / (NdotV * (1.0 - k) + k);
-    float G_L = NdotL / (NdotL * (1.0 - k) + k);
-    float G = G_V * G_L;
+    float G = geometrySmith(N, V, L, roughness);
 
     // Normal Distribution Function (GGX)
-    float NdotH = max(dot(N, H), 0.0);
-    float alpha = roughness2;
-    float alpha2 = alpha * alpha;
-    float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
-    float D = alpha2 / (M_PI_F * denom * denom + 1e-4);
+    float D = distributionGGX(N, H, roughness);
 
+    // Specular term
     float3 numerator = D * G * F;
     float denominator = 4.0 * NdotL * NdotV + 1e-4;
     float3 specular = numerator / denominator;
 
+    // Diffuse term
+    float3 diffuse = albedo / M_PI_F;
+
     // kS + kD = 1 (Energy conservation)
     float3 kS = F;
     float3 kD = (1.0 - kS) * (1.0 - metallic) * (1 - transmission);
-    float3 diffuse = albedo / M_PI_F;
 
-    float3 radiance = ambientLightColor;
-    float3 result = (kD * diffuse + specular) * radiance * NdotL;
+    float3 baseLight = (kD * diffuse + specular) * ambientLightColor;
+
+    // Sheen
+    float FH = pow(1.0 - max(dot(L, H), 0.0), 5.0);
+    float Vis_sheen = 1.0f / max(4.0 * dot(V, H) * dot(L, H), 1e-4);
+    float D_sheen = D_Charlie(max(dot(N, H), 0.0), sheenRoughness);
+    float3 F_sheen = sheenColor * FH;
+    float3 sheenBRDF = F_sheen * D_sheen * Vis_sheen;
+    float3 sheenLight = sheenBRDF * ambientLightColor;
+
+    // Energy conservation for sheen
+    float sheenStrength = max(max(sheenColor.r, sheenColor.g), sheenColor.b);
+    float E_sheen = brdfLUT.sample(brdfLUTSampler, float2(max(dot(N, V), 0.0), sheenRoughness)).b * sheenStrength;
+
+    float3 result = (baseLight * (1 - E_sheen) + sheenLight) * NdotL;
 
     return result;
 }
@@ -70,7 +82,10 @@ float3 compute_indirect_lighting(float3 normal,
                                  texture2d<float, access::sample> brdfLUT,
                                  float ior,
                                  float specularFactor,
-                                 float3 specularColor) {
+                                 float3 specularColor,
+                                 float3 sheenColor,
+                                 float sheenRoughness,
+                                 texturecube<float, access::sample> prefilterSheenMap) {
     constexpr sampler mipMapSampler(mag_filter::linear, min_filter::linear, mip_filter::linear, s_address::clamp_to_edge, t_address::clamp_to_edge);
     constexpr sampler texSampler(mag_filter::linear, min_filter::linear, s_address::clamp_to_edge, t_address::clamp_to_edge);
 
@@ -93,11 +108,21 @@ float3 compute_indirect_lighting(float3 normal,
     float3 specular = prefilterEnvMap.sample(mipMapSampler, R, level(mipLevel)).rgb;
 
     // BRDF LUT
-    float2 brdf = brdfLUT.sample(texSampler, float2(max(dot(N, V), 0.0), roughness)).rg;
+    float2 lut = brdfLUT.sample(texSampler, float2(max(dot(N, V), 0.0), roughness)).rg;
 
+    // Base light
+    float3 baseLight = diffuse * diffuseColor + specular * (specularColorRGB * lut.x + lut.y);
 
-    // result
-    float3 result = diffuse * diffuseColor + specular * (specularColorRGB * brdf.x + brdf.y);
+    // Sheen
+    float2 sheenLUT = brdfLUT.sample(texSampler, float2(max(dot(N, V), 0.0), sheenRoughness)).ba;
+    float3 sheenIBL = prefilterSheenMap.sample(mipMapSampler, R, level(sheenRoughness * maxMipLevel)).rgb;
+    float3 sheenLight = sheenIBL * sheenColor * sheenLUT.y;
+
+    // Energy conservation for sheen
+    float sheenStrength = max(max(sheenColor.r, sheenColor.g), sheenColor.b);
+    float E_sheen = sheenLUT.x * sheenStrength;
+
+    float3 result = baseLight * (1 - E_sheen) + sheenLight;
 
     // Apply ambient occlusion
     result *= ambientOcclusion;
