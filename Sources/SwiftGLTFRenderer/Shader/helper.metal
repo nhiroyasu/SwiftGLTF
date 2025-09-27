@@ -251,7 +251,7 @@ float luminanceFromSRGB(float3 srgbRGB)
 
 float D_Charlie(float NoH, float alpha)
 {
-    alpha = clamp(alpha, 0.07, 1.0);
+    alpha = clamp(alpha, 1e-6, 1.0);
     float invA = 1.0 / alpha;
     float c    = max(NoH, 1e-5);
     // ((2 + 1/alpha) / (2π)) * (cosθ)^(1/alpha)
@@ -260,7 +260,7 @@ float D_Charlie(float NoH, float alpha)
 
 float3 sampleHalfVectorCharlie(float2 xi, float3 N, float a, thread float* outPdfH)
 {
-    a = clamp(a, 0.07, 1.0);
+    a = clamp(a, 1e-6, 1.0);
     float invA  = 1.0 / a;
     float phi   = 2.0f * M_PI_F * xi.x;
     // cosθ = (1 - u.y)^(1/(2 + 1/α))
@@ -270,7 +270,7 @@ float3 sampleHalfVectorCharlie(float2 xi, float3 N, float a, thread float* outPd
     float3 H    = toWorld(Ht, N);
 
     float NoH = max(dot(N, H), 1e-6f);
-    if (outPdfH) *outPdfH = D_Charlie(NoH, a) * NoH;
+    if (outPdfH) *outPdfH = D_Charlie(NoH, a) * cosT;
     return H;
 }
 
@@ -299,4 +299,10 @@ float2 hash2(uint x, uint y, uint z, uint w) {
     // 0..1 に正規化 (0xFFFFFFFF = 4294967295)
     float2 jitter = float2(seed1, seed2) * (1.0f / 4294967295.0f);
     return jitter;
+}
+
+// Remap sheen roughness to avoid too sharp highlights
+float remapSheenRoughness(float r) {
+    // ensure at least 0.07
+    return clamp(0.5*r + 0.5*r*r, 0.07, 1.0);
 }

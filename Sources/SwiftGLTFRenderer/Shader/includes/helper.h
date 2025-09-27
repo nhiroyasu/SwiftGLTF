@@ -34,5 +34,6 @@ float3 sampleHalfVectorCharlie(float2 xi, float3 N, float a, thread float* outPd
 float3 toWorld(float3 h, float3 N);
 uint wangHash(uint x);
 float2 hash2(uint x, uint y, uint z, uint w);
+float remapSheenRoughness(float r);
 
 #endif /* helper_h */

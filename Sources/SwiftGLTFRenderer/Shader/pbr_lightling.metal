@@ -53,15 +53,18 @@ float3 compute_direct_lighting(float3 normal,
     float3 baseLight = (kD * diffuse + specular) * ambientLightColor;
 
     // Sheen
-    float sheenStrength = max(max(sheenColor.r, sheenColor.g), sheenColor.b);
-    float E_sheen = brdfLUT.sample(brdfLUTSampler, float2(max(dot(N, V), 0.0), sheenRoughness)).b * sheenStrength;
-    float FH = pow(1.0 - max(dot(H, V), 0.0), 5.0);
+    float FH = pow(1.0 - max(dot(L, H), 0.0), 5.0);
     float Vis_sheen = 1.0f / max(4.0 * dot(V, H) * dot(L, H), 1e-4);
     float D_sheen = D_Charlie(max(dot(N, H), 0.0), sheenRoughness);
-    float3 f_sheen = sheenColor; // * FH?
-    float3 sheenLight = f_sheen * D_sheen * Vis_sheen;
+    float3 F_sheen = sheenColor * FH;
+    float3 sheenBRDF = F_sheen * D_sheen * Vis_sheen;
+    float3 sheenLight = sheenBRDF * ambientLightColor;
 
-    float3 result = mix(baseLight, sheenLight, E_sheen) * NdotL;
+    // Energy conservation for sheen
+    float sheenStrength = max(max(sheenColor.r, sheenColor.g), sheenColor.b);
+    float E_sheen = brdfLUT.sample(brdfLUTSampler, float2(max(dot(N, V), 0.0), sheenRoughness)).b * sheenStrength;
+
+    float3 result = (baseLight * (1 - E_sheen) + sheenLight) * NdotL;
 
     return result;
 }
@@ -111,12 +114,15 @@ float3 compute_indirect_lighting(float3 normal,
     float3 baseLight = diffuse * diffuseColor + specular * (specularColorRGB * lut.x + lut.y);
 
     // Sheen
-    float3 sheenIBL = prefilterSheenMap.sample(mipMapSampler, R, level(sheenRoughness)).rgb;
-    float3 sheenLight = sheenIBL * sheenColor;
+    float2 sheenLUT = brdfLUT.sample(texSampler, float2(max(dot(N, V), 0.0), sheenRoughness)).ba;
+    float3 sheenIBL = prefilterSheenMap.sample(mipMapSampler, R, level(sheenRoughness * maxMipLevel)).rgb;
+    float3 sheenLight = sheenIBL * sheenColor * sheenLUT.y;
 
+    // Energy conservation for sheen
     float sheenStrength = max(max(sheenColor.r, sheenColor.g), sheenColor.b);
-    float E_sheen = brdfLUT.sample(texSampler, float2(max(dot(N, V), 0.0), sheenRoughness)).b * sheenStrength;
-    float3 result = mix(baseLight, sheenLight, E_sheen);
+    float E_sheen = sheenLUT.x * sheenStrength;
+
+    float3 result = baseLight * (1 - E_sheen) + sheenLight;
 
     // Apply ambient occlusion
     result *= ambientOcclusion;

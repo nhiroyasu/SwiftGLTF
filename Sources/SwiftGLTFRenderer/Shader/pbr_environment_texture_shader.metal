@@ -24,7 +24,6 @@ kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)
 
     float A = 0.0;
     float B = 0.0;
-    float E_sheen = 0.0; // for sheen rendering
 
     // フレネル項と幾何減衰項の計算
     // en: Calculation of Fresnel terms and geometric attenuation terms
@@ -47,26 +46,32 @@ kernel void generateBRDFLUT(texture2d<float, access::write> brdfLUT [[texture(0)
         }
     }
 
+    float E_sheen = 0.0; // Sheen energy
+    float V_sheen = 0.0; // Sheen Visibility
+    float sheenRoughness = remapSheenRoughness(roughness);
     for (int i = 0; i < SAMPLE_COUNT; i++) {
         float2 xi = hammersley(i, SAMPLE_COUNT);
-        float3 H = sampleHalfVectorCharlie(xi, N, roughness, nullptr);
+        float3 H = sampleHalfVectorCharlie(xi, N, sheenRoughness, nullptr);
         float3 L = normalize(2.0 * dot(V, H) * H - V);
 
         float NdotL = max(L.z, 0.0);
         if (NdotL > 0.0) {
-            // Simple approximation of sheen (Charlie) visibility: V ≈ 1 / (4 (V·H)(L·H))
-            // When L = reflect(-V, H), L·H = V·H
-            float VdotH = max(dot(V, H), 0.0);
+            float VdotH = max(dot(V, H), 1e-5);
             float Vis_sheen = 1.0 / max(4.0 * VdotH * VdotH, 1e-4);
+
+            // TODO: それっぽいLUTになってるけど、roughnessが低いときにE_sheenが比較的多くなっている（本来は逆）。
+            // remapSheenRoughnessで0.07以下に落ちないようにしているのが原因っぽいけど、外していいのか不明。
             E_sheen += Vis_sheen * NdotL;
+            V_sheen += Vis_sheen;
         }
     }
 
     A /= float(SAMPLE_COUNT);
     B /= float(SAMPLE_COUNT);
     E_sheen = saturate(E_sheen / float(SAMPLE_COUNT));
+    V_sheen = saturate(V_sheen / float(SAMPLE_COUNT));
 
-    brdfLUT.write(float4(A, B, E_sheen, 1.0), gid);
+    brdfLUT.write(float4(A, B, E_sheen, V_sheen), gid);
 }
 
 kernel void irradianceMap(texturecube<float, access::sample> envMap [[texture(0)]],
@@ -145,9 +150,6 @@ kernel void prefilterEnvMap(texturecube<float, access::sample> envMap [[texture(
     }
 
     prefilteredColor = totalWeight > 0.0 ? prefilteredColor / totalWeight : float3(0.0);
-    if (envMap.get_num_mip_levels() > 9) {
-        prefilteredColor = float3(1, 1, 1);
-    }
 
     outMap.write(float4(prefilteredColor, 1.0), gid.xy, gid.z, params.mipLevel);
 }

@@ -4,12 +4,6 @@
 
 using namespace metal;
 
-// Remap sheen roughness to avoid too sharp highlights
-inline float remapSheenRoughness(float r) {
-    // ensure at least 0.07
-    return clamp(0.5*r + 0.5*r*r, 0.07, 1.0);
-}
-
 inline float texelSolidAngleApprox(uint faceSize /* side length in pixels */) {
     // 平均立体角: 4π / (6 * S^2)
     return (4.0f * M_PI_F) / (6.0f * float(faceSize) * float(faceSize));
@@ -63,8 +57,9 @@ kernel void prefilterSheenEnvMap(texturecube<float, access::sample> envMap   [[t
     constexpr sampler s(filter::linear, mip_filter::linear);
 
     float  rSheen = remapSheenRoughness(params.roughness);
-    float3 prefiltered = float3(0.0);
 
+    float3 prefiltered = float3(0.0);
+    float totalWeight = 0;
     // H ~ Charlie(D)、 L = reflect(-V,H)
     for (uint i = 0; i < params.sampleCount; ++i) {
         float2 xi   = hammersley(i, params.sampleCount);
@@ -83,8 +78,6 @@ kernel void prefilterSheenEnvMap(texturecube<float, access::sample> envMap   [[t
         float VdotH = max(dot(V, H), 1e-5f);
         // H→L の pdf 変換： p(L) = p(H) / (4 * (V⋅H))
         float pdfL  = pdfH / (4.0f * VdotH);
-        // モンテカルロ重み： NdotL / p(L)
-        float w = NdotL / pdfL;
 
         // NOTE: mipLevelを制御した方が、ノイズが少なくなる.
         // en: to control mipLevel, it reduces noise.
@@ -96,10 +89,12 @@ kernel void prefilterSheenEnvMap(texturecube<float, access::sample> envMap   [[t
 
         float3 Li = envMap.sample(s, L, level(mipL)).rgb;
 
+        float w = NdotL;
         prefiltered += Li * w;
+        totalWeight += w;
     }
 
-    prefiltered = prefiltered / float(params.sampleCount);
+    prefiltered = totalWeight > 0 ? prefiltered / totalWeight : float3(0.0);
 
     outMap.write(float4(prefiltered, 1.0), gid.xy, gid.z, params.mipLevel);
 }
