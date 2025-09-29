@@ -64,7 +64,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     uint eCoord = fragArgs.emissiveTexCoord;
     float2 uvE = (eCoord == 0) ? uv0 : uv1;
     // Emissive lighting: apply material emissive factor
-    float3 emissive = fragArgs.hasEmissiveTexture
+    float3 emission = fragArgs.hasEmissiveTexture
     ? emissiveTexture.sample(emissiveSampler, uvE).rgb * mUni.emissiveFactor.rgb
     : float3(1, 1, 1) * mUni.emissiveFactor.rgb;
 
@@ -258,7 +258,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     transmissionLighting *= (1.0 - clearcoatFactor);
 
     // Final color
-    float3 color = directLighting + indirectLighting + transmissionLighting + emissive;
+    float3 color = directLighting + indirectLighting + transmissionLighting + emission;
 
     // Alpha: baseColor.a * modulation.a * materialFactor.a
     float baseAlpha = fragArgs.hasBaseColorTexture ? baseColorTexture.sample(baseColorSampler, uvBC).a : 1.0;

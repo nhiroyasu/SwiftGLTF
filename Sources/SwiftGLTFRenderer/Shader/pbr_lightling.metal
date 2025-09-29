@@ -32,8 +32,6 @@ float3 compute_direct_lighting(float3 normal,
     float NdotL = max(dot(N, L), 0.0);
     float3 F0 = compute_f0_rgb(ior, specularFactor, specularColor, albedo, metallic);
 
-    float clearcoatWeight = saturate(clearcoatFactor);
-    float Fc = 0.0;
 
     // Fresnel-Schlick approximation for the base layer
     float3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
@@ -67,8 +65,9 @@ float3 compute_direct_lighting(float3 normal,
     float3 sheenLight = sheenBRDF * ambientLightColor;
 
     // Clearcoat (upper layer)
+    float Fc = 0.0;
     float3 clearcoatContribution = float3(0.0);
-    if (clearcoatWeight > 0.0) {
+    if (clearcoatFactor > 0.0) {
         float3 Nc = normalize(clearcoatNormal);
         float NdotLc = max(dot(Nc, L), 0.0);
         float NdotVc = max(dot(Nc, V), 0.0);
@@ -80,7 +79,7 @@ float3 compute_direct_lighting(float3 normal,
             Fc = FcLocal;
             float denomCoat = 4.0 * NdotLc * NdotVc + 1e-4;
             float specCoat = (Dc * Gc * FcLocal) / denomCoat;
-            clearcoatContribution = clearcoatWeight * specCoat * ambientLightColor * NdotLc;
+            clearcoatContribution = clearcoatFactor * specCoat * ambientLightColor * NdotLc;
         }
     }
 
@@ -88,7 +87,7 @@ float3 compute_direct_lighting(float3 normal,
     float sheenStrength = max(max(sheenColor.r, sheenColor.g), sheenColor.b);
     float E_sheen = brdfLUT.sample(brdfLUTSampler, float2(max(dot(N, V), 0.0), sheenRoughness)).b * sheenStrength;
 
-    float energyScale = clamp(1.0 - clearcoatWeight * Fc, 0.0, 1.0);
+    float energyScale = clamp(1.0 - clearcoatFactor * Fc, 0.0, 1.0);
     float3 combinedBase = (baseLight * (1 - E_sheen) + sheenLight) * energyScale;
 
     float3 result = combinedBase * NdotL + clearcoatContribution;
@@ -128,8 +127,6 @@ float3 compute_indirect_lighting(float3 normal,
 
     // Fresnel-Schlick
     float3 F0_diel_rgb = compute_f0_dielectric_rgb(ior, specularFactor, specularColor);
-    float clearcoatWeight = saturate(clearcoatFactor);
-    float Fc = 0.0;
     float3 specularColorRGB = mix(F0_diel_rgb, albedo, metallic);
     float3 diffuseColor = albedo * (1.0 - metallic) * (1.0 - F0_diel_rgb) * (1.0 - transmission);
 
@@ -155,7 +152,8 @@ float3 compute_indirect_lighting(float3 normal,
 
     // Clearcoat IBL
     float3 clearcoatResult = float3(0.0);
-    if (clearcoatWeight > 0.0) {
+    float Fc = 0.0;
+    if (clearcoatFactor > 0.0) {
         float3 Nc = normalize(clearcoatNormal);
         float3 Rc = reflect(-V, Nc);
         float NdotVc = max(dot(Nc, V), 0.0);
@@ -167,7 +165,7 @@ float3 compute_indirect_lighting(float3 normal,
             float FcLocal = fresnelSchlick(NdotVc, 0.04);
             Fc = FcLocal;
             float clearcoatTerm = FcLocal * lutCoat.x + lutCoat.y;
-            clearcoatResult = clearcoatWeight * clearcoatSpec * clearcoatTerm;
+            clearcoatResult = clearcoatFactor * clearcoatSpec * clearcoatTerm;
         }
     }
 
@@ -175,7 +173,7 @@ float3 compute_indirect_lighting(float3 normal,
     float sheenStrength = max(max(sheenColor.r, sheenColor.g), sheenColor.b);
     float E_sheen = sheenLUT.x * sheenStrength;
 
-    float energyScale = clamp(1.0 - clearcoatWeight * Fc, 0.0, 1.0);
+    float energyScale = clamp(1.0 - clearcoatFactor * Fc, 0.0, 1.0);
     float3 baseCombined = (baseLight * (1 - E_sheen) + sheenLight) * energyScale;
     float3 result = baseCombined + clearcoatResult;
 
