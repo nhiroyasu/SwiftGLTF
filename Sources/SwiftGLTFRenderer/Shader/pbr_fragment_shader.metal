@@ -89,6 +89,38 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Flip normal for back faces when double-sided
     normal = fragArgs.material.doubleSided != 0 && !isFrontFacing ? -normal : normal;
 
+    // Clearcoat parameters
+    float clearcoatFactor = saturate(mUni.clearcoatFactors.x);
+    uint ccCoord = fragArgs.clearcoatTexCoord;
+    float2 uvCC = (ccCoord == 0) ? uv0 : uv1;
+    if (fragArgs.hasClearcoatTexture) {
+        float ccSample = fragArgs.clearcoatTexture.sample(fragArgs.clearcoatSampler, uvCC).r;
+        clearcoatFactor *= ccSample;
+    }
+    clearcoatFactor = saturate(clearcoatFactor);
+
+    float clearcoatRoughness = clamp(mUni.clearcoatFactors.y, 0.0, 1.0);
+    uint ccRCoord = fragArgs.clearcoatRoughnessTexCoord;
+    float2 uvCCR = (ccRCoord == 0) ? uv0 : uv1;
+    if (fragArgs.hasClearcoatRoughnessTexture) {
+        float ccRoughSample = fragArgs.clearcoatRoughnessTexture.sample(fragArgs.clearcoatRoughnessSampler, uvCCR).g;
+        clearcoatRoughness *= ccRoughSample;
+    }
+    clearcoatRoughness = clamp(clearcoatRoughness, 0.0, 1.0);
+
+    float clearcoatNormalScale = mUni.clearcoatFactors.z;
+    float3 clearcoatNormal = normal;
+    if (fragArgs.hasClearcoatNormalTexture) {
+        uint ccNCoord = fragArgs.clearcoatNormalTexCoord;
+        float2 uvCCN = (ccNCoord == 0) ? uv0 : uv1;
+        float3 ccSample = fragArgs.clearcoatNormalTexture.sample(fragArgs.clearcoatNormalSampler, uvCCN).rgb * 2.0 - 1.0;
+        float2 ccXY = ccSample.xy * clearcoatNormalScale;
+        float ccZ = sqrt(saturate(1.0 - dot(ccXY, ccXY)));
+        float3 ccTangentNormal = normalize(float3(ccXY, ccZ));
+        clearcoatNormal = normalize(TBN * ccTangentNormal);
+        clearcoatNormal = fragArgs.material.doubleSided != 0 && !isFrontFacing ? -clearcoatNormal : clearcoatNormal;
+    }
+
     // Specular extension
     uint sCoord = fragArgs.specularTexCoord;
     float2 uvS = (sCoord == 0) ? uv0 : uv1;
@@ -183,6 +215,9 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                     specularColor,
                                                     sheenColor,
                                                     sheenRoughness,
+                                                    clearcoatFactor,
+                                                    clearcoatRoughness,
+                                                    clearcoatNormal,
                                                     brdfLUT,
                                                     brdfLUTSampler);
 
@@ -195,6 +230,9 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                         roughness,
                                                         ambientOcclusion,
                                                         transmission,
+                                                        clearcoatFactor,
+                                                        clearcoatRoughness,
+                                                        clearcoatNormal,
                                                         prefilterEnvMap,
                                                         irradianceMap,
                                                         brdfLUT,
@@ -217,6 +255,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                                 ior,
                                                                 specularFactor,
                                                                 specularColor);
+    transmissionLighting *= (1.0 - clearcoatFactor);
 
     // Final color
     float3 color = directLighting + indirectLighting + transmissionLighting + emissive;
