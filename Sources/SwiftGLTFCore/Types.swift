@@ -782,6 +782,8 @@ public struct MaterialExtensions: Codable {
     public let khrMaterialsVolume: KHRMaterialsVolume?
     /// KHR_materials_ior extension data
     public let khrMaterialsIOR: KHRMaterialsIOR?
+    /// KHR_materials_clearcoat extension data
+    public let khrMaterialsClearcoat: KHRMaterialsClearcoat?
     /// KHR_materials_specular extension data
     public let khrMaterialsSpecular: KHRMaterialsSpecular?
     /// KHR_materials_sheen extension data
@@ -791,6 +793,7 @@ public struct MaterialExtensions: Codable {
         case khrMaterialsTransmission = "KHR_materials_transmission"
         case khrMaterialsVolume = "KHR_materials_volume"
         case khrMaterialsIOR = "KHR_materials_ior"
+        case khrMaterialsClearcoat = "KHR_materials_clearcoat"
         case khrMaterialsSpecular = "KHR_materials_specular"
         case khrMaterialsSheen = "KHR_materials_sheen"
     }
@@ -848,6 +851,30 @@ public struct KHRMaterialsIOR: Codable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.ior = try container.decodeIfPresent(Float.self, forKey: .ior) ?? 1.5
+    }
+}
+
+// MARK: - KHR_materials_clearcoat extension
+public struct KHRMaterialsClearcoat: Codable {
+    public let clearcoatFactor: Float
+    public let clearcoatTexture: TextureInfo?
+    public let clearcoatRoughnessFactor: Float
+    public let clearcoatRoughnessTexture: TextureInfo?
+    public let clearcoatNormalTexture: NormalTextureInfo?
+    enum CodingKeys: String, CodingKey {
+        case clearcoatFactor
+        case clearcoatTexture
+        case clearcoatRoughnessFactor
+        case clearcoatRoughnessTexture
+        case clearcoatNormalTexture
+    }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.clearcoatFactor = try container.decodeIfPresent(Float.self, forKey: .clearcoatFactor) ?? 0.0
+        self.clearcoatTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .clearcoatTexture)
+        self.clearcoatRoughnessFactor = try container.decodeIfPresent(Float.self, forKey: .clearcoatRoughnessFactor) ?? 0.0
+        self.clearcoatRoughnessTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .clearcoatRoughnessTexture)
+        self.clearcoatNormalTexture = try container.decodeIfPresent(NormalTextureInfo.self, forKey: .clearcoatNormalTexture)
     }
 }
 

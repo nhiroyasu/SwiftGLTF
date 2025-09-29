@@ -104,6 +104,7 @@ var body: some View {
 - `KHR_materials_transmission`
 - `KHR_materials_volume`
 - `KHR_materials_ior`
+- `KHR_materials_clearcoat`
 - `KHR_materials_specular`
 - `KHR_materials_sheen`
 

@@ -33,6 +33,16 @@ public enum MaterialPropertyName: String {
     case attenuationDistance
     case attenuationColor
     case ior
+    // Clearcoat (KHR_materials_clearcoat)
+    case clearcoatFactor
+    case clearcoatTexture
+    case clearcoatTextureTexCoord
+    case clearcoatRoughnessFactor
+    case clearcoatRoughnessTexture
+    case clearcoatRoughnessTextureTexCoord
+    case clearcoatNormalTexture
+    case clearcoatNormalTextureTexCoord
+    case clearcoatNormalTextureScale
     // Specular (KHR_materials_specular)
     case specularFactor
     case specularTexture
