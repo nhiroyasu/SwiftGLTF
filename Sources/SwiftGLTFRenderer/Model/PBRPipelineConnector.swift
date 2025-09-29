@@ -102,6 +102,20 @@ class PBRPipelineConnector {
         sheenRoughnessTexture: MTLTexture?,
         sheenRoughnessSampler: MTLSamplerState?,
         sheenRoughnessTexCoord: UnsafePointer<UInt32>,
+        // Clearcoat
+        hasClearcoatTexture: UnsafePointer<Bool>,
+        clearcoatTexture: MTLTexture?,
+        clearcoatSampler: MTLSamplerState?,
+        clearcoatTexCoord: UnsafePointer<UInt32>,
+        hasClearcoatRoughnessTexture: UnsafePointer<Bool>,
+        clearcoatRoughnessTexture: MTLTexture?,
+        clearcoatRoughnessSampler: MTLSamplerState?,
+        clearcoatRoughnessTexCoord: UnsafePointer<UInt32>,
+        hasClearcoatNormalTexture: UnsafePointer<Bool>,
+        clearcoatNormalTexture: MTLTexture?,
+        clearcoatNormalSampler: MTLSamplerState?,
+        clearcoatNormalTexCoord: UnsafePointer<UInt32>,
+        clearcoatNormalScale: UnsafePointer<Float>,
         // Alpha params
         alphaMode: UnsafePointer<UInt32>,
         alphaCutoff: UnsafePointer<Float>
@@ -198,6 +212,31 @@ class PBRPipelineConnector {
         encoder.setSamplerState(sheenRoughnessSampler, index: 45)
         let sheenRoughnessCoordAddr = encoder.constantData(at: 46)
         sheenRoughnessCoordAddr.copyMemory(from: sheenRoughnessTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        // Clearcoat
+        let hasClearcoatTextureAddr = encoder.constantData(at: 47)
+        hasClearcoatTextureAddr.copyMemory(from: hasClearcoatTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(clearcoatTexture, index: 48)
+        encoder.setSamplerState(clearcoatSampler, index: 49)
+        let clearcoatCoordAddr = encoder.constantData(at: 50)
+        clearcoatCoordAddr.copyMemory(from: clearcoatTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        let hasClearcoatRoughnessTextureAddr = encoder.constantData(at: 51)
+        hasClearcoatRoughnessTextureAddr.copyMemory(from: hasClearcoatRoughnessTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(clearcoatRoughnessTexture, index: 52)
+        encoder.setSamplerState(clearcoatRoughnessSampler, index: 53)
+        let clearcoatRoughnessCoordAddr = encoder.constantData(at: 54)
+        clearcoatRoughnessCoordAddr.copyMemory(from: clearcoatRoughnessTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        let hasClearcoatNormalTextureAddr = encoder.constantData(at: 55)
+        hasClearcoatNormalTextureAddr.copyMemory(from: hasClearcoatNormalTexture, byteCount: MemoryLayout<Bool>.size)
+        encoder.setTexture(clearcoatNormalTexture, index: 56)
+        encoder.setSamplerState(clearcoatNormalSampler, index: 57)
+        let clearcoatNormalCoordAddr = encoder.constantData(at: 58)
+        clearcoatNormalCoordAddr.copyMemory(from: clearcoatNormalTexCoord, byteCount: MemoryLayout<UInt32>.size)
+
+        let clearcoatNormalScaleAddr = encoder.constantData(at: 59)
+        clearcoatNormalScaleAddr.copyMemory(from: clearcoatNormalScale, byteCount: MemoryLayout<Float>.size)
         return buffer
     }
 

@@ -12,4 +12,5 @@ struct PBRMaterialUniforms {
     let specularFactor: Float
     let specularFactorColor: simd_float4
     let sheenColorRoughness: simd_float4
+    let clearcoatFactors: simd_float4
 }

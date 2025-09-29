@@ -319,6 +319,11 @@ class PBRMeshLoader {
             var (hasSheenColorTexture, sheenColorTexture, sheenColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.sheenColorTexture), textureMap: textureMap)
             var (hasSheenRoughnessTexture, sheenRoughnessTexture, sheenRoughnessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.sheenRoughnessTexture), textureMap: textureMap)
 
+            // Clearcoat textures
+            var (hasClearcoatTexture, clearcoatTexture, clearcoatSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatTexture), textureMap: textureMap)
+            var (hasClearcoatRoughnessTexture, clearcoatRoughnessTexture, clearcoatRoughnessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatRoughnessTexture), textureMap: textureMap)
+            var (hasClearcoatNormalTexture, clearcoatNormalTexture, clearcoatNormalSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatNormalTexture), textureMap: textureMap)
+
             // Retrieve texture coordinate indices and cast to UInt32
             let baseColorTexCoordF: Float = material?.propertyNamed(.baseColorTextureTexCoord)?.floatValue ?? 0.0
             let normalTexCoordF: Float = material?.propertyNamed(.normalTextureTexCoord)?.floatValue ?? 0.0
@@ -331,6 +336,9 @@ class PBRMeshLoader {
             let specularColorTexCoordF: Float = material?.propertyNamed(.specularColorTextureTexCoord)?.floatValue ?? 0.0
             let sheenColorTexCoordF: Float = material?.propertyNamed(.sheenColorTextureTexCoord)?.floatValue ?? 0.0
             let sheenRoughnessTexCoordF: Float = material?.propertyNamed(.sheenRoughnessTextureTexCoord)?.floatValue ?? 0.0
+            let clearcoatTexCoordF: Float = material?.propertyNamed(.clearcoatTextureTexCoord)?.floatValue ?? 0.0
+            let clearcoatRoughnessTexCoordF: Float = material?.propertyNamed(.clearcoatRoughnessTextureTexCoord)?.floatValue ?? 0.0
+            let clearcoatNormalTexCoordF: Float = material?.propertyNamed(.clearcoatNormalTextureTexCoord)?.floatValue ?? 0.0
             var baseColorTexCoord: UInt32 = UInt32(baseColorTexCoordF)
             var normalTexCoord: UInt32 = UInt32(normalTexCoordF)
             var metalRoughnessTexCoord: UInt32 = UInt32(metalRoughnessTexCoordF)
@@ -342,6 +350,9 @@ class PBRMeshLoader {
             var specularColorTexCoord: UInt32 = UInt32(specularColorTexCoordF)
             var sheenColorTexCoord: UInt32 = UInt32(sheenColorTexCoordF)
             var sheenRoughnessTexCoord: UInt32 = UInt32(sheenRoughnessTexCoordF)
+            var clearcoatTexCoord: UInt32 = UInt32(clearcoatTexCoordF)
+            var clearcoatRoughnessTexCoord: UInt32 = UInt32(clearcoatRoughnessTexCoordF)
+            var clearcoatNormalTexCoord: UInt32 = UInt32(clearcoatNormalTexCoordF)
 
             // Alpha mode & cutoff
             let alphaModeStr = material?.propertyNamed(.alphaMode)?.stringValue?.uppercased() ?? "OPAQUE"
@@ -373,6 +384,12 @@ class PBRMeshLoader {
             let specularColorFactor: SIMD3<Float> = material?.propertyNamed(.specularColorFactor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
             let sheenColorFactor: SIMD3<Float> = material?.propertyNamed(.sheenColorFactor)?.float3Value ?? SIMD3<Float>(0, 0, 0)
             let sheenRoughnessFactor: Float = material?.propertyNamed(.sheenRoughnessFactor)?.floatValue ?? 0.0
+            let clearcoatFactor: Float = material?.propertyNamed(.clearcoatFactor)?.floatValue ?? 0.0
+            let clearcoatRoughnessFactor: Float = material?.propertyNamed(.clearcoatRoughnessFactor)?.floatValue ?? 0.0
+            let clearcoatNormalScale: Float = material?.propertyNamed(.clearcoatNormalTextureScale)?.floatValue ?? 1.0
+            var clearcoatNormalScaleValue = clearcoatNormalScale
+            let clearcoatFactors = SIMD4<Float>(clearcoatFactor, clearcoatRoughnessFactor, clearcoatNormalScale, 0)
+
             var materialUniforms = PBRMaterialUniforms(
                 baseColorFactor: baseColorFactor,
                 metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
@@ -383,7 +400,8 @@ class PBRMeshLoader {
                 ior: ior,
                 specularFactor: specularFactor,
                 specularFactorColor: SIMD4<Float>(specularColorFactor.x, specularColorFactor.y, specularColorFactor.z, 0),
-                sheenColorRoughness: SIMD4<Float>(sheenColorFactor.x, sheenColorFactor.y, sheenColorFactor.z, sheenRoughnessFactor)
+                sheenColorRoughness: SIMD4<Float>(sheenColorFactor.x, sheenColorFactor.y, sheenColorFactor.z, sheenRoughnessFactor),
+                clearcoatFactors: clearcoatFactors
             )
             let tmpMaterialUniformsBuffer = device.makeBuffer(
                 bytes: &materialUniforms,
@@ -444,6 +462,20 @@ class PBRMeshLoader {
                 sheenRoughnessTexture: sheenRoughnessTexture,
                 sheenRoughnessSampler: sheenRoughnessSamplerState,
                 sheenRoughnessTexCoord: &sheenRoughnessTexCoord,
+                // Clearcoat
+                hasClearcoatTexture: &hasClearcoatTexture,
+                clearcoatTexture: clearcoatTexture,
+                clearcoatSampler: clearcoatSamplerState,
+                clearcoatTexCoord: &clearcoatTexCoord,
+                hasClearcoatRoughnessTexture: &hasClearcoatRoughnessTexture,
+                clearcoatRoughnessTexture: clearcoatRoughnessTexture,
+                clearcoatRoughnessSampler: clearcoatRoughnessSamplerState,
+                clearcoatRoughnessTexCoord: &clearcoatRoughnessTexCoord,
+                hasClearcoatNormalTexture: &hasClearcoatNormalTexture,
+                clearcoatNormalTexture: clearcoatNormalTexture,
+                clearcoatNormalSampler: clearcoatNormalSamplerState,
+                clearcoatNormalTexCoord: &clearcoatNormalTexCoord,
+                clearcoatNormalScale: &clearcoatNormalScaleValue,
                 // Alpha params
                 alphaMode: &alphaModeRaw,
                 alphaCutoff: &alphaCutoff
@@ -485,7 +517,13 @@ class PBRMeshLoader {
                     sheenColorTexture,
                     sheenColorSamplerState,
                     sheenRoughnessTexture,
-                    sheenRoughnessSamplerState
+                    sheenRoughnessSamplerState,
+                    clearcoatTexture,
+                    clearcoatSamplerState,
+                    clearcoatRoughnessTexture,
+                    clearcoatRoughnessSamplerState,
+                    clearcoatNormalTexture,
+                    clearcoatNormalSamplerState
                 ]
             )
             submeshes.append(submeshData)

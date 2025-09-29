@@ -15,6 +15,7 @@ typedef struct {
     float specularFactor; // scalar specular multiplier
     vector_float4 specularFactorColor; // xyz: specularColorFactor, w: padding
     vector_float4 sheenColorRoughness; // xyz: sheenColorFactor, w: sheenRoughnessFactor
+    vector_float4 clearcoatFactors; // x: clearcoatFactor, y: clearcoatRoughnessFactor, z: clearcoatNormalScale, w: padding
 } PBRMaterialUniforms;
 
 typedef struct {

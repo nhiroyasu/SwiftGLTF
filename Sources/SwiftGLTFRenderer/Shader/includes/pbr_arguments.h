@@ -82,6 +82,20 @@ struct PBRFragmentArguments {
     texture2d<float> sheenRoughnessTexture [[id(44)]];
     sampler sheenRoughnessSampler [[id(45)]];
     uint sheenRoughnessTexCoord [[id(46)]];
+    // Clearcoat (KHR_materials_clearcoat)
+    bool hasClearcoatTexture [[id(47)]];
+    texture2d<float> clearcoatTexture [[id(48)]];
+    sampler clearcoatSampler [[id(49)]];
+    uint clearcoatTexCoord [[id(50)]];
+    bool hasClearcoatRoughnessTexture [[id(51)]];
+    texture2d<float> clearcoatRoughnessTexture [[id(52)]];
+    sampler clearcoatRoughnessSampler [[id(53)]];
+    uint clearcoatRoughnessTexCoord [[id(54)]];
+    bool hasClearcoatNormalTexture [[id(55)]];
+    texture2d<float> clearcoatNormalTexture [[id(56)]];
+    sampler clearcoatNormalSampler [[id(57)]];
+    uint clearcoatNormalTexCoord [[id(58)]];
+    float clearcoatNormalScale [[id(59)]];
 };
 
 #endif /* pbr_arguments_h */
