@@ -19,6 +19,9 @@ float3 compute_direct_lighting(float3 normal,
                                float3 specularColor,
                                float3 sheenColor,
                                float sheenRoughness,
+                               float clearcoatFactor,
+                               float clearcoatRoughness,
+                               float3 clearcoatNormal,
                                texture2d<float, access::sample> brdfLUT,
                                sampler brdfLUTSampler) {
     float3 N = normalize(normal);
@@ -29,7 +32,8 @@ float3 compute_direct_lighting(float3 normal,
     float NdotL = max(dot(N, L), 0.0);
     float3 F0 = compute_f0_rgb(ior, specularFactor, specularColor, albedo, metallic);
 
-    // Fresnel-Schlick approximation
+
+    // Fresnel-Schlick approximation for the base layer
     float3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
     // Geometry term (simplified Schlick-GGX)
@@ -38,7 +42,7 @@ float3 compute_direct_lighting(float3 normal,
     // Normal Distribution Function (GGX)
     float D = distributionGGX(N, H, roughness);
 
-    // Specular term
+    // Specular term for the base layer
     float3 numerator = D * G * F;
     float denominator = 4.0 * NdotL * NdotV + 1e-4;
     float3 specular = numerator / denominator;
@@ -60,11 +64,33 @@ float3 compute_direct_lighting(float3 normal,
     float3 sheenBRDF = F_sheen * D_sheen * Vis_sheen;
     float3 sheenLight = sheenBRDF * ambientLightColor;
 
+    // Clearcoat (upper layer)
+    float Fc = 0.0;
+    float3 clearcoatContribution = float3(0.0);
+    if (clearcoatFactor > 0.0) {
+        float3 Nc = normalize(clearcoatNormal);
+        float NdotLc = max(dot(Nc, L), 0.0);
+        float NdotVc = max(dot(Nc, V), 0.0);
+        if (NdotLc > 0.0 && NdotVc > 0.0) {
+            float roughnessCoat = clamp(clearcoatRoughness, 0.001, 1.0);
+            float Dc = distributionGGX(Nc, H, roughnessCoat);
+            float Gc = geometrySmith(Nc, V, L, roughnessCoat);
+            float FcLocal = fresnelSchlick(max(dot(H, V), 0.0), 0.04);
+            Fc = FcLocal;
+            float denomCoat = 4.0 * NdotLc * NdotVc + 1e-4;
+            float specCoat = (Dc * Gc * FcLocal) / denomCoat;
+            clearcoatContribution = clearcoatFactor * specCoat * ambientLightColor * NdotLc;
+        }
+    }
+
     // Energy conservation for sheen
     float sheenStrength = max(max(sheenColor.r, sheenColor.g), sheenColor.b);
     float E_sheen = brdfLUT.sample(brdfLUTSampler, float2(max(dot(N, V), 0.0), sheenRoughness)).b * sheenStrength;
 
-    float3 result = (baseLight * (1 - E_sheen) + sheenLight) * NdotL;
+    float energyScale = clamp(1.0 - clearcoatFactor * Fc, 0.0, 1.0);
+    float3 combinedBase = (baseLight * (1 - E_sheen) + sheenLight) * energyScale;
+
+    float3 result = combinedBase * NdotL + clearcoatContribution;
 
     return result;
 }
@@ -77,6 +103,9 @@ float3 compute_indirect_lighting(float3 normal,
                                  float roughness,
                                  float ambientOcclusion,
                                  float transmission,
+                                 float clearcoatFactor,
+                                 float clearcoatRoughness,
+                                 float3 clearcoatNormal,
                                  texturecube<float, access::sample> prefilterEnvMap,
                                  texturecube<float, access::sample> irradianceCubeMap,
                                  texture2d<float, access::sample> brdfLUT,
@@ -108,21 +137,45 @@ float3 compute_indirect_lighting(float3 normal,
     float3 specular = prefilterEnvMap.sample(mipMapSampler, R, level(mipLevel)).rgb;
 
     // BRDF LUT
-    float2 lut = brdfLUT.sample(texSampler, float2(max(dot(N, V), 0.0), roughness)).rg;
+    float NdotV = max(dot(N, V), 0.0);
+    float2 lut = brdfLUT.sample(texSampler, float2(NdotV, roughness)).rg;
 
-    // Base light
-    float3 baseLight = diffuse * diffuseColor + specular * (specularColorRGB * lut.x + lut.y);
+    // Base light attenuated by clearcoat
+    float3 baseDiffuse = diffuse * diffuseColor;
+    float3 baseSpecular = specular * (specularColorRGB * lut.x + lut.y);
+    float3 baseLight = baseDiffuse + baseSpecular;
 
     // Sheen
-    float2 sheenLUT = brdfLUT.sample(texSampler, float2(max(dot(N, V), 0.0), sheenRoughness)).ba;
+    float2 sheenLUT = brdfLUT.sample(texSampler, float2(NdotV, sheenRoughness)).ba;
     float3 sheenIBL = prefilterSheenMap.sample(mipMapSampler, R, level(sheenRoughness * maxMipLevel)).rgb;
     float3 sheenLight = sheenIBL * sheenColor * sheenLUT.y;
+
+    // Clearcoat IBL
+    float3 clearcoatResult = float3(0.0);
+    float Fc = 0.0;
+    if (clearcoatFactor > 0.0) {
+        float3 Nc = normalize(clearcoatNormal);
+        float3 Rc = reflect(-V, Nc);
+        float NdotVc = max(dot(Nc, V), 0.0);
+        if (NdotVc > 0.0) {
+            float roughnessCoat = clamp(clearcoatRoughness, 0.001, 1.0);
+            float mipCoat = roughnessCoat * maxMipLevel;
+            float3 clearcoatSpec = prefilterEnvMap.sample(mipMapSampler, Rc, level(mipCoat)).rgb;
+            float2 lutCoat = brdfLUT.sample(texSampler, float2(NdotVc, roughnessCoat)).rg;
+            float FcLocal = fresnelSchlick(NdotVc, 0.04);
+            Fc = FcLocal;
+            float clearcoatTerm = FcLocal * lutCoat.x + lutCoat.y;
+            clearcoatResult = clearcoatFactor * clearcoatSpec * clearcoatTerm;
+        }
+    }
 
     // Energy conservation for sheen
     float sheenStrength = max(max(sheenColor.r, sheenColor.g), sheenColor.b);
     float E_sheen = sheenLUT.x * sheenStrength;
 
-    float3 result = baseLight * (1 - E_sheen) + sheenLight;
+    float energyScale = clamp(1.0 - clearcoatFactor * Fc, 0.0, 1.0);
+    float3 baseCombined = (baseLight * (1 - E_sheen) + sheenLight) * energyScale;
+    float3 result = baseCombined + clearcoatResult;
 
     // Apply ambient occlusion
     result *= ambientOcclusion;

@@ -1305,6 +1305,77 @@ private func makeMDLMaterial(
         material.setProperty(iorProp)
     }
 
+    // KHR_materials_clearcoat
+    if let clearcoat = gltfMaterial.extensions?.khrMaterialsClearcoat {
+        let ccFactor = MDLMaterialProperty(
+            name: MaterialPropertyName.clearcoatFactor.rawValue,
+            semantic: .userDefined,
+            float: clearcoat.clearcoatFactor
+        )
+        material.setProperty(ccFactor)
+
+        let ccRoughnessFactor = MDLMaterialProperty(
+            name: MaterialPropertyName.clearcoatRoughnessFactor.rawValue,
+            semantic: .userDefined,
+            float: clearcoat.clearcoatRoughnessFactor
+        )
+        material.setProperty(ccRoughnessFactor)
+
+        if let texInfo = clearcoat.clearcoatTexture,
+           let sampler = loadTextureSampler(for: texInfo, from: gltf, binaryLoader: binaryLoader) {
+            let ccTexture = MDLMaterialProperty(
+                name: MaterialPropertyName.clearcoatTexture.rawValue,
+                semantic: .userDefined,
+                textureSampler: sampler
+            )
+            material.setProperty(ccTexture)
+            let coordProp = MDLMaterialProperty(
+                name: MaterialPropertyName.clearcoatTextureTexCoord.rawValue,
+                semantic: .userDefined,
+                float: Float(texInfo.texCoord)
+            )
+            material.setProperty(coordProp)
+        }
+
+        if let texInfo = clearcoat.clearcoatRoughnessTexture,
+           let sampler = loadTextureSampler(for: texInfo, from: gltf, binaryLoader: binaryLoader) {
+            let ccRoughnessTexture = MDLMaterialProperty(
+                name: MaterialPropertyName.clearcoatRoughnessTexture.rawValue,
+                semantic: .userDefined,
+                textureSampler: sampler
+            )
+            material.setProperty(ccRoughnessTexture)
+            let coordProp = MDLMaterialProperty(
+                name: MaterialPropertyName.clearcoatRoughnessTextureTexCoord.rawValue,
+                semantic: .userDefined,
+                float: Float(texInfo.texCoord)
+            )
+            material.setProperty(coordProp)
+        }
+
+        if let normalInfo = clearcoat.clearcoatNormalTexture,
+           let sampler = loadTextureSampler(for: normalInfo, from: gltf, binaryLoader: binaryLoader) {
+            let ccNormalTexture = MDLMaterialProperty(
+                name: MaterialPropertyName.clearcoatNormalTexture.rawValue,
+                semantic: .userDefined,
+                textureSampler: sampler
+            )
+            material.setProperty(ccNormalTexture)
+            let coordProp = MDLMaterialProperty(
+                name: MaterialPropertyName.clearcoatNormalTextureTexCoord.rawValue,
+                semantic: .userDefined,
+                float: Float(normalInfo.texCoord)
+            )
+            material.setProperty(coordProp)
+            let scaleProp = MDLMaterialProperty(
+                name: MaterialPropertyName.clearcoatNormalTextureScale.rawValue,
+                semantic: .userDefined,
+                float: normalInfo.scale
+            )
+            material.setProperty(scaleProp)
+        }
+    }
+
     // KHR_materials_specular
     if let spec = gltfMaterial.extensions?.khrMaterialsSpecular {
         let sFactor = MDLMaterialProperty(
