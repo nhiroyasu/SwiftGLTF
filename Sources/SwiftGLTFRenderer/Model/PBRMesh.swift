@@ -27,8 +27,9 @@ struct PBRMeshBundle {
     let morphDispatches: [MorphDispatch]
 
     // Resources
-    let vertexResources: [MTLHeap]
-    let fragmentResources: [MTLHeap]
+    let vertexResources: [MTLResource]
+    let vertexHeaps: [MTLHeap]
+    let fragmentHeaps: [MTLHeap]
 }
 
 struct PBRMeshAnimation {
@@ -49,6 +50,7 @@ struct PBRMesh {
     let positionStride: Int
     let positionOffset: Int
     let renderingType: RenderingType
+    let vertexResources: [MTLResource?]
     let _storedHeapInstance: [MTLResource?]
 
     struct Submesh {

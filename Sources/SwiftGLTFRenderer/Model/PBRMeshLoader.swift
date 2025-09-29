@@ -115,7 +115,6 @@ class PBRMeshLoader {
             textureMap = try convertHeapTexture(from: textureMap, use: texturesHeap)
         }
 
-        let vertexAnimationHeap = try makeVertexAnimationHeap(from: asset)
         let fragmentHeap = try makeFragmentHeap(from: asset)
 
         let nodes = asset.object(atPath: GLTFAssetPath.nodes(atScene: SCENE_INDEX))
@@ -126,7 +125,6 @@ class PBRMeshLoader {
             textureMap: textureMap,
             skinDispatchMap: skinDispatchMap,
             morphDispatchMap: morphDispatchMap,
-            vertexAnimationHeap: vertexAnimationHeap,
             fragmentHeap: fragmentHeap,
             parentTransform: float4x4(1),
             nodeLevelHierarchy: nodeLevelHierarchy
@@ -150,8 +148,9 @@ class PBRMeshLoader {
             nodeLevelHierarchy: nodeLevelHierarchy,
             originMorphWeights: morphWeights,
             morphDispatches: morphDispatches,
-            vertexResources: [vertexMeshHeap, vertexAnimationHeap].compactMap { $0 },
-            fragmentResources: [texturesHeap, fragmentHeap].compactMap { $0 },
+            vertexResources: pbrMeshes.flatMap({ $0.vertexResources }).compactMap({ $0 }),
+            vertexHeaps: [vertexMeshHeap].compactMap({ $0 }),
+            fragmentHeaps: [texturesHeap, fragmentHeap].compactMap({ $0 }),
         )
     }
 
@@ -162,7 +161,6 @@ class PBRMeshLoader {
         textureMap: [MDLTexture: MTLTexture],
         skinDispatchMap: [GLTFSkin: SkinDispatch],
         morphDispatchMap: [MDLObject: MorphDispatch],
-        vertexAnimationHeap: MTLHeap,
         fragmentHeap: MTLHeap,
         parentTransform: float4x4,
         nodeLevelHierarchy: NodeLevelHierarchy
@@ -185,7 +183,6 @@ class PBRMeshLoader {
                     device: device,
                     obj: obj,
                     mdlMesh: mdlMesh,
-                    vertexAnimationHeap: vertexAnimationHeap,
                     fragmentHeap: fragmentHeap,
                     meshVertexBufferMap: meshVertexBufferMap,
                     textureMap: textureMap,
@@ -205,7 +202,6 @@ class PBRMeshLoader {
                 textureMap: textureMap,
                 skinDispatchMap: skinDispatchMap,
                 morphDispatchMap: morphDispatchMap,
-                vertexAnimationHeap: vertexAnimationHeap,
                 fragmentHeap: fragmentHeap,
                 parentTransform: totalTransform,
                 nodeLevelHierarchy: nodeLevelHierarchy
@@ -220,7 +216,6 @@ class PBRMeshLoader {
         device: MTLDevice,
         obj: MDLObject,
         mdlMesh: MDLMesh,
-        vertexAnimationHeap: MTLHeap,
         fragmentHeap: MTLHeap,
         meshVertexBufferMap: [MDLMesh: MTLBuffer],
         textureMap: [MDLTexture: MTLTexture],
@@ -241,9 +236,9 @@ class PBRMeshLoader {
         // Model & Inverse Model matrix buffers
         var model = totalTransform
         var inverseModel = model.inverse
-        let modelBuffer = vertexAnimationHeap.makeBuffer(length: MemoryLayout<float4x4>.size)!
+        let modelBuffer = device.makeBuffer(length: MemoryLayout<float4x4>.size)!
         modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
-        let inverseModelBuffer = vertexAnimationHeap.makeBuffer(length: MemoryLayout<float4x4>.size)!
+        let inverseModelBuffer = device.makeBuffer(length: MemoryLayout<float4x4>.size)!
         inverseModelBuffer.contents().copyMemory(from: &inverseModel, byteCount: MemoryLayout<float4x4>.size)
 
         // Morph data detection on this mesh
@@ -252,7 +247,7 @@ class PBRMeshLoader {
         var morphTargetBuffers: [MTLBuffer] = []
         if let morphComp = mdlMesh.component(ofType: GLTFMorphTargets.self) {
             morphCount = UInt32(morphComp.targetCount)
-            morphWeightsBuffer = vertexAnimationHeap.makeBuffer(length: MemoryLayout<Float>.size * morphComp.targetCount)!
+            morphWeightsBuffer = device.makeBuffer(length: MemoryLayout<Float>.size * morphComp.targetCount)!
             morphWeightsBuffer!.contents().copyMemory(from: morphComp.defaultWeights, byteCount: MemoryLayout<Float>.size * morphComp.targetCount)
 
             // Convert target MDLMesh -> MTLBuffer (vertex buffer 0)
@@ -560,11 +555,12 @@ class PBRMeshLoader {
             positionStride: positionStride,
             positionOffset: positionOffset,
             renderingType: renderingType,
-            _storedHeapInstance: [
+            vertexResources: [
                 morphWeightsBuffer,
                 modelBuffer,
                 inverseModelBuffer
-            ] + morphTargetBuffers
+            ],
+            _storedHeapInstance: morphTargetBuffers
         )
         return pbrMesh
     }
@@ -869,35 +865,6 @@ class PBRMeshLoader {
             throw SwiftGLTFError.makeRender(.vertexModelHeapCreateFailed, context: .capture(stage: .render))
         }
         return vertexModelHeap
-    }
-
-    func makeVertexAnimationHeap(from asset: MDLAsset) throws -> MTLHeap {
-        let drawingCount = extractDrawingCount(from: asset)
-
-        let modelSize = device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * drawingCount
-        let inverseModelSize = device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * drawingCount
-
-        let morphWeightsSize = {
-            var size = 0
-            for mesh in asset.gltfMeshes {
-                if let morph = mesh.componentConforming(to: GLTFMorphTargets.self) as? GLTFMorphTargets {
-                    size += MemoryLayout<Float>.size * morph.targetCount
-                }
-            }
-            return size
-        }()
-
-        let heapDescriptor = MTLHeapDescriptor()
-        heapDescriptor.size = modelSize + inverseModelSize + morphWeightsSize
-        heapDescriptor.storageMode = .shared
-
-        guard heapDescriptor.size > 0 else {
-            throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
-        }
-        guard let animationHeap = device.makeHeap(descriptor: heapDescriptor) else {
-            throw SwiftGLTFError.makeRender(.vertexModelHeapCreateFailed, context: .capture(stage: .render))
-        }
-        return animationHeap
     }
 
     func convertHeapTexture(from textureMap: [MDLTexture: MTLTexture], use heap: MTLHeap) throws -> [MDLTexture: MTLTexture] {
