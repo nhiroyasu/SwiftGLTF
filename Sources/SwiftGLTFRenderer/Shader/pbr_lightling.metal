@@ -55,8 +55,7 @@ float3 compute_direct_lighting(float3 normal,
 
     // kS + kD = 1 (Energy conservation)
     float3 kS = F_base;
-    float3 kD = (1.0 - kS) * (1.0 - metallic) * (1 - transmission);
-    kD *= baseAttenuation;
+    float3 kD = (1.0 - F) * (1.0 - metallic) * (1 - transmission);
 
     float3 baseLight = (kD * diffuse + specular) * ambientLightColor;
 
@@ -143,7 +142,7 @@ float3 compute_indirect_lighting(float3 normal,
     float2 lut = brdfLUT.sample(texSampler, float2(NdotV, roughness)).rg;
 
     // Base light attenuated by clearcoat
-    float3 baseDiffuse = diffuse * diffuseColor * baseAttenuation;
+    float3 baseDiffuse = diffuse * diffuseColor;
     float3 baseSpecular = specular * (specularColorRGB * lut.x + lut.y) * baseAttenuation;
     float3 baseLight = baseDiffuse + baseSpecular;
 
