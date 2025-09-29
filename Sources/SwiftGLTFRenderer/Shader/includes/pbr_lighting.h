@@ -52,6 +52,7 @@ float3 compute_transmission_lighting(float3 Lbg,
                                      float3 viewPosition,
                                      float ior,
                                      float specularFactor,
-                                     float3 specularColor);
+                                     float3 specularColor,
+                                     float clearcoatFactor);
 
 #endif /* pbr_lighting_h */

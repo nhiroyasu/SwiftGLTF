@@ -4,6 +4,7 @@
 #include "includes/env_arguments.h"
 #include "includes/screen_arguments.h"
 #include "includes/pbr_lighting.h"
+#include "includes/pbr_clearcoat.h"
 #include "includes/pbr_vertex.h"
 #include "includes/pbr_arguments.h"
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
@@ -254,8 +255,8 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                                                 viewPosition,
                                                                 ior,
                                                                 specularFactor,
-                                                                specularColor);
-    transmissionLighting *= (1.0 - clearcoatFactor);
+                                                                specularColor,
+                                                                clearcoatFactor);
 
     // Final color
     float3 color = directLighting + indirectLighting + transmissionLighting + emission;

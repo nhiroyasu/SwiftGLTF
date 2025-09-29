@@ -193,14 +193,19 @@ float3 compute_transmission_lighting(float3 Lbg,
                                      float3 viewPosition,
                                      float ior,
                                      float specularFactor,
-                                     float3 specularColor) {
+                                     float3 specularColor,
+                                     float clearcoatFactor) {
     float3 N = normalize(normal);
     float3 V = normalize(viewPosition - worldPosition);
 
     float3 F0_diel_rgb = compute_f0_dielectric_rgb(ior, specularFactor, specularColor);
     float F = fresnelSchlick(max(dot(N, V), 0.0), max(max(F0_diel_rgb.r, F0_diel_rgb.g), F0_diel_rgb.b));
 
-    float kTrans = saturate(transmission * (1.0 - metallic) * (1.0 - F));
+    // clearcoat weight
+    float Fcc = fresnelSchlick(max(dot(N, V), 0.0), 0.04);
+    float clearcoatWeight = clearcoatFactor * Fcc;
+
+    float kTrans = saturate(transmission * (1.0 - metallic) * (1.0 - F) * (1.0 - clearcoatWeight));
     float3 refractedColor = Lbg * attenuation * albedo * kTrans;
     return refractedColor;
 }
