@@ -14,10 +14,7 @@ A project that enables using glTF files in Swift.
 - High-performance glTF rendering with Metal
 
 ### Planned Features
-- glTF animation support  
-- glTF extension support  
 - Customizable rendering pipeline  
-- 3D model editing and exporting features  
 - VRM format support  
 And more.
 
@@ -25,6 +22,7 @@ And more.
 ### Platform
 - iOS 15.0+
 - macOS 13.0+
+- Metal 3 & 4
 
 ### Installation
 #### Swift Package Manager
