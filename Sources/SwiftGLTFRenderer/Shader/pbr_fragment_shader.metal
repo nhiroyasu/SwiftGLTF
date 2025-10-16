@@ -7,6 +7,7 @@
 #include "includes/pbr_clearcoat.h"
 #include "includes/pbr_vertex.h"
 #include "includes/pbr_arguments.h"
+#include "includes/pbr_texture.h"
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
 
 using namespace metal;
@@ -42,9 +43,12 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     float2 screenUV = float2(in.position.xy) / scene.viewportSize;
     screenUV = clamp(screenUV, float2(0.0), float2(1.0));
 
+    float3x3 TBN = make_tbn(normalize(in.normal), in.tangent.xyz, in.tangent.w);
+
     // Select UV coordinate for base color
     uint bcCoord = fragArgs.baseColorTexCoord;
     float2 uvBC = (bcCoord == 0) ? uv0 : uv1;
+    uvBC = apply_texture_transform(uvBC, fragArgs.baseColorTransformOffsetScale, fragArgs.baseColorTransformRotation);
     // Apply base color texture, vertex modulation color, and material base color factor
     float3 albedo = fragArgs.hasBaseColorTexture
     ? baseColorTexture.sample(baseColorSampler, uvBC).rgb * modulationColor.rgb * mUni.baseColorFactor.rgb
@@ -53,6 +57,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Select UV coordinate for metallic-roughness
     uint mrCoord = fragArgs.metallicRoughnessTexCoord;
     float2 uvMR = (mrCoord == 0) ? uv0 : uv1;
+    uvMR = apply_texture_transform(uvMR, fragArgs.metallicRoughnessTransformOffsetScale, fragArgs.metallicRoughnessTransformRotation);
     // Sample metallic-roughness and apply material factors
     float metallic = fragArgs.hasMetallicRoughnessTexture
     ? metallicRoughnessTexture.sample(metallicRoughnessSampler, uvMR).b * mUni.metalRoughnessOcclusion.x
@@ -64,6 +69,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Select UV coordinate for emissive
     uint eCoord = fragArgs.emissiveTexCoord;
     float2 uvE = (eCoord == 0) ? uv0 : uv1;
+    uvE = apply_texture_transform(uvE, fragArgs.emissiveTransformOffsetScale, fragArgs.emissiveTransformRotation);
     // Emissive lighting: apply material emissive factor
     float3 emission = fragArgs.hasEmissiveTexture
     ? emissiveTexture.sample(emissiveSampler, uvE).rgb * mUni.emissiveFactor.rgb
@@ -72,17 +78,16 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Select UV coordinate for occlusion
     uint ocCoord = fragArgs.occlusionTexCoord;
     float2 uvOC = (ocCoord == 0) ? uv0 : uv1;
+    uvOC = apply_texture_transform(uvOC, fragArgs.occlusionTransformOffsetScale, fragArgs.occlusionTransformRotation);
     // Ambient occlusion: apply material occlusion factor
     float ambientOcclusion = fragArgs.hasOcclusionTexture
     ? occlusionTexture.sample(occlusionSampler, uvOC).r * mUni.metalRoughnessOcclusion.z
     : 1.0 * mUni.metalRoughnessOcclusion.z;
 
-    float3 N = normalize(in.normal);
-    float3x3 TBN = make_tbn(N, in.tangent.xyz, in.tangent.w);
-
     // Select UV coordinate for normal map
     uint nCoord = fragArgs.normalTexCoord;
     float2 uvN = (nCoord == 0) ? uv0 : uv1;
+    uvN = apply_texture_transform(uvN, fragArgs.normalTransformOffsetScale, fragArgs.normalTransformRotation);
     float3 normalTexValue = fragArgs.hasNormalTexture
     ? normalTexture.sample(normalSampler, uvN).rgb * 2.0 - 1.0
     : float3(0, 0, 1);
@@ -94,6 +99,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     float clearcoatFactor = saturate(mUni.clearcoatFactors.x);
     uint ccCoord = fragArgs.clearcoatTexCoord;
     float2 uvCC = (ccCoord == 0) ? uv0 : uv1;
+    uvCC = apply_texture_transform(uvCC, fragArgs.clearcoatTransformOffsetScale, fragArgs.clearcoatTransformRotation);
     if (fragArgs.hasClearcoatTexture) {
         float ccSample = fragArgs.clearcoatTexture.sample(fragArgs.clearcoatSampler, uvCC).r;
         clearcoatFactor *= ccSample;
@@ -103,6 +109,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     float clearcoatRoughness = clamp(mUni.clearcoatFactors.y, 0.0, 1.0);
     uint ccRCoord = fragArgs.clearcoatRoughnessTexCoord;
     float2 uvCCR = (ccRCoord == 0) ? uv0 : uv1;
+    uvCCR = apply_texture_transform(uvCCR, fragArgs.clearcoatRoughnessTransformOffsetScale, fragArgs.clearcoatRoughnessTransformRotation);
     if (fragArgs.hasClearcoatRoughnessTexture) {
         float ccRoughSample = fragArgs.clearcoatRoughnessTexture.sample(fragArgs.clearcoatRoughnessSampler, uvCCR).g;
         clearcoatRoughness *= ccRoughSample;
@@ -114,6 +121,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     if (fragArgs.hasClearcoatNormalTexture) {
         uint ccNCoord = fragArgs.clearcoatNormalTexCoord;
         float2 uvCCN = (ccNCoord == 0) ? uv0 : uv1;
+        uvCCN = apply_texture_transform(uvCCN, fragArgs.clearcoatNormalTransformOffsetScale, fragArgs.clearcoatNormalTransformRotation);
         float3 ccSample = fragArgs.clearcoatNormalTexture.sample(fragArgs.clearcoatNormalSampler, uvCCN).rgb * 2.0 - 1.0;
         float2 ccXY = ccSample.xy * clearcoatNormalScale;
         float ccZ = sqrt(saturate(1.0 - dot(ccXY, ccXY)));
@@ -125,23 +133,29 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Specular extension
     uint sCoord = fragArgs.specularTexCoord;
     float2 uvS = (sCoord == 0) ? uv0 : uv1;
+    uvS = apply_texture_transform(uvS, fragArgs.specularTransformOffsetScale, fragArgs.specularTransformRotation);
     float specularFactor = mUni.specularFactor;
-    specularFactor *= fragArgs.hasSpecularTexture ? fragArgs.specularTexture.sample(fragArgs.specularSampler, uvS).r : 1.0;
+    if (fragArgs.hasSpecularTexture) {
+        specularFactor *= fragArgs.specularTexture.sample(fragArgs.specularSampler, uvS).r;
+    }
 
     uint scCoord = fragArgs.specularColorTexCoord;
     float2 uvSC = (scCoord == 0) ? uv0 : uv1;
+    uvSC = apply_texture_transform(uvSC, fragArgs.specularColorTransformOffsetScale, fragArgs.specularColorTransformRotation);
     float3 specularColor = mUni.specularFactorColor.xyz;
     specularColor *= fragArgs.hasSpecularColorTexture ? fragArgs.specularColorTexture.sample(fragArgs.specularColorSampler, uvSC).rgb : float3(1.0);
 
     // Sheen extension
     uint shcCoord = fragArgs.sheenColorTexCoord;
     float2 uvShC = (shcCoord == 0) ? uv0 : uv1;
+    uvShC = apply_texture_transform(uvShC, fragArgs.sheenColorTransformOffsetScale, fragArgs.sheenColorTransformRotation);
     float3 sheenColor = mUni.sheenColorRoughness.xyz;
     sheenColor *= fragArgs.hasSheenColorTexture ? fragArgs.sheenColorTexture.sample(fragArgs.sheenColorSampler, uvShC).rgb : float3(1.0);
     sheenColor = clamp(sheenColor, float3(0.0), float3(1.0));
 
     uint shrCoord = fragArgs.sheenRoughnessTexCoord;
     float2 uvShR = (shrCoord == 0) ? uv0 : uv1;
+    uvShR = apply_texture_transform(uvShR, fragArgs.sheenRoughnessTransformOffsetScale, fragArgs.sheenRoughnessTransformRotation);
     float sheenRoughness = mUni.sheenColorRoughness.w;
     sheenRoughness *= fragArgs.hasSheenRoughnessTexture ? fragArgs.sheenRoughnessTexture.sample(fragArgs.sheenRoughnessSampler, uvShR).g : 1.0;
     sheenRoughness = clamp(sheenRoughness, 0.0, 1.0);
@@ -149,6 +163,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Select UV coordinate for transmission
     uint tCoord = fragArgs.transmissionTexCoord;
     float2 uvT = (tCoord == 0) ? uv0 : uv1;
+    uvT = apply_texture_transform(uvT, fragArgs.transmissionTransformOffsetScale, fragArgs.transmissionTransformRotation);
     // Transmission factor
     float transmission = mUni.transmissionThicknessDistance.x;
     transmission *= fragArgs.hasTransmissionTexture
@@ -158,6 +173,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Select UV coordinate for thickness
     uint thCoord = fragArgs.thicknessTexCoord;
     float2 uvTh = (thCoord == 0) ? uv0 : uv1;
+    uvTh = apply_texture_transform(uvTh, fragArgs.thicknessTransformOffsetScale, fragArgs.thicknessTransformRotation);
     // Thickness
     float thickness = mUni.transmissionThicknessDistance.y;
     thickness *= fragArgs.hasThicknessTexture

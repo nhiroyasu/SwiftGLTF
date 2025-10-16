@@ -319,6 +319,50 @@ class PBRMeshLoader {
             var (hasClearcoatRoughnessTexture, clearcoatRoughnessTexture, clearcoatRoughnessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatRoughnessTexture), textureMap: textureMap)
             var (hasClearcoatNormalTexture, clearcoatNormalTexture, clearcoatNormalSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatNormalTexture), textureMap: textureMap)
 
+            let baseColorTransform = textureTransform(material: material, offsetScaleName: .baseColorTextureTransformOffsetScale, rotationName: .baseColorTextureTransformRotation)
+            let normalTransform = textureTransform(material: material, offsetScaleName: .normalTextureTransformOffsetScale, rotationName: .normalTextureTransformRotation)
+            let metallicRoughnessTransform = textureTransform(material: material, offsetScaleName: .metallicRoughnessTextureTransformOffsetScale, rotationName: .metallicRoughnessTextureTransformRotation)
+            let emissiveTransform = textureTransform(material: material, offsetScaleName: .emissiveTextureTransformOffsetScale, rotationName: .emissiveTextureTransformRotation)
+            let occlusionTransform = textureTransform(material: material, offsetScaleName: .occlusionTextureTransformOffsetScale, rotationName: .occlusionTextureTransformRotation)
+            let transmissionTransform = textureTransform(material: material, offsetScaleName: .transmissionTextureTransformOffsetScale, rotationName: .transmissionTextureTransformRotation)
+            let thicknessTransform = textureTransform(material: material, offsetScaleName: .thicknessTextureTransformOffsetScale, rotationName: .thicknessTextureTransformRotation)
+            let specularTransform = textureTransform(material: material, offsetScaleName: .specularTextureTransformOffsetScale, rotationName: .specularTextureTransformRotation)
+            let specularColorTransform = textureTransform(material: material, offsetScaleName: .specularColorTextureTransformOffsetScale, rotationName: .specularColorTextureTransformRotation)
+            let sheenColorTransform = textureTransform(material: material, offsetScaleName: .sheenColorTextureTransformOffsetScale, rotationName: .sheenColorTextureTransformRotation)
+            let sheenRoughnessTransform = textureTransform(material: material, offsetScaleName: .sheenRoughnessTextureTransformOffsetScale, rotationName: .sheenRoughnessTextureTransformRotation)
+            let clearcoatTransform = textureTransform(material: material, offsetScaleName: .clearcoatTextureTransformOffsetScale, rotationName: .clearcoatTextureTransformRotation)
+            let clearcoatRoughnessTransform = textureTransform(material: material, offsetScaleName: .clearcoatRoughnessTextureTransformOffsetScale, rotationName: .clearcoatRoughnessTextureTransformRotation)
+            let clearcoatNormalTransform = textureTransform(material: material, offsetScaleName: .clearcoatNormalTextureTransformOffsetScale, rotationName: .clearcoatNormalTextureTransformRotation)
+
+            var baseColorTransformOffsetScale = baseColorTransform.offsetScale
+            var baseColorTransformRotation = baseColorTransform.rotation
+            var normalTransformOffsetScale = normalTransform.offsetScale
+            var normalTransformRotation = normalTransform.rotation
+            var metallicRoughnessTransformOffsetScale = metallicRoughnessTransform.offsetScale
+            var metallicRoughnessTransformRotation = metallicRoughnessTransform.rotation
+            var emissiveTransformOffsetScale = emissiveTransform.offsetScale
+            var emissiveTransformRotation = emissiveTransform.rotation
+            var occlusionTransformOffsetScale = occlusionTransform.offsetScale
+            var occlusionTransformRotation = occlusionTransform.rotation
+            var transmissionTransformOffsetScale = transmissionTransform.offsetScale
+            var transmissionTransformRotation = transmissionTransform.rotation
+            var thicknessTransformOffsetScale = thicknessTransform.offsetScale
+            var thicknessTransformRotation = thicknessTransform.rotation
+            var specularTransformOffsetScale = specularTransform.offsetScale
+            var specularTransformRotation = specularTransform.rotation
+            var specularColorTransformOffsetScale = specularColorTransform.offsetScale
+            var specularColorTransformRotation = specularColorTransform.rotation
+            var sheenColorTransformOffsetScale = sheenColorTransform.offsetScale
+            var sheenColorTransformRotation = sheenColorTransform.rotation
+            var sheenRoughnessTransformOffsetScale = sheenRoughnessTransform.offsetScale
+            var sheenRoughnessTransformRotation = sheenRoughnessTransform.rotation
+            var clearcoatTransformOffsetScale = clearcoatTransform.offsetScale
+            var clearcoatTransformRotation = clearcoatTransform.rotation
+            var clearcoatRoughnessTransformOffsetScale = clearcoatRoughnessTransform.offsetScale
+            var clearcoatRoughnessTransformRotation = clearcoatRoughnessTransform.rotation
+            var clearcoatNormalTransformOffsetScale = clearcoatNormalTransform.offsetScale
+            var clearcoatNormalTransformRotation = clearcoatNormalTransform.rotation
+
             // Retrieve texture coordinate indices and cast to UInt32
             let baseColorTexCoordF: Float = material?.propertyNamed(.baseColorTextureTexCoord)?.floatValue ?? 0.0
             let normalTexCoordF: Float = material?.propertyNamed(.normalTextureTexCoord)?.floatValue ?? 0.0
@@ -473,7 +517,35 @@ class PBRMeshLoader {
                 clearcoatNormalScale: &clearcoatNormalScaleValue,
                 // Alpha params
                 alphaMode: &alphaModeRaw,
-                alphaCutoff: &alphaCutoff
+                alphaCutoff: &alphaCutoff,
+                baseColorTransformOffsetScale: &baseColorTransformOffsetScale,
+                baseColorTransformRotation: &baseColorTransformRotation,
+                normalTransformOffsetScale: &normalTransformOffsetScale,
+                normalTransformRotation: &normalTransformRotation,
+                metallicRoughnessTransformOffsetScale: &metallicRoughnessTransformOffsetScale,
+                metallicRoughnessTransformRotation: &metallicRoughnessTransformRotation,
+                emissiveTransformOffsetScale: &emissiveTransformOffsetScale,
+                emissiveTransformRotation: &emissiveTransformRotation,
+                occlusionTransformOffsetScale: &occlusionTransformOffsetScale,
+                occlusionTransformRotation: &occlusionTransformRotation,
+                transmissionTransformOffsetScale: &transmissionTransformOffsetScale,
+                transmissionTransformRotation: &transmissionTransformRotation,
+                thicknessTransformOffsetScale: &thicknessTransformOffsetScale,
+                thicknessTransformRotation: &thicknessTransformRotation,
+                specularTransformOffsetScale: &specularTransformOffsetScale,
+                specularTransformRotation: &specularTransformRotation,
+                specularColorTransformOffsetScale: &specularColorTransformOffsetScale,
+                specularColorTransformRotation: &specularColorTransformRotation,
+                sheenColorTransformOffsetScale: &sheenColorTransformOffsetScale,
+                sheenColorTransformRotation: &sheenColorTransformRotation,
+                sheenRoughnessTransformOffsetScale: &sheenRoughnessTransformOffsetScale,
+                sheenRoughnessTransformRotation: &sheenRoughnessTransformRotation,
+                clearcoatTransformOffsetScale: &clearcoatTransformOffsetScale,
+                clearcoatTransformRotation: &clearcoatTransformRotation,
+                clearcoatRoughnessTransformOffsetScale: &clearcoatRoughnessTransformOffsetScale,
+                clearcoatRoughnessTransformRotation: &clearcoatRoughnessTransformRotation,
+                clearcoatNormalTransformOffsetScale: &clearcoatNormalTransformOffsetScale,
+                clearcoatNormalTransformRotation: &clearcoatNormalTransformRotation
             )
 
             // Mesh center in model space (from parser via MDLMaterial property)
@@ -877,6 +949,15 @@ class PBRMeshLoader {
     }
 
     // MARK: - Texture & Sampler Helpers
+
+    private func textureTransform(material: MDLMaterial?, offsetScaleName: MaterialPropertyName, rotationName: MaterialPropertyName) -> TextureTransformParameters {
+        guard let offsetScaleProperty = material?.propertyNamed(offsetScaleName) else {
+            return .identity
+        }
+        let offsetScale = offsetScaleProperty.float4Value
+        let rotation = material?.propertyNamed(rotationName)?.floatValue ?? 0.0
+        return TextureTransformParameters(offsetScale: offsetScale, rotation: rotation)
+    }
 
     private func retrieveTexture(prop: MDLMaterialProperty?, textureMap: [MDLTexture: MTLTexture]) -> (Bool, MTLTexture?, MTLSamplerState?) {
         guard let tex = prop?.textureSamplerValue?.texture else { return (false, nil, nil) }
