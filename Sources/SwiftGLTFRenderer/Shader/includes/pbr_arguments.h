@@ -96,6 +96,34 @@ struct PBRFragmentArguments {
     sampler clearcoatNormalSampler [[id(57)]];
     uint clearcoatNormalTexCoord [[id(58)]];
     float clearcoatNormalScale [[id(59)]];
+    float4 baseColorTransformOffsetScale [[id(60)]];
+    float baseColorTransformRotation [[id(61)]];
+    float4 normalTransformOffsetScale [[id(62)]];
+    float normalTransformRotation [[id(63)]];
+    float4 metallicRoughnessTransformOffsetScale [[id(64)]];
+    float metallicRoughnessTransformRotation [[id(65)]];
+    float4 emissiveTransformOffsetScale [[id(66)]];
+    float emissiveTransformRotation [[id(67)]];
+    float4 occlusionTransformOffsetScale [[id(68)]];
+    float occlusionTransformRotation [[id(69)]];
+    float4 transmissionTransformOffsetScale [[id(70)]];
+    float transmissionTransformRotation [[id(71)]];
+    float4 thicknessTransformOffsetScale [[id(72)]];
+    float thicknessTransformRotation [[id(73)]];
+    float4 specularTransformOffsetScale [[id(74)]];
+    float specularTransformRotation [[id(75)]];
+    float4 specularColorTransformOffsetScale [[id(76)]];
+    float specularColorTransformRotation [[id(77)]];
+    float4 sheenColorTransformOffsetScale [[id(78)]];
+    float sheenColorTransformRotation [[id(79)]];
+    float4 sheenRoughnessTransformOffsetScale [[id(80)]];
+    float sheenRoughnessTransformRotation [[id(81)]];
+    float4 clearcoatTransformOffsetScale [[id(82)]];
+    float clearcoatTransformRotation [[id(83)]];
+    float4 clearcoatRoughnessTransformOffsetScale [[id(84)]];
+    float clearcoatRoughnessTransformRotation [[id(85)]];
+    float4 clearcoatNormalTransformOffsetScale [[id(86)]];
+    float clearcoatNormalTransformRotation [[id(87)]];
 };
 
 #endif /* pbr_arguments_h */

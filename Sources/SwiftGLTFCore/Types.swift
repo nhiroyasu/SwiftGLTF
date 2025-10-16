@@ -189,19 +189,60 @@ public struct AccessorIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
     }
 }
 
+public struct KHRTextureTransform: Codable {
+    public let offset: [Float]
+    public let rotation: Float
+    public let scale: [Float]
+    public let texCoord: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case offset
+        case rotation
+        case scale
+        case texCoord
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let offsetValue = try container.decodeIfPresent([Float].self, forKey: .offset) ?? [0, 0]
+        let scaleValue = try container.decodeIfPresent([Float].self, forKey: .scale) ?? [1, 1]
+        self.offset = [
+            offsetValue.count > 0 ? offsetValue[0] : 0,
+            offsetValue.count > 1 ? offsetValue[1] : 0
+        ]
+        self.rotation = try container.decodeIfPresent(Float.self, forKey: .rotation) ?? 0
+        self.scale = [
+            scaleValue.count > 0 ? scaleValue[0] : 1,
+            scaleValue.count > 1 ? scaleValue[1] : 1
+        ]
+        self.texCoord = try container.decodeIfPresent(Int.self, forKey: .texCoord)
+    }
+}
+
+public struct TextureInfoExtensions: Codable {
+    public let khrTextureTransform: KHRTextureTransform?
+
+    enum CodingKeys: String, CodingKey {
+        case khrTextureTransform = "KHR_texture_transform"
+    }
+}
+
 public struct TextureInfo: Codable {
     public let index: TextureIndex
     public let texCoord: Int
+    public let extensions: TextureInfoExtensions?
 
     enum CodingKeys: String, CodingKey {
         case index
         case texCoord
+        case extensions
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.index = try container.decode(TextureIndex.self, forKey: .index)
         self.texCoord = try container.decodeIfPresent(Int.self, forKey: .texCoord) ?? 0
+        self.extensions = try container.decodeIfPresent(TextureInfoExtensions.self, forKey: .extensions)
     }
 }
 
@@ -209,11 +250,13 @@ public struct NormalTextureInfo: Codable {
     public let index: TextureIndex
     public let texCoord: Int
     public let scale: Float
+    public let extensions: TextureInfoExtensions?
 
     enum CodingKeys: String, CodingKey {
         case index
         case texCoord
         case scale
+        case extensions
     }
 
     public init(from decoder: Decoder) throws {
@@ -221,6 +264,7 @@ public struct NormalTextureInfo: Codable {
         self.index = try container.decode(TextureIndex.self, forKey: .index)
         self.texCoord = try container.decodeIfPresent(Int.self, forKey: .texCoord) ?? 0
         self.scale = try container.decodeIfPresent(Float.self, forKey: .scale) ?? 1.0
+        self.extensions = try container.decodeIfPresent(TextureInfoExtensions.self, forKey: .extensions)
     }
 }
 
@@ -228,11 +272,13 @@ public struct OcclusionTextureInfo: Codable {
     public let index: TextureIndex
     public let texCoord: Int
     public let strength: Float
+    public let extensions: TextureInfoExtensions?
 
     enum CodingKeys: String, CodingKey {
         case index
         case texCoord
         case strength
+        case extensions
     }
 
     public init(from decoder: Decoder) throws {
@@ -240,6 +286,37 @@ public struct OcclusionTextureInfo: Codable {
         self.index = try container.decode(TextureIndex.self, forKey: .index)
         self.texCoord = try container.decodeIfPresent(Int.self, forKey: .texCoord) ?? 0
         self.strength = try container.decodeIfPresent(Float.self, forKey: .strength) ?? 1.0
+        self.extensions = try container.decodeIfPresent(TextureInfoExtensions.self, forKey: .extensions)
+    }
+}
+
+public extension TextureInfo {
+    var textureTransform: KHRTextureTransform? {
+        extensions?.khrTextureTransform
+    }
+
+    var effectiveTexCoord: Int {
+        textureTransform?.texCoord ?? texCoord
+    }
+}
+
+public extension NormalTextureInfo {
+    var textureTransform: KHRTextureTransform? {
+        extensions?.khrTextureTransform
+    }
+
+    var effectiveTexCoord: Int {
+        textureTransform?.texCoord ?? texCoord
+    }
+}
+
+public extension OcclusionTextureInfo {
+    var textureTransform: KHRTextureTransform? {
+        extensions?.khrTextureTransform
+    }
+
+    var effectiveTexCoord: Int {
+        textureTransform?.texCoord ?? texCoord
     }
 }
 

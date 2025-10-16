@@ -118,7 +118,35 @@ class PBRPipelineConnector {
         clearcoatNormalScale: UnsafePointer<Float>,
         // Alpha params
         alphaMode: UnsafePointer<UInt32>,
-        alphaCutoff: UnsafePointer<Float>
+        alphaCutoff: UnsafePointer<Float>,
+        baseColorTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        baseColorTransformRotation: UnsafePointer<Float>,
+        normalTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        normalTransformRotation: UnsafePointer<Float>,
+        metallicRoughnessTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        metallicRoughnessTransformRotation: UnsafePointer<Float>,
+        emissiveTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        emissiveTransformRotation: UnsafePointer<Float>,
+        occlusionTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        occlusionTransformRotation: UnsafePointer<Float>,
+        transmissionTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        transmissionTransformRotation: UnsafePointer<Float>,
+        thicknessTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        thicknessTransformRotation: UnsafePointer<Float>,
+        specularTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        specularTransformRotation: UnsafePointer<Float>,
+        specularColorTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        specularColorTransformRotation: UnsafePointer<Float>,
+        sheenColorTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        sheenColorTransformRotation: UnsafePointer<Float>,
+        sheenRoughnessTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        sheenRoughnessTransformRotation: UnsafePointer<Float>,
+        clearcoatTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        clearcoatTransformRotation: UnsafePointer<Float>,
+        clearcoatRoughnessTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        clearcoatRoughnessTransformRotation: UnsafePointer<Float>,
+        clearcoatNormalTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
+        clearcoatNormalTransformRotation: UnsafePointer<Float>
     ) throws -> MTLBuffer {
         let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 0)
         guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
@@ -237,6 +265,62 @@ class PBRPipelineConnector {
 
         let clearcoatNormalScaleAddr = encoder.constantData(at: 59)
         clearcoatNormalScaleAddr.copyMemory(from: clearcoatNormalScale, byteCount: MemoryLayout<Float>.size)
+        let baseColorTransformOffsetScaleAddr = encoder.constantData(at: 60)
+        baseColorTransformOffsetScaleAddr.copyMemory(from: baseColorTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let baseColorTransformRotationAddr = encoder.constantData(at: 61)
+        baseColorTransformRotationAddr.copyMemory(from: baseColorTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let normalTransformOffsetScaleAddr = encoder.constantData(at: 62)
+        normalTransformOffsetScaleAddr.copyMemory(from: normalTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let normalTransformRotationAddr = encoder.constantData(at: 63)
+        normalTransformRotationAddr.copyMemory(from: normalTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let metallicRoughnessTransformOffsetScaleAddr = encoder.constantData(at: 64)
+        metallicRoughnessTransformOffsetScaleAddr.copyMemory(from: metallicRoughnessTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let metallicRoughnessTransformRotationAddr = encoder.constantData(at: 65)
+        metallicRoughnessTransformRotationAddr.copyMemory(from: metallicRoughnessTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let emissiveTransformOffsetScaleAddr = encoder.constantData(at: 66)
+        emissiveTransformOffsetScaleAddr.copyMemory(from: emissiveTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let emissiveTransformRotationAddr = encoder.constantData(at: 67)
+        emissiveTransformRotationAddr.copyMemory(from: emissiveTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let occlusionTransformOffsetScaleAddr = encoder.constantData(at: 68)
+        occlusionTransformOffsetScaleAddr.copyMemory(from: occlusionTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let occlusionTransformRotationAddr = encoder.constantData(at: 69)
+        occlusionTransformRotationAddr.copyMemory(from: occlusionTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let transmissionTransformOffsetScaleAddr = encoder.constantData(at: 70)
+        transmissionTransformOffsetScaleAddr.copyMemory(from: transmissionTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let transmissionTransformRotationAddr = encoder.constantData(at: 71)
+        transmissionTransformRotationAddr.copyMemory(from: transmissionTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let thicknessTransformOffsetScaleAddr = encoder.constantData(at: 72)
+        thicknessTransformOffsetScaleAddr.copyMemory(from: thicknessTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let thicknessTransformRotationAddr = encoder.constantData(at: 73)
+        thicknessTransformRotationAddr.copyMemory(from: thicknessTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let specularTransformOffsetScaleAddr = encoder.constantData(at: 74)
+        specularTransformOffsetScaleAddr.copyMemory(from: specularTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let specularTransformRotationAddr = encoder.constantData(at: 75)
+        specularTransformRotationAddr.copyMemory(from: specularTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let specularColorTransformOffsetScaleAddr = encoder.constantData(at: 76)
+        specularColorTransformOffsetScaleAddr.copyMemory(from: specularColorTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let specularColorTransformRotationAddr = encoder.constantData(at: 77)
+        specularColorTransformRotationAddr.copyMemory(from: specularColorTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let sheenColorTransformOffsetScaleAddr = encoder.constantData(at: 78)
+        sheenColorTransformOffsetScaleAddr.copyMemory(from: sheenColorTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let sheenColorTransformRotationAddr = encoder.constantData(at: 79)
+        sheenColorTransformRotationAddr.copyMemory(from: sheenColorTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let sheenRoughnessTransformOffsetScaleAddr = encoder.constantData(at: 80)
+        sheenRoughnessTransformOffsetScaleAddr.copyMemory(from: sheenRoughnessTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let sheenRoughnessTransformRotationAddr = encoder.constantData(at: 81)
+        sheenRoughnessTransformRotationAddr.copyMemory(from: sheenRoughnessTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let clearcoatTransformOffsetScaleAddr = encoder.constantData(at: 82)
+        clearcoatTransformOffsetScaleAddr.copyMemory(from: clearcoatTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let clearcoatTransformRotationAddr = encoder.constantData(at: 83)
+        clearcoatTransformRotationAddr.copyMemory(from: clearcoatTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let clearcoatRoughnessTransformOffsetScaleAddr = encoder.constantData(at: 84)
+        clearcoatRoughnessTransformOffsetScaleAddr.copyMemory(from: clearcoatRoughnessTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let clearcoatRoughnessTransformRotationAddr = encoder.constantData(at: 85)
+        clearcoatRoughnessTransformRotationAddr.copyMemory(from: clearcoatRoughnessTransformRotation, byteCount: MemoryLayout<Float>.size)
+        let clearcoatNormalTransformOffsetScaleAddr = encoder.constantData(at: 86)
+        clearcoatNormalTransformOffsetScaleAddr.copyMemory(from: clearcoatNormalTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
+        let clearcoatNormalTransformRotationAddr = encoder.constantData(at: 87)
+        clearcoatNormalTransformRotationAddr.copyMemory(from: clearcoatNormalTransformRotation, byteCount: MemoryLayout<Float>.size)
         return buffer
     }
 

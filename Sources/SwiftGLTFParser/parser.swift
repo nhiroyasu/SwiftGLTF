@@ -233,7 +233,7 @@ public func makeMDLMesh(
            materials.indices.contains(materialIndex),
            let normalTexture = materials[materialIndex].normalTexture,
            primitive.mode == .triangles {
-            let texCoord: VertexInfo? = switch normalTexture.texCoord {
+            let texCoord: VertexInfo? = switch normalTexture.effectiveTexCoord {
             case 0: texcoordVertex0
             case 1: texcoordVertex1
             default: nil
@@ -528,6 +528,36 @@ private func convertFilterMode(_ mode: GLTFFilterMode) -> MDLMaterialTextureFilt
     case .linear, .linearMipmapNearest, .linearMipmapLinear:
         return .linear
     }
+}
+
+@inline(__always)
+private func setTextureTransform(
+    _ transform: KHRTextureTransform?,
+    material: MDLMaterial,
+    offsetScaleName: MaterialPropertyName,
+    rotationName: MaterialPropertyName
+) {
+    guard let transform else { return }
+    let offset = transform.offset
+    let scale = transform.scale
+    let offsetScale = SIMD4<Float>(
+        offset[0],
+        offset[1],
+        scale[0],
+        scale[1]
+    )
+    let offsetScaleProp = MDLMaterialProperty(
+        name: offsetScaleName.rawValue,
+        semantic: .userDefined,
+        float4: offsetScale
+    )
+    material.setProperty(offsetScaleProp)
+    let rotationProp = MDLMaterialProperty(
+        name: rotationName.rawValue,
+        semantic: .userDefined,
+        float: transform.rotation
+    )
+    material.setProperty(rotationProp)
 }
 
 private func convertWrapMode(_ mode: GLTFWrapMode) -> MDLMaterialTextureWrapMode {
@@ -1113,11 +1143,17 @@ private func makeMDLMaterial(
                                        textureSampler: sampler)
         material.setProperty(prop)
         // Store texCoord index for shader
-        let coord = normalTexInfo.texCoord
+        let coord = normalTexInfo.effectiveTexCoord
         let coordProp = MDLMaterialProperty(name: MaterialPropertyName.normalTextureTexCoord.rawValue,
                                             semantic: .userDefined,
                                             float: Float(coord))
         material.setProperty(coordProp)
+        setTextureTransform(
+            normalTexInfo.textureTransform,
+            material: material,
+            offsetScaleName: .normalTextureTransformOffsetScale,
+            rotationName: .normalTextureTransformRotation
+        )
     }
 
     // PBR Metallic Roughness
@@ -1144,11 +1180,17 @@ private func makeMDLMaterial(
             material.setProperty(colorTextureProp)
             // Store texCoord index for shader
             if let texInfo = pbr.baseColorTexture {
-                let coord = texInfo.texCoord
+                let coord = texInfo.effectiveTexCoord
                 let coordProp = MDLMaterialProperty(name: MaterialPropertyName.baseColorTextureTexCoord.rawValue,
                                                     semantic: .userDefined,
                                                     float: Float(coord))
                 material.setProperty(coordProp)
+                setTextureTransform(
+                    texInfo.textureTransform,
+                    material: material,
+                    offsetScaleName: .baseColorTextureTransformOffsetScale,
+                    rotationName: .baseColorTextureTransformRotation
+                )
             }
         }
 
@@ -1168,11 +1210,17 @@ private func makeMDLMaterial(
             let metallicRoughnessProp = MDLMaterialProperty(name: MaterialPropertyName.metallicRoughnessTexture.rawValue, semantic: .userDefined, textureSampler: sampler)
             material.setProperty(metallicRoughnessProp)
             // Store texCoord index for shader
-            let coord = metallicRoughnessTexture.texCoord
+            let coord = metallicRoughnessTexture.effectiveTexCoord
             let coordProp = MDLMaterialProperty(name: MaterialPropertyName.metallicRoughnessTextureTexCoord.rawValue,
                                                 semantic: .userDefined,
                                                 float: Float(coord))
             material.setProperty(coordProp)
+            setTextureTransform(
+                metallicRoughnessTexture.textureTransform,
+                material: material,
+                offsetScaleName: .metallicRoughnessTextureTransformOffsetScale,
+                rotationName: .metallicRoughnessTextureTransformRotation
+            )
         }
 
         // Emissive (with support for KHR_materials_emissive_strength)
@@ -1202,11 +1250,17 @@ private func makeMDLMaterial(
             )
             material.setProperty(emissiveTextureProp)
             // Store texCoord index for shader
-            let coord = emissiveTexture.texCoord
+            let coord = emissiveTexture.effectiveTexCoord
             let coordProp = MDLMaterialProperty(name: MaterialPropertyName.emissiveTextureTexCoord.rawValue,
                                                 semantic: .userDefined,
                                                 float: Float(coord))
             material.setProperty(coordProp)
+            setTextureTransform(
+                emissiveTexture.textureTransform,
+                material: material,
+                offsetScaleName: .emissiveTextureTransformOffsetScale,
+                rotationName: .emissiveTextureTransformRotation
+            )
         }
 
         // Occlusion
@@ -1218,11 +1272,17 @@ private func makeMDLMaterial(
         material.setProperty(occlusionProp)
         // Store texCoord index for shader
         if let occlTex = gltfMaterial.occlusionTexture {
-            let coord = occlTex.texCoord
+            let coord = occlTex.effectiveTexCoord
             let coordProp = MDLMaterialProperty(name: MaterialPropertyName.occlusionTextureTexCoord.rawValue,
                                                 semantic: .userDefined,
                                                 float: Float(coord))
             material.setProperty(coordProp)
+            setTextureTransform(
+                occlTex.textureTransform,
+                material: material,
+                offsetScaleName: .occlusionTextureTransformOffsetScale,
+                rotationName: .occlusionTextureTransformRotation
+            )
         }
 
         let occlusionStrengthProp = MDLMaterialProperty(name: MaterialPropertyName.occlusionStrength.rawValue, semantic: .ambientOcclusionScale, float: gltfMaterial.occlusionTexture?.strength ?? 1.0)
@@ -1248,9 +1308,15 @@ private func makeMDLMaterial(
             let coordProp = MDLMaterialProperty(
                 name: MaterialPropertyName.transmissionTextureTexCoord.rawValue,
                 semantic: .userDefined,
-                float: Float(texInfo.texCoord)
+                float: Float(texInfo.effectiveTexCoord)
             )
             material.setProperty(coordProp)
+            setTextureTransform(
+                texInfo.textureTransform,
+                material: material,
+                offsetScaleName: .transmissionTextureTransformOffsetScale,
+                rotationName: .transmissionTextureTransformRotation
+            )
         }
     }
 
@@ -1273,9 +1339,15 @@ private func makeMDLMaterial(
             let coordProp = MDLMaterialProperty(
                 name: MaterialPropertyName.thicknessTextureTexCoord.rawValue,
                 semantic: .userDefined,
-                float: Float(texInfo.texCoord)
+                float: Float(texInfo.effectiveTexCoord)
             )
             material.setProperty(coordProp)
+            setTextureTransform(
+                texInfo.textureTransform,
+                material: material,
+                offsetScaleName: .thicknessTextureTransformOffsetScale,
+                rotationName: .thicknessTextureTransformRotation
+            )
         }
         if let attnDist = volume.attenuationDistance {
             let attnDistProp = MDLMaterialProperty(
@@ -1332,9 +1404,15 @@ private func makeMDLMaterial(
             let coordProp = MDLMaterialProperty(
                 name: MaterialPropertyName.clearcoatTextureTexCoord.rawValue,
                 semantic: .userDefined,
-                float: Float(texInfo.texCoord)
+                float: Float(texInfo.effectiveTexCoord)
             )
             material.setProperty(coordProp)
+            setTextureTransform(
+                texInfo.textureTransform,
+                material: material,
+                offsetScaleName: .clearcoatTextureTransformOffsetScale,
+                rotationName: .clearcoatTextureTransformRotation
+            )
         }
 
         if let texInfo = clearcoat.clearcoatRoughnessTexture,
@@ -1348,9 +1426,15 @@ private func makeMDLMaterial(
             let coordProp = MDLMaterialProperty(
                 name: MaterialPropertyName.clearcoatRoughnessTextureTexCoord.rawValue,
                 semantic: .userDefined,
-                float: Float(texInfo.texCoord)
+                float: Float(texInfo.effectiveTexCoord)
             )
             material.setProperty(coordProp)
+            setTextureTransform(
+                texInfo.textureTransform,
+                material: material,
+                offsetScaleName: .clearcoatRoughnessTextureTransformOffsetScale,
+                rotationName: .clearcoatRoughnessTextureTransformRotation
+            )
         }
 
         if let normalInfo = clearcoat.clearcoatNormalTexture,
@@ -1364,7 +1448,7 @@ private func makeMDLMaterial(
             let coordProp = MDLMaterialProperty(
                 name: MaterialPropertyName.clearcoatNormalTextureTexCoord.rawValue,
                 semantic: .userDefined,
-                float: Float(normalInfo.texCoord)
+                float: Float(normalInfo.effectiveTexCoord)
             )
             material.setProperty(coordProp)
             let scaleProp = MDLMaterialProperty(
@@ -1373,6 +1457,12 @@ private func makeMDLMaterial(
                 float: normalInfo.scale
             )
             material.setProperty(scaleProp)
+            setTextureTransform(
+                normalInfo.textureTransform,
+                material: material,
+                offsetScaleName: .clearcoatNormalTextureTransformOffsetScale,
+                rotationName: .clearcoatNormalTextureTransformRotation
+            )
         }
     }
 
@@ -1403,9 +1493,15 @@ private func makeMDLMaterial(
             let coordProp = MDLMaterialProperty(
                 name: MaterialPropertyName.specularTextureTexCoord.rawValue,
                 semantic: .userDefined,
-                float: Float(texInfo.texCoord)
+                float: Float(texInfo.effectiveTexCoord)
             )
             material.setProperty(coordProp)
+            setTextureTransform(
+                texInfo.textureTransform,
+                material: material,
+                offsetScaleName: .specularTextureTransformOffsetScale,
+                rotationName: .specularTextureTransformRotation
+            )
         }
         if let texInfo = spec.specularColorTexture,
            let sampler = loadTextureSampler(for: texInfo, from: gltf, binaryLoader: binaryLoader) {
@@ -1418,9 +1514,15 @@ private func makeMDLMaterial(
             let coordProp = MDLMaterialProperty(
                 name: MaterialPropertyName.specularColorTextureTexCoord.rawValue,
                 semantic: .userDefined,
-                float: Float(texInfo.texCoord)
+                float: Float(texInfo.effectiveTexCoord)
             )
             material.setProperty(coordProp)
+            setTextureTransform(
+                texInfo.textureTransform,
+                material: material,
+                offsetScaleName: .specularColorTextureTransformOffsetScale,
+                rotationName: .specularColorTextureTransformRotation
+            )
         }
     }
 
@@ -1451,9 +1553,15 @@ private func makeMDLMaterial(
             let coordProp = MDLMaterialProperty(
                 name: MaterialPropertyName.sheenColorTextureTexCoord.rawValue,
                 semantic: .userDefined,
-                float: Float(texInfo.texCoord)
+                float: Float(texInfo.effectiveTexCoord)
             )
             material.setProperty(coordProp)
+            setTextureTransform(
+                texInfo.textureTransform,
+                material: material,
+                offsetScaleName: .sheenColorTextureTransformOffsetScale,
+                rotationName: .sheenColorTextureTransformRotation
+            )
         }
         if let texInfo = sheen.sheenRoughnessTexture,
            let sampler = loadTextureSampler(for: texInfo, from: gltf, binaryLoader: binaryLoader) {
@@ -1466,9 +1574,15 @@ private func makeMDLMaterial(
             let coordProp = MDLMaterialProperty(
                 name: MaterialPropertyName.sheenRoughnessTextureTexCoord.rawValue,
                 semantic: .userDefined,
-                float: Float(texInfo.texCoord)
+                float: Float(texInfo.effectiveTexCoord)
             )
             material.setProperty(coordProp)
+            setTextureTransform(
+                texInfo.textureTransform,
+                material: material,
+                offsetScaleName: .sheenRoughnessTextureTransformOffsetScale,
+                rotationName: .sheenRoughnessTextureTransformRotation
+            )
         }
     }
 

@@ -130,6 +130,7 @@ final class PBRRenderTests {
         ("MorphPrimitivesTest", "glb"),
         ("CompareTransmission", "glb"),
         ("CompareClearcoat", "glb"),
+        ("TextureTransformMultiTest", "glb"),
     ]
 
     // Export baseline textures
