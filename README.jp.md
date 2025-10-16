@@ -12,10 +12,7 @@ glTFおよびGLBファイルをSwiftで利用できるようにするプロジ�
 - MetalによるglTFファイルの高速レンダリング
 
 ### 将来的な機能
-- glTFのアニメーションをサポート
-- glTFの拡張機能をサポート
 - カスタマイズ可能なレンダリングパイプライン
-- 3Dモデルの編集およびエクスポート機能
 - VRMフォーマットのサポート
 など
 
@@ -23,6 +20,7 @@ glTFおよびGLBファイルをSwiftで利用できるようにするプロジ�
 ### Platform
 - iOS 15.0+
 - macOS 13.0+
+- Metal 3 & 4
 
 ### Install
 #### Swift Package Manager
