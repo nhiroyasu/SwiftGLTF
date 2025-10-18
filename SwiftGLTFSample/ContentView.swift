@@ -9,7 +9,10 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let url = viewModel.url {
-                GLTFMetalView(url: url)
+                GLTFMetalView(
+                    url: url,
+                    showDebugHUD: true
+                )
             }
         }
         .overlay {

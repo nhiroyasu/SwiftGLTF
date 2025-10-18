@@ -22,7 +22,17 @@ public class GLTFView: MTKView {
     private var rotationY: Float32 = .pi / 2
     private var upSign: Float32 = 1
     private var distance: Float32 = 5
-    private var targetOffset: SIMD3<Float> = .zero
+    private var cameraTarget: SIMD3<Float> = .zero
+    private var orbitOffset: SIMD3<Float> {
+        SIMD3<Float>(
+            distance * cos(rotationX) * sin(rotationY),
+            distance * cos(rotationY),
+            distance * sin(rotationX) * sin(rotationY)
+        )
+    }
+    var eye: SIMD3<Float> { cameraTarget + orbitOffset }
+
+    private let showDebugHUD: Bool
 
     private var ambientLightColor: SIMD3<Float> = SIMD3<Float>(1, 1, 1) * 5
     private var lightPosition: SIMD3<Float> = SIMD3<Float>(0, 5, -5)
@@ -36,19 +46,12 @@ public class GLTFView: MTKView {
     private var animationState = RendererAnimationState(time: 0, speed: 1, isLooping: true)
     private var lastFrameTime: CFTimeInterval?
 
-    var eye: SIMD3<Float> {
-        SIMD3<Float>(
-            distance * cos(rotationX) * sin(rotationY),
-            distance * cos(rotationY),
-            distance * sin(rotationX) * sin(rotationY)
-        )
-    }
-
     public init(
         frame: CGRect,
         asset: MDLAsset? = nil,
         environmentMapURL: URL? = nil,
-        device: MTLDevice = MTLCreateSystemDefaultDevice()!
+        device: MTLDevice = MTLCreateSystemDefaultDevice()!,
+        showDebugHUD: Bool = false
     ) throws {
         let device = device
         if let commandQueue = device.makeCommandQueue() {
@@ -61,6 +64,7 @@ public class GLTFView: MTKView {
         let colorPixelFormat: MTLPixelFormat = .rgba8Unorm_srgb
         let depthPixelFormat: MTLPixelFormat = .depth32Float
 
+        self.showDebugHUD = showDebugHUD
         self.renderer = try PBRRenderer(
             commandQueue: commandQueue,
             sampleCount: sampleCount,
@@ -108,9 +112,10 @@ public class GLTFView: MTKView {
     public convenience init(
         frame: CGRect,
         url: URL,
-        device: MTLDevice = MTLCreateSystemDefaultDevice()!
+        device: MTLDevice = MTLCreateSystemDefaultDevice()!,
+        showDebugHUD: Bool = false
     ) throws {
-        try self.init(frame: frame, device: device)
+        try self.init(frame: frame, device: device, showDebugHUD: showDebugHUD)
 
         Task { await self.load(from: url) }
     }
@@ -174,7 +179,8 @@ public class GLTFView: MTKView {
         rotationY = .pi / 2
         upSign = 1
         distance = 5
-        targetOffset = .zero
+        cameraTarget = .zero
+        updateCameraHUD()
     }
 
     // MARK: - Buffer Management
@@ -183,6 +189,7 @@ public class GLTFView: MTKView {
         toVertexParams: MTLBuffer,
         toFragmentParams: MTLBuffer,
         eye: SIMD3<Float>,
+        target: SIMD3<Float>,
         lightPosition: SIMD3<Float>,
         ambientLightColor: SIMD3<Float>,
         upSign: Float32,
@@ -190,7 +197,7 @@ public class GLTFView: MTKView {
     ) {
         let view = lookAt(
             eye: eye,
-            target: simd_float3(0, 0, 0),
+            target: target,
             up: simd_float3(0, upSign, 0)
         )
 
@@ -203,11 +210,10 @@ public class GLTFView: MTKView {
             near: 0.1,
             far: 1000.0
         )
-        let offset = translationMatrix(targetOffset.x, targetOffset.y, targetOffset.z)
         var vpUniforms = MVPUniform(
             view: view,
             projection: projection,
-            externalTransform: offset
+            externalTransform: matrix_identity_float4x4
         )
         toVertexParams.contents().copyMemory(
             from: &vpUniforms,
@@ -247,6 +253,7 @@ public class GLTFView: MTKView {
             toVertexParams: mvpUniformBuffer.buffer(currentBuffer),
             toFragmentParams: sceneUniformsBuffer.buffer(currentBuffer),
             eye: eye,
+            target: cameraTarget,
             lightPosition: lightPosition,
             ambientLightColor: ambientLightColor,
             upSign: upSign,
@@ -279,6 +286,7 @@ public class GLTFView: MTKView {
             viewPos: eye,
             waitFence: animationFence
         )
+        updateCameraHUD()
         commandBuffer.present(drawable)
         commandBuffer.addCompletedHandler { [weak frameSemaphores] _ in
             frameSemaphores?.signal()
@@ -290,6 +298,7 @@ public class GLTFView: MTKView {
 
     #if os(iOS)
     private let messageLabel = UILabel()
+    private var debugHUDView: CameraDebugHUDView?
 
     func setupUI() {
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
@@ -300,6 +309,22 @@ public class GLTFView: MTKView {
 
         messageLabel.isHidden = true
         addSubview(messageLabel)
+
+        if showDebugHUD {
+            let hud = CameraDebugHUDView()
+            hud.translatesAutoresizingMaskIntoConstraints = false
+            hud.onReset = { [weak self] in self?.resetCamera() }
+            addSubview(hud)
+            debugHUDView = hud
+
+            let guide = safeAreaLayoutGuide
+            NSLayoutConstraint.activate([
+                hud.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 12),
+                hud.topAnchor.constraint(equalTo: guide.topAnchor, constant: 12)
+            ])
+
+            hud.update(position: eye)
+        }
     }
 
     var prevTranslation: CGPoint = .zero
@@ -316,6 +341,7 @@ public class GLTFView: MTKView {
             rotationY = rotationY - multiplier * 2.0 * .pi * Float32(deltaY) / Float32(self.frame.height)
             upSign = sin(rotationY) >= 0 ? 1 : -1
             rotationX = rotationX - upSign * multiplier * 2.0 * .pi * Float32(deltaX) / Float32(self.frame.width)
+            updateCameraHUD()
         case .ended, .cancelled:
             prevTranslation = .zero
         default:
@@ -328,6 +354,7 @@ public class GLTFView: MTKView {
         case .began, .changed:
             distance /= Float(gesture.scale)
             gesture.scale = 1.0
+            updateCameraHUD()
         default:
             break
         }
@@ -344,6 +371,7 @@ public class GLTFView: MTKView {
     #elseif os(macOS)
 
     private let messageLabel = NSTextField()
+    private var debugHUDView: CameraDebugHUDView?
 
     private func setupUI() {
         messageLabel.isEditable = false
@@ -352,6 +380,21 @@ public class GLTFView: MTKView {
         messageLabel.autoresizingMask = [.width, .height]
         messageLabel.isHidden = true
         addSubview(messageLabel)
+
+        if showDebugHUD {
+            let hud = CameraDebugHUDView()
+            hud.translatesAutoresizingMaskIntoConstraints = false
+            hud.onReset = { [weak self] in self?.resetCamera() }
+            addSubview(hud)
+            debugHUDView = hud
+
+            NSLayoutConstraint.activate([
+                hud.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 12),
+                hud.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12)
+            ])
+
+            hud.update(position: eye)
+        }
     }
 
     public override func scrollWheel(with event: NSEvent) {
@@ -361,15 +404,16 @@ public class GLTFView: MTKView {
             let dx = Float32(event.scrollingDeltaX)
             let dy = Float32(event.scrollingDeltaY)
 
-            targetOffset.x += panMultiplier * (dx * cos(rotationX + .pi / 2))
-            targetOffset.y -= panMultiplier * dy
-            targetOffset.z += panMultiplier * (dx * sin(rotationX + .pi / 2))
+            cameraTarget.x -= panMultiplier * (dx * cos(rotationX + .pi / 2))
+            cameraTarget.y += panMultiplier * dy
+            cameraTarget.z -= panMultiplier * (dx * sin(rotationX + .pi / 2))
         } else {
             let multiplier: Float32 = 1
             rotationY -= multiplier * 2.0 * .pi * Float32(event.scrollingDeltaY) / Float32(self.frame.height)
             upSign = sin(rotationY) >= 0 ? 1 : -1
             rotationX -= upSign * multiplier * 2.0 * .pi * Float32(event.scrollingDeltaX) / Float32(self.frame.width)
         }
+        updateCameraHUD()
     }
 
     public override func magnify(with event: NSEvent) {
@@ -378,6 +422,7 @@ public class GLTFView: MTKView {
         if distance < threshold {
             distance = threshold
         }
+        updateCameraHUD()
     }
 
     func showError(_ message: String) {
@@ -387,6 +432,11 @@ public class GLTFView: MTKView {
     }
 
     #endif
+
+    private func updateCameraHUD() {
+        guard showDebugHUD else { return }
+        debugHUDView?.update(position: eye)
+    }
 
     func onChange(_ displayType: DisplayType) {
         switch displayType {

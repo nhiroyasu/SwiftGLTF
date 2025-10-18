@@ -11,13 +11,20 @@ import UIKit
 
 public struct GLTFMetalView: UIViewRepresentable {
     private let dataType: GLTFMetalViewDataType
+    private let showDebugHUD: Bool
 
-    public init(url: URL, automaticallyAccessSecurityScope: Bool = true) {
+    public init(url: URL, automaticallyAccessSecurityScope: Bool = true, showDebugHUD: Bool = false) {
         self.dataType = .url(url, automaticallyAccessSecurityScope)
+        self.showDebugHUD = showDebugHUD
+    }
+
+    public init(asset: MDLAsset, showDebugHUD: Bool = false) {
+        self.dataType = .asset(asset)
+        self.showDebugHUD = showDebugHUD
     }
 
     public func makeUIView(context: Context) -> GLTFView {
-        if let view = try? GLTFView(frame: .zero) {
+        if let view = try? GLTFView(frame: .zero, showDebugHUD: showDebugHUD) {
             view.translatesAutoresizingMaskIntoConstraints = false
             return view
         } else {
@@ -46,13 +53,20 @@ import AppKit
 
 public struct GLTFMetalView: NSViewRepresentable {
     private let dataType: GLTFMetalViewDataType
+    private let showDebugHUD: Bool
 
-    public init(url: URL, automaticallyAccessSecurityScope: Bool = true) {
+    public init(url: URL, automaticallyAccessSecurityScope: Bool = true, showDebugHUD: Bool = false) {
         self.dataType = .url(url, automaticallyAccessSecurityScope)
+        self.showDebugHUD = showDebugHUD
+    }
+
+    public init(asset: MDLAsset, showDebugHUD: Bool = false) {
+        self.dataType = .asset(asset)
+        self.showDebugHUD = showDebugHUD
     }
 
     public func makeNSView(context: Context) -> GLTFView {
-        if let view = try? GLTFView(frame: .zero) {
+        if let view = try? GLTFView(frame: .zero, showDebugHUD: showDebugHUD) {
             view.translatesAutoresizingMaskIntoConstraints = false
             return view
         } else {

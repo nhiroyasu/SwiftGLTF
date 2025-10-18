@@ -117,7 +117,7 @@ public class PBRRenderer {
             self._irradianceMap,
             self._brdfLUT,
             self._prefilterSheenMap
-        ) = try envMapLoader.makeEnvMapHeapAndTexture(from: CGColor(gray: 0.35, alpha: 1.0))
+        ) = try envMapLoader.makeEnvMapHeapAndTexture(from: CGColor(gray: 0.0, alpha: 1.0))
         self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
             prefilterEnvMap: _prefilterEnvMap,
             irradianceMap: _irradianceMap,
