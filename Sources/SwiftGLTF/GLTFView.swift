@@ -9,12 +9,11 @@ import QuartzCore
 @MainActor
 public class GLTFView: MTKView {
     private let commandQueue: MTLCommandQueue
-
     private let renderer: PBRRenderer
-
     private let sceneUniformsBuffer: FrameInFlightBuffer
     private let mvpUniformBuffer: FrameInFlightBuffer
 
+    // MARK: - Display State
     private var displayType: DisplayType = .loading {
         didSet { onChange(displayType) }
     }
@@ -30,13 +29,14 @@ public class GLTFView: MTKView {
             distance * sin(rotationX) * sin(rotationY)
         )
     }
-    var eye: SIMD3<Float> { cameraTarget + orbitOffset }
+    private var eye: SIMD3<Float> { cameraTarget + orbitOffset }
+    private var showDebugHUD: Bool
 
-    private let showDebugHUD: Bool
-
+    // MARK: - Lighting
     private var ambientLightColor: SIMD3<Float> = SIMD3<Float>(1, 1, 1) * 5
     private var lightPosition: SIMD3<Float> = SIMD3<Float>(0, 5, -5)
 
+    // MARK: - Frame Management
     private let maxFramesInFlight = 2
     private var currentBuffer = 0
     private let frameSemaphores: DispatchSemaphore
