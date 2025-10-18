@@ -38,7 +38,7 @@ struct ContentView: View {
             }
         }
         .navigationTitle("GLTF Viewer")
-        .ignoresSafeArea(.container, edges: .all)
+        .ignoresSafeArea(.all, edges: .all)
         .fileImporter(
             isPresented: $viewModel.showFileImporter,
             allowedContentTypes: viewModel.allowedContentTypes,

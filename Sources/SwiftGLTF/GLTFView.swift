@@ -33,8 +33,11 @@ public class GLTFView: MTKView {
     private var showDebugHUD: Bool
 
     // MARK: - Lighting
-    private var ambientLightColor: SIMD3<Float> = SIMD3<Float>(1, 1, 1) * 5
-    private var lightPosition: SIMD3<Float> = SIMD3<Float>(0, 5, -5)
+    private let defaultAmbientLightColor: SIMD3<Float> = SIMD3<Float>(1, 1, 1) * 5
+    private let defaultLightPosition: SIMD3<Float> = SIMD3<Float>(0, 5, -5)
+
+    private var ambientLightColor: SIMD3<Float>
+    private var lightPosition: SIMD3<Float>
 
     // MARK: - Frame Management
     private let maxFramesInFlight = 2
@@ -65,6 +68,9 @@ public class GLTFView: MTKView {
         let depthPixelFormat: MTLPixelFormat = .depth32Float
 
         self.showDebugHUD = showDebugHUD
+        self.ambientLightColor = defaultAmbientLightColor
+        self.lightPosition = defaultLightPosition
+
         self.renderer = try PBRRenderer(
             commandQueue: commandQueue,
             sampleCount: sampleCount,
@@ -183,6 +189,12 @@ public class GLTFView: MTKView {
         updateCameraHUD()
     }
 
+    private func resetLight() {
+        lightPosition = defaultLightPosition
+        ambientLightColor = defaultAmbientLightColor
+        updateCameraHUD()
+    }
+
     // MARK: - Buffer Management
 
     private func updateSceneBuffer(
@@ -286,7 +298,6 @@ public class GLTFView: MTKView {
             viewPos: eye,
             waitFence: animationFence
         )
-        updateCameraHUD()
         commandBuffer.present(drawable)
         commandBuffer.addCompletedHandler { [weak frameSemaphores] _ in
             frameSemaphores?.signal()
@@ -314,6 +325,18 @@ public class GLTFView: MTKView {
             let hud = CameraDebugHUDView()
             hud.translatesAutoresizingMaskIntoConstraints = false
             hud.onReset = { [weak self] in self?.resetCamera() }
+            hud.onLightPositionChange = { [weak self] value in
+                self?.lightPosition = value
+                self?.updateCameraHUD()
+            }
+            hud.onAmbientLightColorChange = { [weak self] value in
+                self?.ambientLightColor = value
+                self?.updateCameraHUD()
+            }
+            hud.onLightReset = { [weak self] in
+                guard let self else { return }
+                self.resetLight()
+            }
             addSubview(hud)
             debugHUDView = hud
 
@@ -323,7 +346,11 @@ public class GLTFView: MTKView {
                 hud.topAnchor.constraint(equalTo: guide.topAnchor, constant: 12)
             ])
 
-            hud.update(position: eye)
+            hud.update(
+                position: eye,
+                lightPosition: lightPosition,
+                ambientLightColor: ambientLightColor
+            )
         }
     }
 
@@ -385,6 +412,18 @@ public class GLTFView: MTKView {
             let hud = CameraDebugHUDView()
             hud.translatesAutoresizingMaskIntoConstraints = false
             hud.onReset = { [weak self] in self?.resetCamera() }
+            hud.onLightPositionChange = { [weak self] value in
+                self?.lightPosition = value
+                self?.updateCameraHUD()
+            }
+            hud.onAmbientLightColorChange = { [weak self] value in
+                self?.ambientLightColor = value
+                self?.updateCameraHUD()
+            }
+            hud.onLightReset = { [weak self] in
+                guard let self else { return }
+                self.resetLight()
+            }
             addSubview(hud)
             debugHUDView = hud
 
@@ -393,7 +432,11 @@ public class GLTFView: MTKView {
                 hud.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12)
             ])
 
-            hud.update(position: eye)
+            hud.update(
+                position: eye,
+                lightPosition: lightPosition,
+                ambientLightColor: ambientLightColor
+            )
         }
     }
 
@@ -435,7 +478,11 @@ public class GLTFView: MTKView {
 
     private func updateCameraHUD() {
         guard showDebugHUD else { return }
-        debugHUDView?.update(position: eye)
+        debugHUDView?.update(
+            position: eye,
+            lightPosition: lightPosition,
+            ambientLightColor: ambientLightColor
+        )
     }
 
     func onChange(_ displayType: DisplayType) {
