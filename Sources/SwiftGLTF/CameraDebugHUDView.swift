@@ -3,7 +3,7 @@ import UIKit
 
 final class CameraDebugHUDView: UIView, UITextFieldDelegate {
     private let stackView = UIStackView()
-    private let cameraLabel = UILabel()
+    private let cameraValueLabel = UILabel()
     private let lightFields: [UITextField]
     private let ambientFields: [UITextField]
     private let resetCameraButton = UIButton(type: .system)
@@ -37,12 +37,18 @@ final class CameraDebugHUDView: UIView, UITextFieldDelegate {
 
         let cameraSection = UIStackView()
         cameraSection.axis = .vertical
-        cameraSection.spacing = 8
+        cameraSection.spacing = 4
 
-        cameraLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        cameraLabel.textColor = .white
-        cameraLabel.numberOfLines = 1
-        cameraSection.addArrangedSubview(cameraLabel)
+        let cameraTitleLabel = UILabel()
+        cameraTitleLabel.text = "Camera"
+        cameraTitleLabel.textColor = .white
+        cameraTitleLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        cameraSection.addArrangedSubview(cameraTitleLabel)
+
+        cameraValueLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        cameraValueLabel.textColor = .white
+        cameraValueLabel.numberOfLines = 1
+        cameraSection.addArrangedSubview(cameraValueLabel)
 
         resetCameraButton.setTitle("Reset Camera", for: .normal)
         resetCameraButton.addTarget(self, action: #selector(handleResetCamera), for: .touchUpInside)
@@ -90,7 +96,7 @@ final class CameraDebugHUDView: UIView, UITextFieldDelegate {
     }
 
     func update(position: SIMD3<Float>, lightPosition: SIMD3<Float>, ambientLightColor: SIMD3<Float>) {
-        cameraLabel.text = String(format: "Camera: (%.2f, %.2f, %.2f)", position.x, position.y, position.z)
+        cameraValueLabel.text = String(format: "(%.2f, %.2f, %.2f)", position.x, position.y, position.z)
         set(fields: lightFields, vector: lightPosition)
         set(fields: ambientFields, vector: ambientLightColor)
     }
@@ -190,7 +196,7 @@ import AppKit
 
 final class CameraDebugHUDView: NSView {
     private let stackView = NSStackView()
-    private let cameraLabel: NSTextField
+    private let cameraValueLabel: NSTextField
     private let lightFields: [NSTextField]
     private let ambientFields: [NSTextField]
     private let resetCameraButton: NSButton
@@ -201,7 +207,7 @@ final class CameraDebugHUDView: NSView {
     var onLightReset: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
-        cameraLabel = NSTextField(labelWithString: "")
+        cameraValueLabel = NSTextField(labelWithString: "")
         resetCameraButton = NSButton(title: "Reset Camera", target: nil, action: nil)
         resetLightButton = NSButton(title: "Reset Light", target: nil, action: nil)
         lightFields = CameraDebugHUDView.makeFields()
@@ -229,11 +235,16 @@ final class CameraDebugHUDView: NSView {
         let cameraSection = NSStackView()
         cameraSection.orientation = .vertical
         cameraSection.alignment = .leading
-        cameraSection.spacing = 8
+        cameraSection.spacing = 4
 
-        cameraLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        cameraLabel.textColor = .labelColor
-        cameraSection.addArrangedSubview(cameraLabel)
+        let cameraTitleLabel = NSTextField(labelWithString: "Camera")
+        cameraTitleLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        cameraTitleLabel.textColor = .labelColor
+        cameraSection.addArrangedSubview(cameraTitleLabel)
+
+        cameraValueLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        cameraValueLabel.textColor = .labelColor
+        cameraSection.addArrangedSubview(cameraValueLabel)
 
         resetCameraButton.target = self
         resetCameraButton.action = #selector(handleResetCamera)
@@ -284,7 +295,7 @@ final class CameraDebugHUDView: NSView {
     }
 
     func update(position: SIMD3<Float>, lightPosition: SIMD3<Float>, ambientLightColor: SIMD3<Float>) {
-        cameraLabel.stringValue = String(format: "Camera: (%.2f, %.2f, %.2f)", position.x, position.y, position.z)
+        cameraValueLabel.stringValue = String(format: "(%.2f, %.2f, %.2f)", position.x, position.y, position.z)
         set(fields: lightFields, vector: lightPosition)
         set(fields: ambientFields, vector: ambientLightColor)
     }
