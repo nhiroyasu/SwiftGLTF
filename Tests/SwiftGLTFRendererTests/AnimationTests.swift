@@ -102,7 +102,7 @@ final class AnimationTests {
         let fence = renderer.animation(commandBuffer: cmdBuf, animationState: animationState)
         renderer.render(
             commandBuffer: cmdBuf,
-            viewRenderPassDescriptor: passDesc,
+            renderPassDescriptor: passDesc,
             drawableSize: CGSize(width: output.width, height: output.height),
             mvpUniformBuffer: mvpUniformBuffer,
             fragmentParams: fragmentParams,

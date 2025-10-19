@@ -240,7 +240,7 @@ public class PBRRenderer {
 
     public func render(
         commandBuffer: MTLCommandBuffer,
-        viewRenderPassDescriptor: MTLRenderPassDescriptor,
+        renderPassDescriptor: MTLRenderPassDescriptor,
         drawableSize: CGSize,
         mvpUniformBuffer: MTLBuffer,
         fragmentParams: MTLBuffer,
@@ -291,7 +291,7 @@ public class PBRRenderer {
         }
 
         // Pass 4: full-screen compose to screen
-        guard let composeRE = commandBuffer.makeRenderCommandEncoder(descriptor: viewRenderPassDescriptor) else { return }
+        guard let composeRE = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else { return }
         composeRE.label = "[SwiftGLTF] PBR Compose Render Encoder"
         encodeComposePass(
             renderEncoder: composeRE,

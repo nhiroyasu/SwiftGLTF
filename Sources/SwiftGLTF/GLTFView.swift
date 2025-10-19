@@ -17,19 +17,19 @@ public class GLTFView: MTKView {
     private var displayType: DisplayType = .loading {
         didSet { onChange(displayType) }
     }
-    private var rotationX: Float32 = -.pi / 2
-    private var rotationY: Float32 = .pi / 2
-    private var upSign: Float32 = 1
-    private var distance: Float32 = 5
-    private var cameraTarget: SIMD3<Float> = .zero
-    private var orbitOffset: SIMD3<Float> {
+    private var freeCameraRX: Float32 = -.pi / 2
+    private var freeCameraRY: Float32 = .pi / 2
+    private var freeCameraUpSign: Float32 = 1
+    private var freeCameraDistance: Float32 = 5
+    private var freeCameraTarget: SIMD3<Float> = .zero
+    private var freeCameraPos: SIMD3<Float> {
         SIMD3<Float>(
-            distance * cos(rotationX) * sin(rotationY),
-            distance * cos(rotationY),
-            distance * sin(rotationX) * sin(rotationY)
+            freeCameraDistance * cos(freeCameraRX) * sin(freeCameraRY),
+            freeCameraDistance * cos(freeCameraRY),
+            freeCameraDistance * sin(freeCameraRX) * sin(freeCameraRY)
         )
     }
-    private var eye: SIMD3<Float> { cameraTarget + orbitOffset }
+    private var eye: SIMD3<Float> { freeCameraTarget + freeCameraPos }
     private var showDebugHUD: Bool
 
     // MARK: - Lighting
@@ -181,11 +181,11 @@ public class GLTFView: MTKView {
     }
 
     public func resetCamera() {
-        rotationX = -.pi / 2
-        rotationY = .pi / 2
-        upSign = 1
-        distance = 5
-        cameraTarget = .zero
+        freeCameraRX = -.pi / 2
+        freeCameraRY = .pi / 2
+        freeCameraUpSign = 1
+        freeCameraDistance = 5
+        freeCameraTarget = .zero
         updateCameraHUD()
     }
 
@@ -265,10 +265,10 @@ public class GLTFView: MTKView {
             toVertexParams: mvpUniformBuffer.buffer(currentBuffer),
             toFragmentParams: sceneUniformsBuffer.buffer(currentBuffer),
             eye: eye,
-            target: cameraTarget,
+            target: freeCameraTarget,
             lightPosition: lightPosition,
             ambientLightColor: ambientLightColor,
-            upSign: upSign,
+            upSign: freeCameraUpSign,
             drawableSize: drawableSize
         )
 
@@ -288,10 +288,10 @@ public class GLTFView: MTKView {
             lastFrameTime = CACurrentMediaTime()
         }
 
-        // Rendering (two-pass: offscreen -> transparent to screen)
+        // Rendering
         renderer.render(
             commandBuffer: commandBuffer,
-            viewRenderPassDescriptor: descriptor,
+            renderPassDescriptor: descriptor,
             drawableSize: drawableSize,
             mvpUniformBuffer: mvpUniformBuffer.buffer(currentBuffer),
             fragmentParams: sceneUniformsBuffer.buffer(currentBuffer),
@@ -365,9 +365,9 @@ public class GLTFView: MTKView {
             prevTranslation = gesture.translation(in: self)
 
             let multiplier: Float32 = 1
-            rotationY = rotationY - multiplier * 2.0 * .pi * Float32(deltaY) / Float32(self.frame.height)
-            upSign = sin(rotationY) >= 0 ? 1 : -1
-            rotationX = rotationX - upSign * multiplier * 2.0 * .pi * Float32(deltaX) / Float32(self.frame.width)
+            freeCameraRY = freeCameraRY - multiplier * 2.0 * .pi * Float32(deltaY) / Float32(self.frame.height)
+            freeCameraUpSign = sin(freeCameraRY) >= 0 ? 1 : -1
+            freeCameraRX = freeCameraRX - freeCameraUpSign * multiplier * 2.0 * .pi * Float32(deltaX) / Float32(self.frame.width)
             updateCameraHUD()
         case .ended, .cancelled:
             prevTranslation = .zero
@@ -379,7 +379,7 @@ public class GLTFView: MTKView {
     @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
         switch gesture.state {
         case .began, .changed:
-            distance /= Float(gesture.scale)
+            freeCameraDistance /= Float(gesture.scale)
             gesture.scale = 1.0
             updateCameraHUD()
         default:
@@ -447,23 +447,23 @@ public class GLTFView: MTKView {
             let dx = Float32(event.scrollingDeltaX)
             let dy = Float32(event.scrollingDeltaY)
 
-            cameraTarget.x -= panMultiplier * (dx * cos(rotationX + .pi / 2))
-            cameraTarget.y += panMultiplier * dy
-            cameraTarget.z -= panMultiplier * (dx * sin(rotationX + .pi / 2))
+            freeCameraTarget.x -= panMultiplier * (dx * cos(freeCameraRX + .pi / 2))
+            freeCameraTarget.y += panMultiplier * dy
+            freeCameraTarget.z -= panMultiplier * (dx * sin(freeCameraRX + .pi / 2))
         } else {
             let multiplier: Float32 = 1
-            rotationY -= multiplier * 2.0 * .pi * Float32(event.scrollingDeltaY) / Float32(self.frame.height)
-            upSign = sin(rotationY) >= 0 ? 1 : -1
-            rotationX -= upSign * multiplier * 2.0 * .pi * Float32(event.scrollingDeltaX) / Float32(self.frame.width)
+            freeCameraRY -= multiplier * 2.0 * .pi * Float32(event.scrollingDeltaY) / Float32(self.frame.height)
+            freeCameraUpSign = sin(freeCameraRY) >= 0 ? 1 : -1
+            freeCameraRX -= freeCameraUpSign * multiplier * 2.0 * .pi * Float32(event.scrollingDeltaX) / Float32(self.frame.width)
         }
         updateCameraHUD()
     }
 
     public override func magnify(with event: NSEvent) {
         let threshold: Float32 = 0.1
-        distance = distance - Float32(event.magnification) * 10.0
-        if distance < threshold {
-            distance = threshold
+        freeCameraDistance = freeCameraDistance - Float32(event.magnification) * 10.0
+        if freeCameraDistance < threshold {
+            freeCameraDistance = threshold
         }
         updateCameraHUD()
     }
