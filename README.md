@@ -10,11 +10,13 @@ A project that enables using glTF files in Swift.
 </div>
 
 ## Features
-- Decodes glTF and GLB files and makes them available as `MDLAsset` in Swift
-- High-performance glTF rendering with Metal
+
+SwiftGLTF provides a **high-performance, Metal-powered rendering system** specialized for glTF.  
+It’s **independent of SceneKit**, supports **a wide range of glTF features**, and is designed as a **lightweight, easy-to-integrate Swift package** for your app.  
+By leveraging Metal’s low-level GPU capabilities, SwiftGLTF delivers **fast, efficient, and visually accurate rendering** of glTF models on Apple platforms.
 
 ### Planned Features
-- Customizable rendering pipeline  
+- Further support for glTF features (see details below)
 - VRM format support  
 And more.
 
