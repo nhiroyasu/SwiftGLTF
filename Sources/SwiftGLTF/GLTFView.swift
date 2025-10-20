@@ -51,9 +51,6 @@ public class GLTFView: MTKView {
 
     public init(
         frame: CGRect,
-        asset: MDLAsset? = nil,
-        sceneIndex: Int? = nil,
-        environmentMapURL: URL? = nil,
         device: MTLDevice = MTLCreateSystemDefaultDevice()!,
         showDebugHUD: Bool = false
     ) throws {
@@ -106,26 +103,6 @@ public class GLTFView: MTKView {
         #endif
 
         setupUI()
-
-        Task {
-            let url = environmentMapURL ?? Bundle.module.url(forResource: "env_map", withExtension: "exr")!
-            try await renderer.setEnvironment(url: url)
-            if let asset {
-                await load(from: asset, sceneIndex: sceneIndex)
-            }
-        }
-    }
-
-    public convenience init(
-        frame: CGRect,
-        url: URL,
-        sceneIndex: Int? = nil,
-        device: MTLDevice = MTLCreateSystemDefaultDevice()!,
-        showDebugHUD: Bool = false
-    ) throws {
-        try self.init(frame: frame, device: device, showDebugHUD: showDebugHUD)
-
-        Task { await self.load(from: url, sceneIndex: sceneIndex) }
     }
 
     required init(coder: NSCoder) {
@@ -134,51 +111,25 @@ public class GLTFView: MTKView {
 
     // MARK: - State Management
 
-    public func load(from asset: MDLAsset, sceneIndex: Int?) async {
+    public func load(gltf url: URL, sceneIndex: Int?) async {
         do {
             displayType = .loading
-            try await renderer.load(from: asset, sceneIndex: sceneIndex)
-            displayType = .drawable
-        } catch {
-            os_log("Failed to load asset: %@", type: .error, error.localizedDescription)
-            displayType = .error("Failed to load asset: \(error.localizedDescription)")
-        }
-    }
-
-    public func loadAsync(from asset: MDLAsset, sceneIndex: Int?) {
-        Task {
-            do {
-                displayType = .loading
-                try await renderer.load(from: asset, sceneIndex: sceneIndex)
-                displayType = .drawable
-            } catch {
-                os_log("Failed to load asset: %@", type: .error, error.localizedDescription)
-                displayType = .error("Failed to load asset: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    public func load(from url: URL, sceneIndex: Int?) async {
-        do {
-            displayType = .loading
+            defer { displayType = .drawable }
             let asset = try await makeMDLAsset(from: url)
-            await load(from: asset, sceneIndex: sceneIndex)
+            try await renderer.load(from: asset, sceneIndex: sceneIndex)
         } catch {
             os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
             displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
         }
     }
 
-    public func loadAsync(from url: URL, sceneIndex: Int?) {
-        Task {
-            do {
-                displayType = .loading
-                let asset = try await makeMDLAsset(from: url)
-                await load(from: asset, sceneIndex: sceneIndex)
-            } catch {
-                os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
-                displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
-            }
+    public func load(environment url: URL) async {
+        do {
+            displayType = .loading
+            defer { displayType = .drawable }
+            try await renderer.setEnvironment(url: url)
+        } catch {
+            os_log("Failed to load environment map from URL: %@", type: .error, error.localizedDescription)
         }
     }
 

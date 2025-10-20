@@ -1,38 +1,28 @@
 import SwiftUI
 import MetalKit
 
-enum GLTFMetalViewDataType {
-    case url(URL, Bool)
-    case asset(MDLAsset)
-}
-
 #if canImport(UIKit)
 import UIKit
 
 public struct GLTFMetalView: UIViewRepresentable {
-    private let dataType: GLTFMetalViewDataType
+    private let url: URL
     private let sceneIndex: Int?
+    private let environmentUrl: URL?
     private let showDebugHUD: Bool
+    private let automaticallyAccessSecurityScope: Bool
 
     public init(
         url: URL,
         sceneIndex: Int? = nil,
-        automaticallyAccessSecurityScope: Bool = true,
-        showDebugHUD: Bool = false
+        environmentUrl: URL? = nil,
+        showDebugHUD: Bool = false,
+        automaticallyAccessSecurityScope: Bool = true
     ) {
-        self.dataType = .url(url, automaticallyAccessSecurityScope)
+        self.url = url
         self.sceneIndex = sceneIndex
+        self.environmentUrl = environmentUrl
         self.showDebugHUD = showDebugHUD
-    }
-
-    public init(
-        asset: MDLAsset,
-        sceneIndex: Int? = nil,
-        showDebugHUD: Bool = false
-    ) {
-        self.dataType = .asset(asset)
-        self.sceneIndex = sceneIndex
-        self.showDebugHUD = showDebugHUD
+        self.automaticallyAccessSecurityScope = automaticallyAccessSecurityScope
     }
 
     public func makeUIView(context: Context) -> GLTFView {
@@ -46,15 +36,13 @@ public struct GLTFMetalView: UIViewRepresentable {
 
     public func updateUIView(_ uiView: GLTFView, context: Context) {
         Task {
-            switch dataType {
-            case .url(let url, let automaticallyAccessSecurityScope):
-                let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
-                await uiView.load(from: url, sceneIndex: sceneIndex)
-                if shouldStoppedAccessingSecurityScopedResource {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            case .asset(let mdlAsset):
-                await uiView.load(from: mdlAsset, sceneIndex: sceneIndex)
+            let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
+            await uiView.load(gltf: url, sceneIndex: sceneIndex)
+            if let environmentUrl {
+                await uiView.load(environment: environmentUrl)
+            }
+            if shouldStoppedAccessingSecurityScopedResource {
+                url.stopAccessingSecurityScopedResource()
             }
         }
     }
@@ -64,29 +52,24 @@ public struct GLTFMetalView: UIViewRepresentable {
 import AppKit
 
 public struct GLTFMetalView: NSViewRepresentable {
-    private let dataType: GLTFMetalViewDataType
+    private let url: URL
     private let sceneIndex: Int?
+    private let environmentUrl: URL?
     private let showDebugHUD: Bool
+    private let automaticallyAccessSecurityScope: Bool
 
     public init(
         url: URL,
         sceneIndex: Int? = nil,
+        environmentUrl: URL? = nil,
+        showDebugHUD: Bool = false,
         automaticallyAccessSecurityScope: Bool = true,
-        showDebugHUD: Bool = false
     ) {
-        self.dataType = .url(url, automaticallyAccessSecurityScope)
+        self.url = url
         self.sceneIndex = sceneIndex
+        self.environmentUrl = environmentUrl
         self.showDebugHUD = showDebugHUD
-    }
-
-    public init(
-        asset: MDLAsset,
-        sceneIndex: Int? = nil,
-        showDebugHUD: Bool = false
-    ) {
-        self.dataType = .asset(asset)
-        self.sceneIndex = sceneIndex
-        self.showDebugHUD = showDebugHUD
+        self.automaticallyAccessSecurityScope = automaticallyAccessSecurityScope
     }
 
     public func makeNSView(context: Context) -> GLTFView {
@@ -100,15 +83,13 @@ public struct GLTFMetalView: NSViewRepresentable {
 
     public func updateNSView(_ nsView: GLTFView, context: Context) {
         Task {
-            switch dataType {
-            case .url(let url, let automaticallyAccessSecurityScope):
-                let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
-                await nsView.load(from: url, sceneIndex: sceneIndex)
-                if shouldStoppedAccessingSecurityScopedResource {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            case .asset(let mdlAsset):
-                await nsView.load(from: mdlAsset, sceneIndex: sceneIndex)
+            let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
+            await nsView.load(gltf: url, sceneIndex: sceneIndex)
+            if let environmentUrl {
+                await nsView.load(environment: environmentUrl)
+            }
+            if shouldStoppedAccessingSecurityScopedResource {
+                url.stopAccessingSecurityScopedResource()
             }
         }
     }

@@ -11,6 +11,7 @@ struct ContentView: View {
             if let url = viewModel.url {
                 GLTFMetalView(
                     url: url,
+                    environmentUrl: Bundle.main.url(forResource: "env_map", withExtension: "exr")!,
                     showDebugHUD: true
                 )
             }

@@ -32,7 +32,8 @@ dependencies: [
 import SwiftGLTF
 
 let gltfUrl = // URL to your glTF or GLB file
-let gltfView = GLTFView(frame: view.frame, url: gltfUrl)
+let gltfView = GLTFView(frame: view.frame)
+await gltfView.load(gltf: gltfUrl)
 view.addSubview(gltfView)
 ```
 
