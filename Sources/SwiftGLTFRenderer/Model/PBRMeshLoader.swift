@@ -11,8 +11,6 @@ class PBRMeshLoader {
     private let shaderConnection: ShaderConnection
     private let textureLoader: MTKTextureLoader
 
-    private let SCENE_INDEX = 0
-
     init(
         device: MTLDevice,
         shaderConnection: ShaderConnection,
@@ -26,6 +24,7 @@ class PBRMeshLoader {
 
     func loadMeshes(
         from asset: MDLAsset,
+        sceneIndex: Int? = nil,
         animationIndex: Int = 0
     ) async throws -> PBRMeshBundle {
         #if DEBUG
@@ -36,7 +35,11 @@ class PBRMeshLoader {
         }
         #endif
 
-        let scene = asset.object(atPath: GLTFAssetPath.scene(SCENE_INDEX))
+        let defaultSceneIndex = asset.objectSafe(atPath: GLTFAssetPath.scenes)?.component(ofType: GLTFDefaultScene.self)?.index ?? 0
+        let sceneIndex = sceneIndex ?? defaultSceneIndex
+        guard let scene = asset.objectSafe(atPath: GLTFAssetPath.scene(sceneIndex)) else {
+            throw SwiftGLTFError.render(.sceneNotFound, context: .capture(stage: .render), underlying: nil)
+        }
         let nodeLevelHierarchy = makeNodeLevelHierarchy(root: scene)
         let worldTransformsBuffer = try shaderConnection.computeWorldMatrices(nodeLevelHierarchy: nodeLevelHierarchy)
 
@@ -115,9 +118,9 @@ class PBRMeshLoader {
             textureMap = try convertHeapTexture(from: textureMap, use: texturesHeap)
         }
 
-        let fragmentHeap = try makeFragmentHeap(from: asset)
+        let fragmentHeap = try makeFragmentHeap(from: asset, sceneIndex: sceneIndex)
 
-        let nodes = asset.object(atPath: GLTFAssetPath.nodes(atScene: SCENE_INDEX))
+        let nodes = asset.object(atPath: GLTFAssetPath.nodes(atScene: sceneIndex))
         let pbrMeshes = try await loadRecursiveMeshes(
             device: device,
             obj: nodes,
@@ -820,7 +823,7 @@ class PBRMeshLoader {
         return morphDispatchMap
     }
 
-    func extractDrawingCount(from asset: MDLAsset) -> Int {
+    func extractDrawingCount(from asset: MDLAsset, sceneIndex: Int) -> Int {
         var drawingCount = 0
 
         func traverse(object: MDLObject) {
@@ -835,7 +838,7 @@ class PBRMeshLoader {
             }
         }
 
-        let scene = asset.object(atPath: GLTFAssetPath.scene(SCENE_INDEX))
+        let scene = asset.object(atPath: GLTFAssetPath.scene(sceneIndex))
         traverse(object: scene)
 
         return drawingCount
@@ -882,8 +885,8 @@ class PBRMeshLoader {
         return texturesHeap
     }
 
-    func makeFragmentHeap(from asset: MDLAsset) throws -> MTLHeap {
-        let drawingCount = extractDrawingCount(from: asset)
+    func makeFragmentHeap(from asset: MDLAsset, sceneIndex: Int) throws -> MTLHeap {
+        let drawingCount = extractDrawingCount(from: asset, sceneIndex: sceneIndex)
         let size = device.heapBufferSizeAndAlign(length: MemoryLayout<PBRMaterialUniforms>.size).alignedSize
 
         let heapDescriptor = MTLHeapDescriptor()
