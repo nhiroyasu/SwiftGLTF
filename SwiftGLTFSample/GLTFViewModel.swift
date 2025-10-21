@@ -67,6 +67,7 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     }
 
     func onGLTFLoaded(gltf: GLTF) {
+        // TODO: 戻す
 //        sceneCount = gltf.scenes?.count ?? 0
     }
 

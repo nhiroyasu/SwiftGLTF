@@ -94,17 +94,13 @@ public struct GLTFMetalView: NSViewRepresentable {
     }
 
     public func updateNSView(_ nsView: GLTFView, context: Context) {
-        // TODO: 連続でupdateNSViewが呼ばれるとMetalがバグる
-        // - GLTFViewのloadメソッドがおそらくスレッドセーフではない
-        Task {
-            let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
-            await nsView.load(gltf: url, sceneIndex: sceneIndex)
-            if let environmentUrl {
-                await nsView.load(environment: environmentUrl)
-            }
-            if shouldStoppedAccessingSecurityScopedResource {
-                url.stopAccessingSecurityScopedResource()
-            }
+        let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
+        nsView.load(gltf: url, sceneIndex: sceneIndex)
+        if let environmentUrl {
+            nsView.load(environment: environmentUrl)
+        }
+        if shouldStoppedAccessingSecurityScopedResource {
+            url.stopAccessingSecurityScopedResource()
         }
     }
 

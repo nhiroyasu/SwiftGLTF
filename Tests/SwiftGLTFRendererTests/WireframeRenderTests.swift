@@ -107,7 +107,7 @@ final class WireframeRenderTests {
         passDesc.depthAttachment.clearDepth = 1.0
 
         // Load a sample mesh
-        let asset = try await makeMDLAsset(from: meshURL)
+        let asset = try makeMDLAsset(from: meshURL)
         let bundle = try loader.loadMeshes(from: asset)
 
         // Create command buffer and render encoder

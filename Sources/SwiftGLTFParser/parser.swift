@@ -3,16 +3,16 @@ import MetalKit
 import SwiftGLTFCore
 import os.log
 
-public func makeMDLAsset(from url: URL, options: GLTFDecodeOptions = .default) async throws -> MDLAsset {
+public func makeMDLAsset(from url: URL, options: GLTFDecodeOptions = .default) throws -> MDLAsset {
     let data = try Data(contentsOf: url)
     let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-    return try await makeMDLAsset(from: gltfBundle, options: options)
+    return try makeMDLAsset(from: gltfBundle, options: options)
 }
 
 public func makeMDLAsset(
     from gltfBundle: GLTFBundle,
     options: GLTFDecodeOptions = .default
-) async throws -> MDLAsset {
+) throws -> MDLAsset {
     #if DEBUG
     let startTime = Date()
     defer {
@@ -43,9 +43,13 @@ public func makeMDLAsset(
 
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
-    let mdlMeshMap = try await withThrowingTaskGroup(of: (MeshIndex, [MDLMesh]).self) { group in
-        for (index, mesh) in (gltf.meshes ?? []).enumerated() {
-            group.addTask {
+    var mdlMeshMap: [MeshIndex: [MDLMesh]] = [:]
+    if let meshes = gltf.meshes, !meshes.isEmpty {
+        let resultDispatch = DispatchQueue(label: "gltf.mesh.convert")
+        var errors: [Error?] = Array(repeating: nil, count: meshes.count)
+        DispatchQueue.concurrentPerform(iterations: meshes.count) { index in
+            do {
+                let mesh = meshes[index]
                 let meshes = try makeMDLMesh(
                     from: mesh,
                     name: mesh.name ?? "Mesh_\(index)",
@@ -54,15 +58,19 @@ public func makeMDLAsset(
                     binaryLoader: binaryLoader,
                     options: options
                 )
-                return (MeshIndex(index), meshes)
+                resultDispatch.sync {
+                    mdlMeshMap[MeshIndex(index)] = meshes
+                }
+            } catch {
+                os_log("Failed to convert mesh at index %{public}d: %{public}@", log: .default, type: .error, index, String(describing: error))
+                resultDispatch.sync {
+                    errors[index] = error
+                }
             }
         }
-
-        var result: [MeshIndex: [MDLMesh]] = [:]
-        for try await (index, meshes) in group {
-            result[index] = meshes
+        if let error = errors.compactMap({ $0 }).first {
+            throw error
         }
-        return result
     }
 
     // Add all meshes to libraries for reference

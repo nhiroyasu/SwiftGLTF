@@ -31,7 +31,7 @@ struct CubeWithTextureEmptySamplerTests {
         }
         let data = try Data(contentsOf: gltfURL)
         let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try await makeMDLAsset(from: gltfContainer)
+        let asset = try makeMDLAsset(from: gltfContainer)
         return (gltfContainer.gltf, asset)
     }
 

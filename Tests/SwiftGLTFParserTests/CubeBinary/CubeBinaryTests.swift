@@ -226,7 +226,7 @@ struct CubeBinaryTests {
         }
         let data = try Data(contentsOf: url)
         let gltfContainer = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-        let asset = try await makeMDLAsset(
+        let asset = try makeMDLAsset(
             from: gltfContainer,
             options: GLTFDecodeOptions(convertToLeftHanded: false, autoScale: false)
         )

@@ -116,13 +116,14 @@ public class GLTFView: MTKView {
 
     // MARK: - State Management
 
-    public func load(gltf url: URL, sceneIndex: Int?) async {
+    // TODO: SwiftUI用の_GLTFStatableViewも作成する（状態の変化でViewを更新できるようにする）
+    public func load(gltf url: URL, sceneIndex: Int?) {
         do {
             displayType = .loading
             defer { displayType = .drawable }
             let data = try Data(contentsOf: url)
             let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-            let asset = try await makeMDLAsset(from: gltfBundle)
+            let asset = try makeMDLAsset(from: gltfBundle)
             try renderer.load(from: asset, sceneIndex: sceneIndex)
             gltfDelegate?.loaded(gltf: gltfBundle.gltf, error: nil)
         } catch {

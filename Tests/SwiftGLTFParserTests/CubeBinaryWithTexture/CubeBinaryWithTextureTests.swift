@@ -112,7 +112,7 @@ struct CubeBinaryWithTextureTests {
         }
         let data = try Data(contentsOf: gltfURL)
         let gltfBundle = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try await makeMDLAsset(from: gltfBundle)
+        let asset = try makeMDLAsset(from: gltfBundle)
         return (gltfBundle, asset)
     }
 
