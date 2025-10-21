@@ -479,12 +479,12 @@ public class PBRRenderer {
     // MARK: - Update states
 
     /// Load a gltf asset
-    public func load(from asset: MDLAsset, sceneIndex: Int? = nil) async throws {
-        self.bundle = try await meshLoader.loadMeshes(from: asset, sceneIndex: sceneIndex)
+    public func load(from asset: MDLAsset, sceneIndex: Int? = nil) throws {
+        self.bundle = try meshLoader.loadMeshes(from: asset, sceneIndex: sceneIndex)
     }
 
     /// Set environment from external URL (equirectangular .exr)
-    public func setEnvironment(url: URL) async throws {
+    public func setEnvironment(url: URL) throws {
         (
             self.envMapHeap,
             self._prefilterEnvMap,

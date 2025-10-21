@@ -3,6 +3,7 @@ import SwiftUI
 import ModelIO
 import UniformTypeIdentifiers
 import SwiftGLTF
+import SwiftGLTFCore
 
 @MainActor
 class GLTFViewModel: ObservableObject, DropDelegate {
@@ -11,6 +12,8 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     @Published var errorMessage = ""
     @Published var showFileImporter = false
     @Published var isLoading: Bool = false
+    @Published var sceneCount: Int = 0
+    @Published var userInputSceneIndex: Int = 0
 
     #if os(iOS)
     let allowedContentTypes: [UTType] = [.glb, .vrm]
@@ -61,5 +64,13 @@ class GLTFViewModel: ObservableObject, DropDelegate {
             self.url = url
         }
         return true
+    }
+
+    func onGLTFLoaded(gltf: GLTF) {
+//        sceneCount = gltf.scenes?.count ?? 0
+    }
+
+    var sceneIndex: Int {
+        min(max(userInputSceneIndex, 0), sceneCount - 1)
     }
 }

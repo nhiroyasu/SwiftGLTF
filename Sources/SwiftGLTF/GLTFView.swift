@@ -123,7 +123,7 @@ public class GLTFView: MTKView {
             let data = try Data(contentsOf: url)
             let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
             let asset = try await makeMDLAsset(from: gltfBundle)
-            try await renderer.load(from: asset, sceneIndex: sceneIndex)
+            try renderer.load(from: asset, sceneIndex: sceneIndex)
             gltfDelegate?.loaded(gltf: gltfBundle.gltf, error: nil)
         } catch {
             os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
@@ -132,11 +132,11 @@ public class GLTFView: MTKView {
         }
     }
 
-    public func load(environment url: URL) async {
+    public func load(environment url: URL) {
         do {
             displayType = .loading
             defer { displayType = .drawable }
-            try await renderer.setEnvironment(url: url)
+            try renderer.setEnvironment(url: url)
         } catch {
             os_log("Failed to load environment map from URL: %@", type: .error, error.localizedDescription)
         }

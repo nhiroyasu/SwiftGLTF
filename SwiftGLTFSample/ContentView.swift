@@ -14,6 +14,12 @@ struct ContentView: View {
                     environmentUrl: Bundle.main.url(forResource: "env_map", withExtension: "exr")!,
                     showDebugHUD: true
                 )
+                .onGLTFLoaded { gltf, error in
+                    if error != nil { return }
+                    if let gltf {
+                        viewModel.onGLTFLoaded(gltf: gltf)
+                    }
+                }
             }
         }
         .overlay {

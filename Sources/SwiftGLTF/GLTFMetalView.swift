@@ -1,5 +1,6 @@
 import SwiftUI
 import MetalKit
+import SwiftGLTFCore
 
 #if canImport(UIKit)
 import UIKit
@@ -10,6 +11,7 @@ public struct GLTFMetalView: UIViewRepresentable {
     private let environmentUrl: URL?
     private let showDebugHUD: Bool
     private let automaticallyAccessSecurityScope: Bool
+    private let gltfViewDelegate: GLTFViewDelegateWrap = .init()
 
     public init(
         url: URL,
@@ -27,6 +29,7 @@ public struct GLTFMetalView: UIViewRepresentable {
 
     public func makeUIView(context: Context) -> GLTFView {
         if let view = try? GLTFView(frame: .zero, showDebugHUD: showDebugHUD) {
+            view.gltfDelegate = gltfViewDelegate
             view.translatesAutoresizingMaskIntoConstraints = false
             return view
         } else {
@@ -46,6 +49,13 @@ public struct GLTFMetalView: UIViewRepresentable {
             }
         }
     }
+
+    public func onGLTFLoaded(
+        _ handler: @escaping (GLTF?, (any Error)?) -> Void
+    ) -> GLTFMetalView {
+        gltfViewDelegate.loadedHandler = handler
+        return self
+    }
 }
 
 #elseif canImport(AppKit)
@@ -57,6 +67,7 @@ public struct GLTFMetalView: NSViewRepresentable {
     private let environmentUrl: URL?
     private let showDebugHUD: Bool
     private let automaticallyAccessSecurityScope: Bool
+    private let gltfViewDelegate: GLTFViewDelegateWrap = .init()
 
     public init(
         url: URL,
@@ -74,6 +85,7 @@ public struct GLTFMetalView: NSViewRepresentable {
 
     public func makeNSView(context: Context) -> GLTFView {
         if let view = try? GLTFView(frame: .zero, showDebugHUD: showDebugHUD) {
+            view.gltfDelegate = gltfViewDelegate
             view.translatesAutoresizingMaskIntoConstraints = false
             return view
         } else {
@@ -82,6 +94,8 @@ public struct GLTFMetalView: NSViewRepresentable {
     }
 
     public func updateNSView(_ nsView: GLTFView, context: Context) {
+        // TODO: 連続でupdateNSViewが呼ばれるとMetalがバグる
+        // - GLTFViewのloadメソッドがおそらくスレッドセーフではない
         Task {
             let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
             await nsView.load(gltf: url, sceneIndex: sceneIndex)
@@ -93,5 +107,20 @@ public struct GLTFMetalView: NSViewRepresentable {
             }
         }
     }
+
+    public func onGLTFLoaded(
+        _ handler: @escaping (GLTF?, (any Error)?) -> Void
+    ) -> GLTFMetalView {
+        gltfViewDelegate.loadedHandler = handler
+        return self
+    }
 }
 #endif
+
+private class GLTFViewDelegateWrap: GLTFViewDelegate {
+    var loadedHandler: ((GLTF?, (any Error)?) -> Void)?
+
+    func loaded(gltf: GLTF?, error: (any Error)?) {
+        loadedHandler?(gltf, error)
+    }
+}
