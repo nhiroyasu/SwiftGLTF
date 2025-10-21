@@ -5,12 +5,12 @@ import os.log
 
 public func makeMDLAsset(from url: URL, options: GLTFDecodeOptions = .default) async throws -> MDLAsset {
     let data = try Data(contentsOf: url)
-    let gltfContainer = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-    return try await makeMDLAsset(from: gltfContainer, options: options)
+    let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
+    return try await makeMDLAsset(from: gltfBundle, options: options)
 }
 
 public func makeMDLAsset(
-    from gltfContainer: GLTFContainer,
+    from gltfBundle: GLTFBundle,
     options: GLTFDecodeOptions = .default
 ) async throws -> MDLAsset {
     #if DEBUG
@@ -21,12 +21,12 @@ public func makeMDLAsset(
     }
     #endif
 
-    let gltf = gltfContainer.gltf
+    let gltf = gltfBundle.gltf
 
     let device = MTLCreateSystemDefaultDevice()!
     let allocator = MTKMeshBufferAllocator(device: device)
     let asset = MDLAsset(bufferAllocator: allocator)
-    let binaryLoader = GLTFBinaryLoader(gltfContainer: gltfContainer)
+    let binaryLoader = GLTFBinaryLoader(gltfBundle: gltfBundle)
 
     let scenesObject = MDLObject()
     scenesObject.name = GLTFAssetName.scenes

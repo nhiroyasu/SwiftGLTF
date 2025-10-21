@@ -6,12 +6,17 @@ import MetalKit
 import os.log
 import QuartzCore
 
+public protocol GLTFViewDelegate: AnyObject {
+    func loaded(gltf: GLTF?, error: Error?)
+}
+
 @MainActor
 public class GLTFView: MTKView {
     private let commandQueue: MTLCommandQueue
     private let renderer: PBRRenderer
     private let sceneUniformsBuffer: FrameInFlightBuffer
     private let mvpUniformBuffer: FrameInFlightBuffer
+    public weak var gltfDelegate: GLTFViewDelegate?
 
     // MARK: - Display State
     private var displayType: DisplayType = .loading {
@@ -115,11 +120,15 @@ public class GLTFView: MTKView {
         do {
             displayType = .loading
             defer { displayType = .drawable }
-            let asset = try await makeMDLAsset(from: url)
+            let data = try Data(contentsOf: url)
+            let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
+            let asset = try await makeMDLAsset(from: gltfBundle)
             try await renderer.load(from: asset, sceneIndex: sceneIndex)
+            gltfDelegate?.loaded(gltf: gltfBundle.gltf, error: nil)
         } catch {
             os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
             displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
+            gltfDelegate?.loaded(gltf: nil, error: error)
         }
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 import ModelIO
 
-public struct GLTFContainer {
+public struct GLTFBundle {
     public let gltf: GLTF
     /// Embedded binary chunks; for .glb files this contains the BIN chunk data
     public let binaryBuffers: [Data]

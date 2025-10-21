@@ -106,14 +106,14 @@ struct CubeBinaryWithTextureTests {
 
     // MARK: - Helper Methods
 
-    private func loadGLBAndAsset() async throws -> (GLTFContainer, MDLAsset) {
+    private func loadGLBAndAsset() async throws -> (GLTFBundle, MDLAsset) {
         guard let gltfURL = Bundle.module.url(forResource: "bricks_cube", withExtension: "glb") else {
             throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "cube.glb not found"])
         }
         let data = try Data(contentsOf: gltfURL)
-        let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try await makeMDLAsset(from: gltfContainer)
-        return (gltfContainer, asset)
+        let gltfBundle = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
+        let asset = try await makeMDLAsset(from: gltfBundle)
+        return (gltfBundle, asset)
     }
 
     private func convertFilterMode(_ mode: GLTFFilterMode) -> MDLMaterialTextureFilterMode {
