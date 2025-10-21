@@ -479,8 +479,8 @@ public class PBRRenderer {
     // MARK: - Update states
 
     /// Load a gltf asset
-    public func load(from asset: MDLAsset) async throws {
-        self.bundle = try await meshLoader.loadMeshes(from: asset)
+    public func load(from asset: MDLAsset, sceneIndex: Int? = nil) async throws {
+        self.bundle = try await meshLoader.loadMeshes(from: asset, sceneIndex: sceneIndex)
     }
 
     /// Set environment from external URL (equirectangular .exr)

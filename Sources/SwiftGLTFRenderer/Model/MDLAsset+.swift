@@ -25,4 +25,8 @@ extension MDLAsset {
         }
         return skins
     }
+
+    func objectSafe(atPath: String) -> MDLObject? {
+        self.object(atPath: atPath) as? MDLObject
+    }
 }

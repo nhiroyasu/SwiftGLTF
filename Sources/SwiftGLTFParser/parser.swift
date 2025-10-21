@@ -30,28 +30,15 @@ public func makeMDLAsset(
 
     let scenesObject = MDLObject()
     scenesObject.name = GLTFAssetName.scenes
+    scenesObject.setComponent(GLTFDefaultSceneImpl(index: gltf.scene ?? 0), for: GLTFDefaultScene.self)
+    asset.add(scenesObject)
+
     let librariesObject = MDLObject()
     librariesObject.name = GLTFAssetName.libraries
-
-    // Get the default scene
-    let sceneObject = MDLObject()
-    let sceneIndex = gltf.scene ?? 0
-    guard let scene = gltf.scenes?[sceneIndex] else {
-        throw SwiftGLTFError.makeParse(.noValidScene, context: .capture(stage: .parse, jsonPointer: "/scene"))
-    }
-    sceneObject.name = GLTFAssetName.scene(sceneIndex)
-
-    let nodesObj = MDLObject()
-    nodesObj.name = GLTFAssetName.nodes
+    asset.add(librariesObject)
 
     let skinsObject = MDLObject()
     skinsObject.name = GLTFAssetName.skins
-
-    asset.add(scenesObject)
-    scenesObject.addChild(sceneObject)
-    sceneObject.addChild(nodesObj)
-
-    asset.add(librariesObject)
     librariesObject.addChild(skinsObject)
 
     // 全ての mesh を先に変換して保持（再利用のため）
@@ -154,16 +141,26 @@ public func makeMDLAsset(
     asset.animations = animationsContainer
 
     // Build the node tree
-    for rootNodeIndex in scene.nodes ?? [] {
-        let node = buildNodeTree(
-            nodeIndex: rootNodeIndex,
-            meshMap: mdlMeshMap,
-            skinMap: skinMap,
-            animations: animations,
-            gltf: gltf,
-            options: options
-        )
-        nodesObj.addChild(node)
+    for (i, scene) in (gltf.scenes ?? []).enumerated() {
+        let sceneObject = MDLObject()
+        sceneObject.name = GLTFAssetName.scene(i)
+        scenesObject.addChild(sceneObject)
+
+        let nodesObj = MDLObject()
+        nodesObj.name = GLTFAssetName.nodes
+        sceneObject.addChild(nodesObj)
+
+        for rootNodeIndex in scene.nodes ?? [] {
+            let node = buildNodeTree(
+                nodeIndex: rootNodeIndex,
+                meshMap: mdlMeshMap,
+                skinMap: skinMap,
+                animations: animations,
+                gltf: gltf,
+                options: options
+            )
+            nodesObj.addChild(node)
+        }
     }
 
     if options.autoScale {
@@ -176,7 +173,7 @@ public func makeMDLAsset(
            positionAccessorIndex < accessors.count,
            let max = accessors[positionAccessorIndex].max?.max() {
             let scale = 1 / max
-            let rootNode = asset.object(atPath: GLTFAssetPath.nodes(atScene: sceneIndex))
+            let rootNode = asset.object(atPath: GLTFAssetPath.nodes(atScene: gltf.scene ?? 0))
             rootNode.transform = GLTFTransform(matrix: scaleMatrix(scale, scale, scale) * (rootNode.transform?.matrix ?? matrix_identity_float4x4))
             os_log("Scaling asset by factor: %{public}f", log: .default, type: .info, scale)
         }
