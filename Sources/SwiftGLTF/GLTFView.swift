@@ -10,6 +10,11 @@ public protocol GLTFViewDelegate: AnyObject {
     func loaded(gltf: GLTF?, error: Error?)
 }
 
+/// A Metal-backed view for loading and rendering glTF assets with a PBR renderer.
+///
+/// This view manages GPU resources, simple free-camera controls, frame-in-flight buffers,
+/// and optional debug HUD. It exposes convenience APIs to load a glTF asset and an
+/// environment map, and renders using `PBRRenderer`.
 @MainActor
 public class GLTFView: MTKView {
     private let commandQueue: MTLCommandQueue
@@ -54,6 +59,13 @@ public class GLTFView: MTKView {
     private var animationState = RendererAnimationState(time: 0, speed: 1, isLooping: true)
     private var lastFrameTime: CFTimeInterval?
 
+    /// Creates a GLTFView configured for PBR rendering.
+    ///
+    /// - Parameters:
+    ///   - frame: The initial frame rectangle of the view.
+    ///   - device: The Metal device to use. Defaults to the system default device.
+    ///   - showDebugHUD: Whether to display a simple on-screen camera/light HUD.
+    /// - Throws: An error if the Metal command queue or renderer cannot be created.
     public init(
         frame: CGRect,
         device: MTLDevice = MTLCreateSystemDefaultDevice()!,
@@ -114,9 +126,17 @@ public class GLTFView: MTKView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    // MARK: - State Management
+    // MARK: - Public Interface
 
-    // TODO: SwiftUI用の_GLTFStatableViewも作成する（状態の変化でViewを更新できるようにする）
+    /// Loads and displays a glTF asset from the specified URL.
+    ///
+    /// This method parses the glTF file, creates an `MDLAsset`, uploads
+    /// the necessary GPU resources, and switches the view into drawable state on success.
+    ///
+    /// - Parameters:
+    ///   - url: The file URL of the glTF (either .gltf or .glb via Data contents).
+    ///   - sceneIndex: The index of the scene to display. Pass `nil` to use the default scene.
+    /// - Note: The delegate `gltfDelegate` will be notified on completion with either the parsed `GLTF` or an error.
     public func load(gltf url: URL, sceneIndex: Int?) {
         do {
             displayType = .loading
@@ -133,6 +153,13 @@ public class GLTFView: MTKView {
         }
     }
 
+    /// Loads an image-based lighting (IBL) environment map.
+    ///
+    /// Sets the renderer's environment from a file URL (e.g., HDR/EXR), then
+    /// returns the view to drawable state.
+    ///
+    /// - Parameter url: The file URL of the environment map to use for lighting/reflections.
+    /// - Important: Large HDR/EXR files may take time to process depending on device capabilities.
     public func load(environment url: URL) {
         do {
             displayType = .loading
@@ -143,6 +170,10 @@ public class GLTFView: MTKView {
         }
     }
 
+    /// Resets the free camera to its default position and orientation.
+    ///
+    /// Restores yaw/pitch, distance, up direction, and target to defaults and
+    /// updates the debug HUD if enabled.
     public func resetCamera() {
         freeCameraRX = -.pi / 2
         freeCameraRY = .pi / 2
@@ -403,6 +434,12 @@ public class GLTFView: MTKView {
         }
     }
 
+    /// Handles scroll wheel input for camera control (macOS).
+    ///
+    /// With the **Shift** key pressed, pans the camera target in world space.
+    /// Otherwise, adjusts the camera angles to orbit the target.
+    ///
+    /// - Parameter event: The scroll wheel event.
     public override func scrollWheel(with event: NSEvent) {
         // Shift + scroll: pan camera (move eye & target in world space), otherwise rotate camera
         if event.modifierFlags.contains(.shift) {
@@ -422,6 +459,11 @@ public class GLTFView: MTKView {
         updateCameraHUD()
     }
 
+    /// Handles trackpad pinch magnification to dolly the camera (macOS).
+    ///
+    /// Adjusts the camera distance, clamped to a small positive threshold.
+    ///
+    /// - Parameter event: The magnification gesture event.
     public override func magnify(with event: NSEvent) {
         let threshold: Float32 = 0.1
         freeCameraDistance = freeCameraDistance - Float32(event.magnification) * 10.0

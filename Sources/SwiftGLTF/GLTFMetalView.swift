@@ -27,8 +27,8 @@ public struct GLTFMetalView: UIViewRepresentable {
         self.automaticallyAccessSecurityScope = automaticallyAccessSecurityScope
     }
 
-    public func makeUIView(context: Context) -> GLTFView {
-        if let view = try? GLTFView(frame: .zero, showDebugHUD: showDebugHUD) {
+    public func makeUIView(context: Context) -> GLTFStableView {
+        if let view = try? GLTFStableView(frame: .zero, showDebugHUD: showDebugHUD) {
             view.gltfDelegate = gltfViewDelegate
             view.translatesAutoresizingMaskIntoConstraints = false
             return view
@@ -37,13 +37,11 @@ public struct GLTFMetalView: UIViewRepresentable {
         }
     }
 
-    public func updateUIView(_ uiView: GLTFView, context: Context) {
+    public func updateUIView(_ uiView: GLTFStableView, context: Context) {
         Task {
             let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
-            await uiView.load(gltf: url, sceneIndex: sceneIndex)
-            if let environmentUrl {
-                await uiView.load(environment: environmentUrl)
-            }
+            uiView.gltfURL = url
+            uiView.environmentURL = environmentUrl
             if shouldStoppedAccessingSecurityScopedResource {
                 url.stopAccessingSecurityScopedResource()
             }
@@ -83,8 +81,8 @@ public struct GLTFMetalView: NSViewRepresentable {
         self.automaticallyAccessSecurityScope = automaticallyAccessSecurityScope
     }
 
-    public func makeNSView(context: Context) -> GLTFView {
-        if let view = try? GLTFView(frame: .zero, showDebugHUD: showDebugHUD) {
+    public func makeNSView(context: Context) -> GLTFStableView {
+        if let view = try? GLTFStableView(frame: .zero, showDebugHUD: showDebugHUD) {
             view.gltfDelegate = gltfViewDelegate
             view.translatesAutoresizingMaskIntoConstraints = false
             return view
@@ -93,12 +91,10 @@ public struct GLTFMetalView: NSViewRepresentable {
         }
     }
 
-    public func updateNSView(_ nsView: GLTFView, context: Context) {
+    public func updateNSView(_ nsView: GLTFStableView, context: Context) {
         let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
-        nsView.load(gltf: url, sceneIndex: sceneIndex)
-        if let environmentUrl {
-            nsView.load(environment: environmentUrl)
-        }
+        nsView.gltfURL = url
+        nsView.environmentURL = environmentUrl
         if shouldStoppedAccessingSecurityScopedResource {
             url.stopAccessingSecurityScopedResource()
         }

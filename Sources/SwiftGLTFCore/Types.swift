@@ -1,7 +1,7 @@
 import Foundation
 import ModelIO
 
-public struct GLTFBundle {
+public struct GLTFBundle: Equatable {
     public let gltf: GLTF
     /// Embedded binary chunks; for .glb files this contains the BIN chunk data
     public let binaryBuffers: [Data]
@@ -15,7 +15,7 @@ public struct GLTFBundle {
     }
 }
 
-public struct GLTF: Codable {
+public struct GLTF: Codable, Equatable {
     public let asset: Asset
     public let buffers: [Buffer]?
     public let bufferViews: [BufferView]?
@@ -73,12 +73,12 @@ public struct GLTF: Codable {
     }
 }
 
-public struct Scene: Codable {
+public struct Scene: Codable, Equatable {
     public let name: String?
     public let nodes: [Int]?
 }
 
-public struct Material: Codable {
+public struct Material: Codable, Equatable {
     public let name: String?
     public let pbrMetallicRoughness: PBRMetallicRoughness?
     public let normalTexture: NormalTextureInfo?
@@ -120,7 +120,7 @@ public struct Material: Codable {
     }
 }
 
-public struct PBRMetallicRoughness: Codable {
+public struct PBRMetallicRoughness: Codable, Equatable {
     public let baseColorFactor: [Float]
     public let baseColorTexture: TextureInfo?
     public let metallicFactor: Float
@@ -145,7 +145,7 @@ public struct PBRMetallicRoughness: Codable {
     }
 }
 
-public struct TextureIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+public struct TextureIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
     public let value: Int
 
     public init(_ value: Int) {
@@ -167,7 +167,7 @@ public struct TextureIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
     }
 }
 
-public struct AccessorIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+public struct AccessorIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
     public let value: Int
 
     public init(_ value: Int) {
@@ -189,7 +189,7 @@ public struct AccessorIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
     }
 }
 
-public struct KHRTextureTransform: Codable {
+public struct KHRTextureTransform: Codable, Equatable {
     public let offset: [Float]
     public let rotation: Float
     public let scale: [Float]
@@ -219,7 +219,7 @@ public struct KHRTextureTransform: Codable {
     }
 }
 
-public struct TextureInfoExtensions: Codable {
+public struct TextureInfoExtensions: Codable, Equatable {
     public let khrTextureTransform: KHRTextureTransform?
 
     enum CodingKeys: String, CodingKey {
@@ -227,7 +227,7 @@ public struct TextureInfoExtensions: Codable {
     }
 }
 
-public struct TextureInfo: Codable {
+public struct TextureInfo: Codable, Equatable {
     public let index: TextureIndex
     public let texCoord: Int
     public let extensions: TextureInfoExtensions?
@@ -246,7 +246,7 @@ public struct TextureInfo: Codable {
     }
 }
 
-public struct NormalTextureInfo: Codable {
+public struct NormalTextureInfo: Codable, Equatable {
     public let index: TextureIndex
     public let texCoord: Int
     public let scale: Float
@@ -268,7 +268,7 @@ public struct NormalTextureInfo: Codable {
     }
 }
 
-public struct OcclusionTextureInfo: Codable {
+public struct OcclusionTextureInfo: Codable, Equatable {
     public let index: TextureIndex
     public let texCoord: Int
     public let strength: Float
@@ -320,7 +320,7 @@ public extension OcclusionTextureInfo {
     }
 }
 
-public struct Node: Codable {
+public struct Node: Codable, Equatable {
     public let name: String?
     public let mesh: MeshIndex?
     public let skin: SkinIndex?
@@ -346,7 +346,7 @@ public struct Node: Codable {
     }
 }
 
-public struct NodeIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+public struct NodeIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
     public let value: Int
 
     public init(_ value: Int) {
@@ -363,17 +363,17 @@ public struct NodeIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
     }
 }
 
-public struct Asset: Codable {
+public struct Asset: Codable, Equatable {
     public let version: String
     public let generator: String?
 }
 
-public struct Buffer: Codable {
+public struct Buffer: Codable, Equatable {
     public let uri: String?
     public let byteLength: Int
 }
 
-public struct BufferIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+public struct BufferIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
     public let value: Int
 
     public init(_ value: Int) {
@@ -395,7 +395,7 @@ public struct BufferIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
     }
 }
 
-public struct BufferView: Codable {
+public struct BufferView: Codable, Equatable {
     public let buffer: BufferIndex
     public let byteOffset: Int
     public let byteLength: Int
@@ -420,7 +420,7 @@ public struct BufferView: Codable {
     }
 }
 
-public struct BufferViewIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+public struct BufferViewIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
     public let value: Int
 
     public init(_ value: Int) {
@@ -442,7 +442,7 @@ public struct BufferViewIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
     }
 }
 
-public struct Accessor: Codable {
+public struct Accessor: Codable, Equatable {
     public let bufferView: BufferViewIndex?
     public let byteOffset: Int
     public let componentType: GLTFComponentType
@@ -478,7 +478,7 @@ public struct Accessor: Codable {
     }
 }
 
-public struct Skin: Codable {
+public struct Skin: Codable, Equatable {
     public let name: String?
     public let inverseBindMatrices: AccessorIndex?
     /// Skeleton root node index
@@ -487,7 +487,7 @@ public struct Skin: Codable {
     public let joints: [NodeIndex]
 }
 
-public struct SkinIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+public struct SkinIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
     public let value: Int
 
     public init(_ value: Int) {
@@ -504,7 +504,7 @@ public struct SkinIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
     }
 }
 
-public struct Mesh: Codable {
+public struct Mesh: Codable, Equatable {
     public let name: String?
     public let primitives: [Primitive]
     /// Default morph target weights for this mesh
@@ -512,7 +512,7 @@ public struct Mesh: Codable {
     public let weights: [Float]?
 }
 
-public struct MeshIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+public struct MeshIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
     public let value: Int
 
     public init(_ value: Int) {
@@ -529,7 +529,7 @@ public struct MeshIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
     }
 }
 
-public struct Primitive: Codable {
+public struct Primitive: Codable, Equatable {
     public let attributes: [String: Int]
     public let indices: AccessorIndex?
     public let material: Int?
@@ -556,14 +556,14 @@ public struct Primitive: Codable {
     }
 }
 
-public struct Image: Codable {
+public struct Image: Codable, Equatable {
     public let uri: String?
     public let mimeType: String?
     public let bufferView: BufferViewIndex?
     public let name: String?
 }
 
-public struct ImageIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
+public struct ImageIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
     public let value: Int
 
     public init(_ value: Int) {
@@ -585,13 +585,13 @@ public struct ImageIndex: Codable, Hashable, ExpressibleByIntegerLiteral {
     }
 }
 
-public struct Texture: Codable {
+public struct Texture: Codable, Equatable {
     public let sampler: Int?
     public let source: ImageIndex?
     public let name: String?
 }
 
-public struct Sampler: Codable {
+public struct Sampler: Codable, Equatable {
     public let magFilter: GLTFFilterMode?
     public let minFilter: GLTFFilterMode?
     public let wrapS: GLTFWrapMode
@@ -620,7 +620,7 @@ public struct Sampler: Codable {
 
 // componentType の値を表す enum
 // en: Enum representing the values of componentType
-public enum GLTFComponentType: Int, RawRepresentable, Codable {
+public enum GLTFComponentType: Int, RawRepresentable, Codable, Equatable {
     case byte = 5120
     case unsignedByte = 5121
     case short = 5122
@@ -639,7 +639,7 @@ public enum GLTFComponentType: Int, RawRepresentable, Codable {
 
 // 頂点属性のキーを表す enum
 // en: Enum representing attribute keys
-public enum GLTFAttribute: RawRepresentable, Decodable {
+public enum GLTFAttribute: RawRepresentable, Decodable, Equatable {
     case position
     case normal
     case tangent
@@ -726,7 +726,7 @@ public enum GLTFAttribute: RawRepresentable, Decodable {
 }
 
 // Data type for accessor.type ("SCALAR", "VEC2", etc.)
-public enum GLTFDataType: String, RawRepresentable, Codable {
+public enum GLTFDataType: String, RawRepresentable, Codable, Equatable {
     case scalar = "SCALAR"
     case vec2 = "VEC2"
     case vec3 = "VEC3"
@@ -748,7 +748,7 @@ public enum GLTFDataType: String, RawRepresentable, Codable {
     }
 }
 
-public enum GLTFFilterMode: Int, Codable {
+public enum GLTFFilterMode: Int, Codable, Equatable {
     case nearest = 9728           // NEAREST
     case linear = 9729            // LINEAR
     case nearestMipmapNearest = 9984
@@ -757,13 +757,13 @@ public enum GLTFFilterMode: Int, Codable {
     case linearMipmapLinear = 9987
 }
 
-public enum GLTFWrapMode: Int, Codable {
+public enum GLTFWrapMode: Int, Codable, Equatable {
     case clampToEdge = 33071       // CLAMP_TO_EDGE
     case mirroredRepeat = 33648    // MIRRORED_REPEAT
     case repeatWrap = 10497        // REPEAT
 }
 
-public enum GLTFPrimitiveMode: Int, Codable {
+public enum GLTFPrimitiveMode: Int, Codable, Equatable {
     case points = 0              // POINTS
     case lines = 1               // LINES
     case lineLoop = 2            // LINE_LOOP
@@ -776,14 +776,14 @@ public enum GLTFPrimitiveMode: Int, Codable {
 // MARK: - Animations
 
 /// Animation clip
-public struct Animation: Codable {
+public struct Animation: Codable, Equatable {
     public let name: String?
     public let samplers: [AnimationSampler]
     public let channels: [AnimationChannel]
 }
 
 /// Animation sampler mapping input times to output values
-public struct AnimationSampler: Codable {
+public struct AnimationSampler: Codable, Equatable {
     public let input: AccessorIndex
     public let output: AccessorIndex
     public let interpolation: GLTFInterpolation
@@ -803,8 +803,8 @@ public struct AnimationSampler: Codable {
 }
 
 /// Animation channel targeting a node path
-public struct AnimationChannel: Codable {
-    public struct Target: Codable {
+public struct AnimationChannel: Codable, Equatable {
+    public struct Target: Codable, Equatable {
         public let node: NodeIndex?
         public let path: AnimationPath
     }
@@ -814,7 +814,7 @@ public struct AnimationChannel: Codable {
 }
 
 /// Path for animation target
-public enum AnimationPath: String, Codable {
+public enum AnimationPath: String, Codable, Equatable {
     case translation
     case rotation
     case scale
@@ -829,7 +829,7 @@ public enum AnimationPath: String, Codable {
 }
 
 /// Interpolation type for animation sampler
-public enum GLTFInterpolation: String, Codable {
+public enum GLTFInterpolation: String, Codable, Equatable {
     case linear = "LINEAR"
     case step = "STEP"
     case cubicSpline = "CUBICSPLINE"
@@ -837,7 +837,7 @@ public enum GLTFInterpolation: String, Codable {
 
 // MARK: - KHR_materials_emissive_strength extension
 /// glTF extension KHR_materials_emissive_strength provides a multiplier for emissive color and textures.
-public struct KHRMaterialsEmissiveStrength: Codable {
+public struct KHRMaterialsEmissiveStrength: Codable, Equatable {
     /// The emissive strength multiplier. Defaults to 1.0 if not specified.
     public let emissiveStrength: Float
     enum CodingKeys: String, CodingKey {
@@ -850,7 +850,7 @@ public struct KHRMaterialsEmissiveStrength: Codable {
 }
 
 /// Container for material-specific extensions
-public struct MaterialExtensions: Codable {
+public struct MaterialExtensions: Codable, Equatable {
     /// KHR_materials_emissive_strength extension data
     public let khrMaterialsEmissiveStrength: KHRMaterialsEmissiveStrength?
     /// KHR_materials_transmission extension data
@@ -877,14 +877,14 @@ public struct MaterialExtensions: Codable {
 }
 
 // MARK: - AlphaMode (glTF Material.alphaMode)
-public enum AlphaMode: String, Codable {
+public enum AlphaMode: String, Codable, Equatable {
     case opaque = "OPAQUE"
     case mask = "MASK"
     case blend = "BLEND"
 }
 
 // MARK: - KHR_materials_transmission extension
-public struct KHRMaterialsTransmission: Codable {
+public struct KHRMaterialsTransmission: Codable, Equatable {
     public let transmissionFactor: Float
     public let transmissionTexture: TextureInfo?
     enum CodingKeys: String, CodingKey {
@@ -899,7 +899,7 @@ public struct KHRMaterialsTransmission: Codable {
 }
 
 // MARK: - KHR_materials_volume extension
-public struct KHRMaterialsVolume: Codable {
+public struct KHRMaterialsVolume: Codable, Equatable {
     public let thicknessFactor: Float
     public let thicknessTexture: TextureInfo?
     public let attenuationDistance: Float?
@@ -920,7 +920,7 @@ public struct KHRMaterialsVolume: Codable {
 }
 
 // MARK: - KHR_materials_ior extension
-public struct KHRMaterialsIOR: Codable {
+public struct KHRMaterialsIOR: Codable, Equatable {
     public let ior: Float
     enum CodingKeys: String, CodingKey {
         case ior
@@ -932,7 +932,7 @@ public struct KHRMaterialsIOR: Codable {
 }
 
 // MARK: - KHR_materials_clearcoat extension
-public struct KHRMaterialsClearcoat: Codable {
+public struct KHRMaterialsClearcoat: Codable, Equatable {
     public let clearcoatFactor: Float
     public let clearcoatTexture: TextureInfo?
     public let clearcoatRoughnessFactor: Float
@@ -956,7 +956,7 @@ public struct KHRMaterialsClearcoat: Codable {
 }
 
 // MARK: - KHR_materials_specular extension
-public struct KHRMaterialsSpecular: Codable {
+public struct KHRMaterialsSpecular: Codable, Equatable {
     public let specularFactor: Float
     public let specularTexture: TextureInfo?
     public let specularColorFactor: [Float]
@@ -977,7 +977,7 @@ public struct KHRMaterialsSpecular: Codable {
 }
 
 // MARK: - KHR_materials_sheen extension
-public struct KHRMaterialsSheen: Codable {
+public struct KHRMaterialsSheen: Codable, Equatable {
     public let sheenColorFactor: [Float]
     public let sheenColorTexture: TextureInfo?
     public let sheenRoughnessFactor: Float
