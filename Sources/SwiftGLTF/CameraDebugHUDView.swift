@@ -239,11 +239,11 @@ final class CameraDebugHUDView: NSView {
 
         let cameraTitleLabel = NSTextField(labelWithString: "Camera")
         cameraTitleLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        cameraTitleLabel.textColor = .labelColor
+        cameraTitleLabel.textColor = .white
         cameraSection.addArrangedSubview(cameraTitleLabel)
 
         cameraValueLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        cameraValueLabel.textColor = .labelColor
+        cameraValueLabel.textColor = .white
         cameraSection.addArrangedSubview(cameraValueLabel)
 
         resetCameraButton.target = self
@@ -333,7 +333,7 @@ final class CameraDebugHUDView: NSView {
     private func makeVectorSection(title: String, fields: [NSTextField], labels: [String], selector: Selector) -> NSStackView {
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        titleLabel.textColor = .labelColor
+        titleLabel.textColor = .white
 
         let fieldsStack = NSStackView()
         fieldsStack.orientation = .horizontal
@@ -352,7 +352,7 @@ final class CameraDebugHUDView: NSView {
             if labels.indices.contains(index) {
                 let label = NSTextField(labelWithString: labels[index])
                 label.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-                label.textColor = .labelColor
+                label.textColor = .white
                 componentStack.addArrangedSubview(label)
             }
 

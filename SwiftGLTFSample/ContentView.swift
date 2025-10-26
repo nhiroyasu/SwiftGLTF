@@ -9,8 +9,11 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let url = viewModel.url {
-                GLTFMetalView(
+                GLTFSwiftUIView(
                     url: url,
+                    sceneIndex: viewModel.sceneIndex,
+                    environmentUrl: Bundle.main.url(forResource: "env_map", withExtension: "exr")!,
+                    modelBinding: $viewModel.gltf,
                     showDebugHUD: true
                 )
             }
@@ -24,6 +27,21 @@ struct ContentView: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button("Scene: Default") {
+                        viewModel.selectedSceneIndex = nil
+                    }
+                    ForEach(0..<viewModel.sceneCount, id: \.self) { index in
+                        Button("Scene: \(index)") {
+                            viewModel.selectedSceneIndex = index
+                        }
+                    }
+                } label: {
+                    Text(viewModel.sceneMenuLabel)
+                }
+            }
+
             #if os(iOS)
             let openFilePlacement: ToolbarItemPlacement = .bottomBar
             #elseif os(macOS)
@@ -38,7 +56,10 @@ struct ContentView: View {
             }
         }
         .navigationTitle("GLTF Viewer")
-        .ignoresSafeArea(.all, edges: .all)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .ignoresSafeArea(.all)
         .fileImporter(
             isPresented: $viewModel.showFileImporter,
             allowedContentTypes: viewModel.allowedContentTypes,

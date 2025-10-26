@@ -36,6 +36,7 @@
 				ContentView.swift,
 				GLTFViewModel.swift,
 				macOS/Assets.xcassets,
+				Resources/env_map.exr,
 				"Resources/sphere-with-color.bin",
 				"Resources/sphere-with-color.gltf",
 				SampleApp.swift,

@@ -7,10 +7,10 @@ struct BoxTexturedTests {
     @Test
     func testEmbeddedTextureMatchesOriginalImage() throws {
         // Load glTF container with embedded image
-        let (gltfContainer) = try loadGLTFContainer()
+        let gltfBundle = try loadGLTFBundle()
         // Expect exactly one texture
-        #expect(gltfContainer.binaryTextures.count == 1)
-        let actualTexture = gltfContainer.binaryTextures[0]
+        #expect(gltfBundle.binaryTextures.count == 1)
+        let actualTexture = gltfBundle.binaryTextures[0]
 
         // Load expected image from resource
         let pngURL = Bundle.module.url(forResource: "CesiumLogoFlat", withExtension: "png")!
@@ -24,13 +24,13 @@ struct BoxTexturedTests {
     }
 
     // MARK: - Helper
-    private func loadGLTFContainer() throws -> (GLTFContainer) {
+    private func loadGLTFBundle() throws -> (GLTFBundle) {
         guard let gltfURL = Bundle.module.url(forResource: "EmbeddedBoxTextured", withExtension: "gltf") else {
             throw NSError(domain: "BoxTexturedTests", code: -1,
                           userInfo: [NSLocalizedDescriptionKey: "EmbeddedBoxTextured.gltf not found"])
         }
         let data = try Data(contentsOf: gltfURL)
-        let container = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        return container
+        let bundle = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
+        return bundle
     }
 }

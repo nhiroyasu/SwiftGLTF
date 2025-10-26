@@ -92,9 +92,9 @@ final class AnimationTests {
         passDesc.depthAttachment.clearDepth = 1.0
 
         // Load a sample mesh
-        let asset = try await makeMDLAsset(from: meshURL, options: .init(autoScale: false))
-        try await renderer.load(from: asset)
-        try await renderer.setEnvironment(url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
+        let asset = try makeMDLAsset(from: meshURL, options: .init(autoScale: false))
+        try renderer.load(from: asset)
+        try renderer.setEnvironment(url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!

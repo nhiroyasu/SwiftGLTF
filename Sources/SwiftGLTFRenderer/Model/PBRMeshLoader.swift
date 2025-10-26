@@ -26,7 +26,7 @@ class PBRMeshLoader {
         from asset: MDLAsset,
         sceneIndex: Int? = nil,
         animationIndex: Int = 0
-    ) async throws -> PBRMeshBundle {
+    ) throws -> PBRMeshBundle {
         #if DEBUG
         let startTime = Date()
         defer {
@@ -121,7 +121,7 @@ class PBRMeshLoader {
         let fragmentHeap = try makeFragmentHeap(from: asset, sceneIndex: sceneIndex)
 
         let nodes = asset.object(atPath: GLTFAssetPath.nodes(atScene: sceneIndex))
-        let pbrMeshes = try await loadRecursiveMeshes(
+        let pbrMeshes = try loadRecursiveMeshes(
             device: device,
             obj: nodes,
             meshVertexBufferMap: meshVertexBufferMap,
@@ -167,7 +167,7 @@ class PBRMeshLoader {
         fragmentHeap: MTLHeap,
         parentTransform: float4x4,
         nodeLevelHierarchy: NodeLevelHierarchy
-    ) async throws -> [PBRMesh] {
+    ) throws -> [PBRMesh] {
         var pbrMeshes: [PBRMesh] = []
 
         let selfTransform = obj.transform?.matrix ?? simd_float4x4(1)
@@ -198,7 +198,7 @@ class PBRMeshLoader {
         }
 
         for childObj in obj.children.objects {
-            let childMeshes = try await loadRecursiveMeshes(
+            let childMeshes = try loadRecursiveMeshes(
                 device: device,
                 obj: childObj,
                 meshVertexBufferMap: meshVertexBufferMap,

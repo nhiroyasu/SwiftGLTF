@@ -5,7 +5,9 @@ import SwiftUI
 struct SwiftGLTFSampleApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            NavigationStack {
+                ContentView()
+            }
         }
     }
 }

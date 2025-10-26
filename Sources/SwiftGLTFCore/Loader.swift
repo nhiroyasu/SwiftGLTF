@@ -78,7 +78,7 @@ func isGLB(_ data: Data) -> Bool {
     return magic == Data([0x67, 0x6C, 0x54, 0x46])
 }
 
-private func loadFromGLB(_ data: Data) throws -> GLTFContainer {
+private func loadFromGLB(_ data: Data) throws -> GLTFBundle {
     guard data.count >= 12 else {
         throw SwiftGLTFError.makeIO(.glbTooShort, context: .capture(stage: .decode))
     }
@@ -154,10 +154,10 @@ private func loadFromGLB(_ data: Data) throws -> GLTFContainer {
             }
         }
     }
-    return GLTFContainer(gltf: gltf, binaryBuffers: [binChunk], binaryTextures: textures)
+    return GLTFBundle(gltf: gltf, binaryBuffers: [binChunk], binaryTextures: textures)
 }
 
-private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFContainer {
+private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFBundle {
     let decoder = JSONDecoder()
     let gltf = try decoder.decode(GLTF.self, from: data)
 
@@ -206,10 +206,10 @@ private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFContainer {
             throw SwiftGLTFError.makeIO(.imageURIMissingOrInvalid, context: .capture(stage: .io))
         }
     }
-    return GLTFContainer(gltf: gltf, binaryBuffers: buffers, binaryTextures: textures)
+    return GLTFBundle(gltf: gltf, binaryBuffers: buffers, binaryTextures: textures)
 }
 
-public func loadGLTF(from data: Data, baseURL: URL) throws -> GLTFContainer {
+public func loadGLTF(from data: Data, baseURL: URL) throws -> GLTFBundle {
     if isGLB(data) {
         // Load GLB: parse JSON and binary chunks
         return try loadFromGLB(data)
@@ -220,17 +220,17 @@ public func loadGLTF(from data: Data, baseURL: URL) throws -> GLTFContainer {
 }
 
 public class GLTFBinaryLoader {
-    private let gltfContainer: GLTFContainer
+    private let gltfBundle: GLTFBundle
 
-    public init(gltfContainer: GLTFContainer) {
-        self.gltfContainer = gltfContainer
+    public init(gltfBundle: GLTFBundle) {
+        self.gltfBundle = gltfBundle
     }
 
     /// Extracts raw data for the given accessor index.
     /// - Throws: error if accessor or buffer view is invalid, or data out-of-bounds.
     public func extractData(accessorIndex: AccessorIndex) throws -> Data {
-        let gltf = gltfContainer.gltf
-        let binaryBuffers = gltfContainer.binaryBuffers
+        let gltf = gltfBundle.gltf
+        let binaryBuffers = gltfBundle.binaryBuffers
 
         guard let accessors = gltf.accessors, accessorIndex.value < accessors.count else {
             throw SwiftGLTFError.makeIO(.bufferIndexOutOfRange, context: .capture(stage: .decode))
@@ -275,7 +275,7 @@ public class GLTFBinaryLoader {
     }
 
     public func extractTexture(textureIndex: ImageIndex) throws -> MDLTexture {
-        let binaryTextures = gltfContainer.binaryTextures
+        let binaryTextures = gltfBundle.binaryTextures
 
         guard textureIndex.value < binaryTextures.count else {
             throw SwiftGLTFError.makeIO(.textureIndexOutOfRange, context: .capture(stage: .decode))

@@ -6,6 +6,15 @@ import MetalKit
 import os.log
 import QuartzCore
 
+public protocol GLTFViewDelegate: AnyObject {
+    func loaded(gltf: GLTF?, error: Error?)
+}
+
+/// A Metal-backed view for loading and rendering glTF assets with a PBR renderer.
+///
+/// This view manages GPU resources, simple free-camera controls, frame-in-flight buffers,
+/// and optional debug HUD. It exposes convenience APIs to load a glTF asset and an
+/// environment map, and renders using `PBRRenderer`.
 @MainActor
 public class GLTFView: MTKView {
     private let commandQueue: MTLCommandQueue
@@ -32,6 +41,9 @@ public class GLTFView: MTKView {
     private var eye: SIMD3<Float> { freeCameraTarget + freeCameraPos }
     private var showDebugHUD: Bool
 
+    // MARK: - Load Handlers
+    public var gltfLoadHandler: ((Result<GLTF, Error>) -> Void)?
+
     // MARK: - Lighting
     private let defaultAmbientLightColor: SIMD3<Float> = SIMD3<Float>(1, 1, 1) * 5
     private let defaultLightPosition: SIMD3<Float> = SIMD3<Float>(0, 5, -5)
@@ -49,11 +61,15 @@ public class GLTFView: MTKView {
     private var animationState = RendererAnimationState(time: 0, speed: 1, isLooping: true)
     private var lastFrameTime: CFTimeInterval?
 
+    /// Creates a GLTFView configured for PBR rendering.
+    ///
+    /// - Parameters:
+    ///   - frame: The initial frame rectangle of the view.
+    ///   - device: The Metal device to use. Defaults to the system default device.
+    ///   - showDebugHUD: Whether to display a simple on-screen camera/light HUD.
+    /// - Throws: An error if the Metal command queue or renderer cannot be created.
     public init(
         frame: CGRect,
-        asset: MDLAsset? = nil,
-        sceneIndex: Int? = nil,
-        environmentMapURL: URL? = nil,
         device: MTLDevice = MTLCreateSystemDefaultDevice()!,
         showDebugHUD: Bool = false
     ) throws {
@@ -106,82 +122,60 @@ public class GLTFView: MTKView {
         #endif
 
         setupUI()
-
-        Task {
-            let url = environmentMapURL ?? Bundle.module.url(forResource: "env_map", withExtension: "exr")!
-            try await renderer.setEnvironment(url: url)
-            if let asset {
-                await load(from: asset, sceneIndex: sceneIndex)
-            }
-        }
-    }
-
-    public convenience init(
-        frame: CGRect,
-        url: URL,
-        sceneIndex: Int? = nil,
-        device: MTLDevice = MTLCreateSystemDefaultDevice()!,
-        showDebugHUD: Bool = false
-    ) throws {
-        try self.init(frame: frame, device: device, showDebugHUD: showDebugHUD)
-
-        Task { await self.load(from: url, sceneIndex: sceneIndex) }
     }
 
     required init(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    // MARK: - State Management
+    // MARK: - Public Interface
 
-    public func load(from asset: MDLAsset, sceneIndex: Int?) async {
+    /// Loads and displays a glTF asset from the specified URL.
+    ///
+    /// This method parses the glTF file, creates an `MDLAsset`, uploads
+    /// the necessary GPU resources, and switches the view into drawable state on success.
+    ///
+    /// - Parameters:
+    ///   - url: The file URL of the glTF (either .gltf or .glb via Data contents).
+    ///   - sceneIndex: The index of the scene to display. Pass `nil` to use the default scene.
+    /// - Note: The delegate `gltfDelegate` will be notified on completion with either the parsed `GLTF` or an error.
+    public func load(gltf url: URL, sceneIndex: Int?) {
         do {
             displayType = .loading
-            try await renderer.load(from: asset, sceneIndex: sceneIndex)
-            displayType = .drawable
-        } catch {
-            os_log("Failed to load asset: %@", type: .error, error.localizedDescription)
-            displayType = .error("Failed to load asset: \(error.localizedDescription)")
-        }
-    }
-
-    public func loadAsync(from asset: MDLAsset, sceneIndex: Int?) {
-        Task {
-            do {
-                displayType = .loading
-                try await renderer.load(from: asset, sceneIndex: sceneIndex)
-                displayType = .drawable
-            } catch {
-                os_log("Failed to load asset: %@", type: .error, error.localizedDescription)
-                displayType = .error("Failed to load asset: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    public func load(from url: URL, sceneIndex: Int?) async {
-        do {
-            displayType = .loading
-            let asset = try await makeMDLAsset(from: url)
-            await load(from: asset, sceneIndex: sceneIndex)
+            defer { displayType = .drawable }
+            let data = try Data(contentsOf: url)
+            let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
+            let asset = try makeMDLAsset(from: gltfBundle)
+            try renderer.load(from: asset, sceneIndex: sceneIndex)
+            gltfLoadHandler?(.success(gltfBundle.gltf))
         } catch {
             os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
             displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
+            gltfLoadHandler?(.failure(error) )
         }
     }
 
-    public func loadAsync(from url: URL, sceneIndex: Int?) {
-        Task {
-            do {
-                displayType = .loading
-                let asset = try await makeMDLAsset(from: url)
-                await load(from: asset, sceneIndex: sceneIndex)
-            } catch {
-                os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
-                displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
-            }
+    /// Loads an image-based lighting (IBL) environment map.
+    ///
+    /// Sets the renderer's environment from a file URL (e.g., HDR/EXR), then
+    /// returns the view to drawable state.
+    ///
+    /// - Parameter url: The file URL of the environment map to use for lighting/reflections.
+    /// - Important: Large HDR/EXR files may take time to process depending on device capabilities.
+    public func load(environment url: URL) {
+        do {
+            displayType = .loading
+            defer { displayType = .drawable }
+            try renderer.setEnvironment(url: url)
+        } catch {
+            os_log("Failed to load environment map from URL: %@", type: .error, error.localizedDescription)
         }
     }
 
+    /// Resets the free camera to its default position and orientation.
+    ///
+    /// Restores yaw/pitch, distance, up direction, and target to defaults and
+    /// updates the debug HUD if enabled.
     public func resetCamera() {
         freeCameraRX = -.pi / 2
         freeCameraRY = .pi / 2
@@ -442,6 +436,12 @@ public class GLTFView: MTKView {
         }
     }
 
+    /// Handles scroll wheel input for camera control (macOS).
+    ///
+    /// With the **Shift** key pressed, pans the camera target in world space.
+    /// Otherwise, adjusts the camera angles to orbit the target.
+    ///
+    /// - Parameter event: The scroll wheel event.
     public override func scrollWheel(with event: NSEvent) {
         // Shift + scroll: pan camera (move eye & target in world space), otherwise rotate camera
         if event.modifierFlags.contains(.shift) {
@@ -461,6 +461,11 @@ public class GLTFView: MTKView {
         updateCameraHUD()
     }
 
+    /// Handles trackpad pinch magnification to dolly the camera (macOS).
+    ///
+    /// Adjusts the camera distance, clamped to a small positive threshold.
+    ///
+    /// - Parameter event: The magnification gesture event.
     public override func magnify(with event: NSEvent) {
         let threshold: Float32 = 0.1
         freeCameraDistance = freeCameraDistance - Float32(event.magnification) * 10.0

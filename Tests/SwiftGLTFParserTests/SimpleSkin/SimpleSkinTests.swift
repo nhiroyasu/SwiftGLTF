@@ -38,7 +38,7 @@ struct SimpleSkinTests {
         }
         let data = try Data(contentsOf: gltfURL)
         let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try await makeMDLAsset(
+        let asset = try makeMDLAsset(
             from: gltfContainer,
             options: GLTFDecodeOptions(convertToLeftHanded: false, autoScale: false)
         )

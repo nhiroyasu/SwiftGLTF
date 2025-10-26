@@ -88,9 +88,9 @@ final class PBRRenderTests {
         passDesc.depthAttachment.clearDepth = 1.0
 
         // Load a sample mesh
-        let asset = try await makeMDLAsset(from: meshURL)
-        try await renderer.load(from: asset)
-        try await renderer.setEnvironment(url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
+        let asset = try makeMDLAsset(from: meshURL)
+        try renderer.load(from: asset)
+        try renderer.setEnvironment(url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
