@@ -5,31 +5,32 @@ import SwiftGLTFCore
 #if canImport(UIKit)
 import UIKit
 
-public struct GLTFMetalView: UIViewRepresentable {
+public struct GLTFSwiftUIView: UIViewRepresentable {
     private let url: URL
     private let sceneIndex: Int?
     private let environmentUrl: URL?
+    private let modelBinding: Binding<GLTF?>?
     private let showDebugHUD: Bool
     private let automaticallyAccessSecurityScope: Bool
-    private let gltfViewDelegate: GLTFViewDelegateWrap = .init()
 
     public init(
         url: URL,
         sceneIndex: Int? = nil,
         environmentUrl: URL? = nil,
+        modelBinding: Binding<GLTF?>? = nil,
         showDebugHUD: Bool = false,
         automaticallyAccessSecurityScope: Bool = true
     ) {
         self.url = url
         self.sceneIndex = sceneIndex
         self.environmentUrl = environmentUrl
+        self.modelBinding = modelBinding
         self.showDebugHUD = showDebugHUD
         self.automaticallyAccessSecurityScope = automaticallyAccessSecurityScope
     }
 
     public func makeUIView(context: Context) -> GLTFStableView {
         if let view = try? GLTFStableView(frame: .zero, showDebugHUD: showDebugHUD) {
-            view.gltfDelegate = gltfViewDelegate
             view.translatesAutoresizingMaskIntoConstraints = false
             return view
         } else {
@@ -38,52 +39,56 @@ public struct GLTFMetalView: UIViewRepresentable {
     }
 
     public func updateUIView(_ uiView: GLTFStableView, context: Context) {
-        Task {
-            let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
-            uiView.gltfURL = url
-            uiView.environmentURL = environmentUrl
-            if shouldStoppedAccessingSecurityScopedResource {
-                url.stopAccessingSecurityScopedResource()
+        let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
+        uiView.gltfURL = url
+        uiView.environmentURL = environmentUrl
+        uiView.gltfLoadHandler = { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let gltf):
+                    modelBinding?.wrappedValue = gltf
+                case .failure:
+                    modelBinding?.wrappedValue = nil
+                }
             }
         }
-    }
-
-    public func onGLTFLoaded(
-        _ handler: @escaping (GLTF?, (any Error)?) -> Void
-    ) -> GLTFMetalView {
-        gltfViewDelegate.loadedHandler = handler
-        return self
+        if shouldStoppedAccessingSecurityScopedResource {
+            url.stopAccessingSecurityScopedResource()
+        }
     }
 }
 
 #elseif canImport(AppKit)
 import AppKit
 
-public struct GLTFMetalView: NSViewRepresentable {
+public struct GLTFSwiftUIView: NSViewRepresentable {
     private let url: URL
     private let sceneIndex: Int?
     private let environmentUrl: URL?
+    private let modelBinding: Binding<GLTF?>?
     private let showDebugHUD: Bool
     private let automaticallyAccessSecurityScope: Bool
-    private let gltfViewDelegate: GLTFViewDelegateWrap = .init()
+
+    public var gltfLoadHandler: ((Result<GLTF, Error>) -> Void)?
 
     public init(
         url: URL,
         sceneIndex: Int? = nil,
         environmentUrl: URL? = nil,
+        modelBinding: Binding<GLTF?>? = nil,
         showDebugHUD: Bool = false,
-        automaticallyAccessSecurityScope: Bool = true,
+        automaticallyAccessSecurityScope: Bool = true
     ) {
         self.url = url
         self.sceneIndex = sceneIndex
         self.environmentUrl = environmentUrl
+        self.modelBinding = modelBinding
         self.showDebugHUD = showDebugHUD
         self.automaticallyAccessSecurityScope = automaticallyAccessSecurityScope
     }
 
     public func makeNSView(context: Context) -> GLTFStableView {
         if let view = try? GLTFStableView(frame: .zero, showDebugHUD: showDebugHUD) {
-            view.gltfDelegate = gltfViewDelegate
             view.translatesAutoresizingMaskIntoConstraints = false
             return view
         } else {
@@ -94,25 +99,21 @@ public struct GLTFMetalView: NSViewRepresentable {
     public func updateNSView(_ nsView: GLTFStableView, context: Context) {
         let shouldStoppedAccessingSecurityScopedResource = automaticallyAccessSecurityScope && url.startAccessingSecurityScopedResource()
         nsView.gltfURL = url
+        nsView.sceneIndex = sceneIndex
         nsView.environmentURL = environmentUrl
+        nsView.gltfLoadHandler = { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let gltf):
+                    modelBinding?.wrappedValue = gltf
+                case .failure:
+                    modelBinding?.wrappedValue = nil
+                }
+            }
+        }
         if shouldStoppedAccessingSecurityScopedResource {
             url.stopAccessingSecurityScopedResource()
         }
     }
-
-    public func onGLTFLoaded(
-        _ handler: @escaping (GLTF?, (any Error)?) -> Void
-    ) -> GLTFMetalView {
-        gltfViewDelegate.loadedHandler = handler
-        return self
-    }
 }
 #endif
-
-private class GLTFViewDelegateWrap: GLTFViewDelegate {
-    var loadedHandler: ((GLTF?, (any Error)?) -> Void)?
-
-    func loaded(gltf: GLTF?, error: (any Error)?) {
-        loadedHandler?(gltf, error)
-    }
-}

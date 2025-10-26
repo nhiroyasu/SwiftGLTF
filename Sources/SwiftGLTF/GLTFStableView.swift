@@ -127,7 +127,6 @@ public class GLTFStableView: GLTFView {
         currentSceneIndex = sceneIndex
 
         do {
-            let data = try Data(contentsOf: url)
             super.load(gltf: url, sceneIndex: sceneIndex)
             os_log("GLTFStableView: Reloaded GLTF due to asset change", type: .info)
         } catch {

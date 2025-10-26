@@ -46,7 +46,7 @@ import SwiftGLTF
 
 var body: some View {
     @State private var gltfUrl = // URL to your glTF or GLB file
-    GLTFMetalView(url: gltfUrl)
+    GLTFSwiftUIView(url: gltfUrl)
 }
 ```
 

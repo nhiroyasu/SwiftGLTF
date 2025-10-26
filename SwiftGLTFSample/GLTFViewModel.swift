@@ -12,8 +12,8 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     @Published var errorMessage = ""
     @Published var showFileImporter = false
     @Published var isLoading: Bool = false
-    @Published var sceneCount: Int = 0
-    @Published var userInputSceneIndex: Int = 0
+    @Published var selectedSceneIndex: Int? = nil
+    @Published var gltf: GLTF?
 
     #if os(iOS)
     let allowedContentTypes: [UTType] = [.glb, .vrm]
@@ -66,12 +66,23 @@ class GLTFViewModel: ObservableObject, DropDelegate {
         return true
     }
 
-    func onGLTFLoaded(gltf: GLTF) {
-        // TODO: 戻す
-//        sceneCount = gltf.scenes?.count ?? 0
+    var sceneIndex: Int? {
+        if let scenes = gltf?.scenes, let selectedSceneIndex {
+            return min(max(selectedSceneIndex, 0), scenes.count - 1)
+        } else {
+            return nil
+        }
     }
 
-    var sceneIndex: Int {
-        min(max(userInputSceneIndex, 0), sceneCount - 1)
+    var sceneCount: Int {
+        gltf?.scenes?.count ?? 1
+    }
+
+    var sceneMenuLabel: String {
+        if let selectedSceneIndex {
+            return "Scene: \(selectedSceneIndex)"
+        } else {
+            return "Scene: Default"
+        }
     }
 }

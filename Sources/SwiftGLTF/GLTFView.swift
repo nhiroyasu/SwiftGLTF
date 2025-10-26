@@ -21,7 +21,6 @@ public class GLTFView: MTKView {
     private let renderer: PBRRenderer
     private let sceneUniformsBuffer: FrameInFlightBuffer
     private let mvpUniformBuffer: FrameInFlightBuffer
-    public weak var gltfDelegate: GLTFViewDelegate?
 
     // MARK: - Display State
     private var displayType: DisplayType = .loading {
@@ -41,6 +40,9 @@ public class GLTFView: MTKView {
     }
     private var eye: SIMD3<Float> { freeCameraTarget + freeCameraPos }
     private var showDebugHUD: Bool
+
+    // MARK: - Load Handlers
+    public var gltfLoadHandler: ((Result<GLTF, Error>) -> Void)?
 
     // MARK: - Lighting
     private let defaultAmbientLightColor: SIMD3<Float> = SIMD3<Float>(1, 1, 1) * 5
@@ -145,11 +147,11 @@ public class GLTFView: MTKView {
             let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
             let asset = try makeMDLAsset(from: gltfBundle)
             try renderer.load(from: asset, sceneIndex: sceneIndex)
-            gltfDelegate?.loaded(gltf: gltfBundle.gltf, error: nil)
+            gltfLoadHandler?(.success(gltfBundle.gltf))
         } catch {
             os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
             displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
-            gltfDelegate?.loaded(gltf: nil, error: error)
+            gltfLoadHandler?(.failure(error) )
         }
     }
 
