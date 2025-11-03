@@ -8,17 +8,23 @@
 #include "includes/pbr_vertex.h"
 #include "includes/pbr_arguments.h"
 #include "includes/pbr_texture.h"
+#include "includes/arguments_builder.h"
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
 
 using namespace metal;
 
 fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
-                                    constant PBRFragmentArguments &fragArgs [[buffer(PBRFragmentShaderArgsBuffer)]],
+                                    constant int &fragArgsPtrIndex [[buffer(PBRFragmentShaderArgsPtrIndexBuffer)]],
+                                    constant PBRFragmentArguments* fragArgsPtr [[buffer(PBRFragmentShaderArgsPtrBuffer)]],
                                     constant PBREnvMapArguments &envMapArgs [[buffer(PBRFragmentShaderEnvMapArgsBuffer)]],
                                     constant SceneUniforms &scene [[buffer(PBRFragmentShaderSceneUniformsBuffer)]],
                                     constant PBRScreenColorArguments &scArgs [[buffer(PBRFragmentShaderScreenColorBuffer)]],
                                     bool isFrontFacing [[front_facing]])
 {
+    PBRFragmentArguments fragArgs = (fragArgsPtrIndex >= 0)
+    ? fragArgsPtr[fragArgsPtrIndex]
+    : makeDefaultPBRFragmentArguments();
+
     constant PBRMaterialUniforms &mUni = fragArgs.material;
     texture2d<float> baseColorTexture = fragArgs.baseColorTexture;
     sampler baseColorSampler = fragArgs.baseColorSampler;
