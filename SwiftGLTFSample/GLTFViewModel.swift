@@ -28,7 +28,13 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     #endif
 
     func loadDefaultAsset() {
-        url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
+        do {
+            try checkSwiftGLTFMTKDeviceSupported(device: MTLCreateSystemDefaultDevice()!)
+            url = Bundle.main.url(forResource: "sphere-with-color", withExtension: "gltf")!
+        } catch {
+            showError = true
+            errorMessage = "\(error)"
+        }
     }
 
     func load(url: URL) {
