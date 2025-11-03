@@ -134,7 +134,7 @@ var body: some View {
 ### Scenes
 | Feature                 | Supported |
 |-------------------------|-----------|
-| Multiple scenes         | ❌         |
+| Multiple scenes         | ✅        |
 
 ### Cameras
 | Feature                 | Supported |
