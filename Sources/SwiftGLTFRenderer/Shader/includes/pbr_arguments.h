@@ -2,6 +2,8 @@
 #define pbr_arguments_h
 
 #include "../../../SwiftGLTFShaderTypes/includes/pbr.h"
+#include <metal_stdlib>
+using namespace metal;
 
 struct PBRVertexArguments {
     constant float4x4 &model                [[id(PBRVertexArgIdModel)]];

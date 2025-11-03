@@ -18,6 +18,10 @@ struct PBRMeshBundle {
     let morphDispatchesBuffer: MTLBuffer
     let boundingSpheresBuffer: MTLBuffer
 
+    // Materials
+    let materialBuffer: MTLBuffer?
+    let materialResources: [Any?]
+
     // Animation
     let animations: [PBRMeshAnimation]
 
@@ -58,7 +62,7 @@ struct PBRMesh {
         let indexCount: Int
         let indexType: MTLIndexType
         let indexBuffer: MTKMeshBuffer
-        let fragmentArgumentBuffer: MTLBuffer
+        let materialIndex: Int
         let alphaMode: SwiftGLTFShaderTypes.AlphaMode
         let alphaCutoff: Float
         // Center of the mesh primitive in model space

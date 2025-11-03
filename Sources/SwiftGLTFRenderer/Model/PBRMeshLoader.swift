@@ -120,6 +120,13 @@ class PBRMeshLoader {
 
         let fragmentHeap = try makeFragmentHeap(from: asset, sceneIndex: sceneIndex)
 
+        let (materialBuffer, materialResources) = try makeMaterialBuffers(
+            from: asset,
+            textureMap: textureMap,
+            pipelineConnector: pipelineConnector,
+            fragmentHeap: fragmentHeap
+        )
+
         let nodes = asset.object(atPath: GLTFAssetPath.nodes(atScene: sceneIndex))
         let pbrMeshes = try loadRecursiveMeshes(
             device: device,
@@ -147,6 +154,8 @@ class PBRMeshLoader {
             morphWeightsBuffer: morphWeightsBuffer,
             morphDispatchesBuffer: morphDispatchesBuffer,
             boundingSpheresBuffer: boundingSpheresBuffer,
+            materialBuffer: materialBuffer,
+            materialResources: materialResources,
             animations: pbrAnimations,
             nodeLevelHierarchy: nodeLevelHierarchy,
             originMorphWeights: morphWeights,
@@ -279,123 +288,11 @@ class PBRMeshLoader {
         )
 
         // Process submeshes
-        var hasTransmission = false
         var submeshes: [PBRMesh.Submesh] = []
         for (mtkSubmesh, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
             // Extract material factors to pass to shader
             let material = mdlSubmesh.material
-            let baseColorFactor = material?.propertyNamed(.baseColorFactor)?.float4Value ?? SIMD4<Float>(1, 1, 1, 1)
-            let metallicFactor = material?.propertyNamed(.metallic)?.floatValue ?? 1.0
-            let roughnessFactor = material?.propertyNamed(.roughness)?.floatValue ?? 1.0
-            let occlusionFactor = material?.propertyNamed(.occlusionStrength)?.floatValue ?? 1.0
-            let emissiveFactor = material?.propertyNamed(.emissiveFactor)?.float3Value ?? SIMD3<Float>(0, 0, 0)
-
-            // Base color texture and sampler
-            var (hasBaseColorTexture, baseColorTexture, baseColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.baseColorTexture), textureMap: textureMap)
-
-            // Normal texture and sampler
-            var (hasNormalTexture, normalTexture, normalSamplerState) = retrieveTexture(prop: material?.propertyNamed(.normalTexture), textureMap: textureMap)
-
-            // Make metallic roughness texture and sampler
-            var (hasMetallicRoughnessTexture, metallicRoughnessTexture, metallicRoughnessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.metallicRoughnessTexture), textureMap: textureMap)
-
-            // Make emissive texture and sampler
-            var (hasEmissiveTexture, emissiveTexture, emissiveSamplerState) = retrieveTexture(prop: material?.propertyNamed(.emissiveTexture), textureMap: textureMap)
-
-            // Occlusion texture and sampler
-            var (hasOcclusionTexture, occlusionTexture, occlusionSamplerState) = retrieveTexture(prop: material?.propertyNamed(.occlusion), textureMap: textureMap)
-
-            // Transmission texture and sampler (KHR_materials_transmission)
-            var (hasTransmissionTexture, transmissionTexture, transmissionSamplerState) = retrieveTexture(prop: material?.propertyNamed(.transmissionTexture), textureMap: textureMap)
-            // Thickness texture and sampler (KHR_materials_volume)
-            var (hasThicknessTexture, thicknessTexture, thicknessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.thicknessTexture), textureMap: textureMap)
-            // Specular textures (KHR_materials_specular)
-            var (hasSpecularTexture, specularTexture, specularSamplerState) = retrieveTexture(prop: material?.propertyNamed(.specularTexture), textureMap: textureMap)
-            var (hasSpecularColorTexture, specularColorTexture, specularColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.specularColorTexture), textureMap: textureMap)
-
-            // Sheen textures
-            var (hasSheenColorTexture, sheenColorTexture, sheenColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.sheenColorTexture), textureMap: textureMap)
-            var (hasSheenRoughnessTexture, sheenRoughnessTexture, sheenRoughnessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.sheenRoughnessTexture), textureMap: textureMap)
-
-            // Clearcoat textures
-            var (hasClearcoatTexture, clearcoatTexture, clearcoatSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatTexture), textureMap: textureMap)
-            var (hasClearcoatRoughnessTexture, clearcoatRoughnessTexture, clearcoatRoughnessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatRoughnessTexture), textureMap: textureMap)
-            var (hasClearcoatNormalTexture, clearcoatNormalTexture, clearcoatNormalSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatNormalTexture), textureMap: textureMap)
-
-            let baseColorTransform = textureTransform(material: material, offsetScaleName: .baseColorTextureTransformOffsetScale, rotationName: .baseColorTextureTransformRotation)
-            let normalTransform = textureTransform(material: material, offsetScaleName: .normalTextureTransformOffsetScale, rotationName: .normalTextureTransformRotation)
-            let metallicRoughnessTransform = textureTransform(material: material, offsetScaleName: .metallicRoughnessTextureTransformOffsetScale, rotationName: .metallicRoughnessTextureTransformRotation)
-            let emissiveTransform = textureTransform(material: material, offsetScaleName: .emissiveTextureTransformOffsetScale, rotationName: .emissiveTextureTransformRotation)
-            let occlusionTransform = textureTransform(material: material, offsetScaleName: .occlusionTextureTransformOffsetScale, rotationName: .occlusionTextureTransformRotation)
-            let transmissionTransform = textureTransform(material: material, offsetScaleName: .transmissionTextureTransformOffsetScale, rotationName: .transmissionTextureTransformRotation)
-            let thicknessTransform = textureTransform(material: material, offsetScaleName: .thicknessTextureTransformOffsetScale, rotationName: .thicknessTextureTransformRotation)
-            let specularTransform = textureTransform(material: material, offsetScaleName: .specularTextureTransformOffsetScale, rotationName: .specularTextureTransformRotation)
-            let specularColorTransform = textureTransform(material: material, offsetScaleName: .specularColorTextureTransformOffsetScale, rotationName: .specularColorTextureTransformRotation)
-            let sheenColorTransform = textureTransform(material: material, offsetScaleName: .sheenColorTextureTransformOffsetScale, rotationName: .sheenColorTextureTransformRotation)
-            let sheenRoughnessTransform = textureTransform(material: material, offsetScaleName: .sheenRoughnessTextureTransformOffsetScale, rotationName: .sheenRoughnessTextureTransformRotation)
-            let clearcoatTransform = textureTransform(material: material, offsetScaleName: .clearcoatTextureTransformOffsetScale, rotationName: .clearcoatTextureTransformRotation)
-            let clearcoatRoughnessTransform = textureTransform(material: material, offsetScaleName: .clearcoatRoughnessTextureTransformOffsetScale, rotationName: .clearcoatRoughnessTextureTransformRotation)
-            let clearcoatNormalTransform = textureTransform(material: material, offsetScaleName: .clearcoatNormalTextureTransformOffsetScale, rotationName: .clearcoatNormalTextureTransformRotation)
-
-            var baseColorTransformOffsetScale = baseColorTransform.offsetScale
-            var baseColorTransformRotation = baseColorTransform.rotation
-            var normalTransformOffsetScale = normalTransform.offsetScale
-            var normalTransformRotation = normalTransform.rotation
-            var metallicRoughnessTransformOffsetScale = metallicRoughnessTransform.offsetScale
-            var metallicRoughnessTransformRotation = metallicRoughnessTransform.rotation
-            var emissiveTransformOffsetScale = emissiveTransform.offsetScale
-            var emissiveTransformRotation = emissiveTransform.rotation
-            var occlusionTransformOffsetScale = occlusionTransform.offsetScale
-            var occlusionTransformRotation = occlusionTransform.rotation
-            var transmissionTransformOffsetScale = transmissionTransform.offsetScale
-            var transmissionTransformRotation = transmissionTransform.rotation
-            var thicknessTransformOffsetScale = thicknessTransform.offsetScale
-            var thicknessTransformRotation = thicknessTransform.rotation
-            var specularTransformOffsetScale = specularTransform.offsetScale
-            var specularTransformRotation = specularTransform.rotation
-            var specularColorTransformOffsetScale = specularColorTransform.offsetScale
-            var specularColorTransformRotation = specularColorTransform.rotation
-            var sheenColorTransformOffsetScale = sheenColorTransform.offsetScale
-            var sheenColorTransformRotation = sheenColorTransform.rotation
-            var sheenRoughnessTransformOffsetScale = sheenRoughnessTransform.offsetScale
-            var sheenRoughnessTransformRotation = sheenRoughnessTransform.rotation
-            var clearcoatTransformOffsetScale = clearcoatTransform.offsetScale
-            var clearcoatTransformRotation = clearcoatTransform.rotation
-            var clearcoatRoughnessTransformOffsetScale = clearcoatRoughnessTransform.offsetScale
-            var clearcoatRoughnessTransformRotation = clearcoatRoughnessTransform.rotation
-            var clearcoatNormalTransformOffsetScale = clearcoatNormalTransform.offsetScale
-            var clearcoatNormalTransformRotation = clearcoatNormalTransform.rotation
-
-            // Retrieve texture coordinate indices and cast to UInt32
-            let baseColorTexCoordF: Float = material?.propertyNamed(.baseColorTextureTexCoord)?.floatValue ?? 0.0
-            let normalTexCoordF: Float = material?.propertyNamed(.normalTextureTexCoord)?.floatValue ?? 0.0
-            let metalRoughnessTexCoordF: Float = material?.propertyNamed(.metallicRoughnessTextureTexCoord)?.floatValue ?? 0.0
-            let emissiveTexCoordF: Float = material?.propertyNamed(.emissiveTextureTexCoord)?.floatValue ?? 0.0
-            let occlusionTexCoordF: Float = material?.propertyNamed(.occlusionTextureTexCoord)?.floatValue ?? 0.0
-            let transmissionTexCoordF: Float = material?.propertyNamed(.transmissionTextureTexCoord)?.floatValue ?? 0.0
-            let thicknessTexCoordF: Float = material?.propertyNamed(.thicknessTextureTexCoord)?.floatValue ?? 0.0
-            let specularTexCoordF: Float = material?.propertyNamed(.specularTextureTexCoord)?.floatValue ?? 0.0
-            let specularColorTexCoordF: Float = material?.propertyNamed(.specularColorTextureTexCoord)?.floatValue ?? 0.0
-            let sheenColorTexCoordF: Float = material?.propertyNamed(.sheenColorTextureTexCoord)?.floatValue ?? 0.0
-            let sheenRoughnessTexCoordF: Float = material?.propertyNamed(.sheenRoughnessTextureTexCoord)?.floatValue ?? 0.0
-            let clearcoatTexCoordF: Float = material?.propertyNamed(.clearcoatTextureTexCoord)?.floatValue ?? 0.0
-            let clearcoatRoughnessTexCoordF: Float = material?.propertyNamed(.clearcoatRoughnessTextureTexCoord)?.floatValue ?? 0.0
-            let clearcoatNormalTexCoordF: Float = material?.propertyNamed(.clearcoatNormalTextureTexCoord)?.floatValue ?? 0.0
-            var baseColorTexCoord: UInt32 = UInt32(baseColorTexCoordF)
-            var normalTexCoord: UInt32 = UInt32(normalTexCoordF)
-            var metalRoughnessTexCoord: UInt32 = UInt32(metalRoughnessTexCoordF)
-            var emissiveTexCoord: UInt32 = UInt32(emissiveTexCoordF)
-            var occlusionTexCoord: UInt32 = UInt32(occlusionTexCoordF)
-            var transmissionTexCoord: UInt32 = UInt32(transmissionTexCoordF)
-            var thicknessTexCoord: UInt32 = UInt32(thicknessTexCoordF)
-            var specularTexCoord: UInt32 = UInt32(specularTexCoordF)
-            var specularColorTexCoord: UInt32 = UInt32(specularColorTexCoordF)
-            var sheenColorTexCoord: UInt32 = UInt32(sheenColorTexCoordF)
-            var sheenRoughnessTexCoord: UInt32 = UInt32(sheenRoughnessTexCoordF)
-            var clearcoatTexCoord: UInt32 = UInt32(clearcoatTexCoordF)
-            var clearcoatRoughnessTexCoord: UInt32 = UInt32(clearcoatRoughnessTexCoordF)
-            var clearcoatNormalTexCoord: UInt32 = UInt32(clearcoatNormalTexCoordF)
-
+      
             // Alpha mode & cutoff
             let alphaModeStr = material?.propertyNamed(.alphaMode)?.stringValue?.uppercased() ?? "OPAQUE"
             let alphaModeEnum: SwiftGLTFShaderTypes.AlphaMode = {
@@ -410,193 +307,39 @@ class PBRMeshLoader {
 
             // Transmission factor
             let transmissionFactor: Float = material?.propertyNamed(.transmissionFactor)?.floatValue ?? 0.0
-            hasTransmission = transmissionFactor > 0 || hasTransmissionTexture
 
             // Double sided flag
             let isDoubleSided: Bool = (material?.propertyNamed(.doubleSided)?.floatValue ?? 0) != 0
 
-            // Create material uniforms buffer
-            let attenuationDistance: Float = {
-                if let v = material?.propertyNamed(.attenuationDistance)?.floatValue { return v }
-                return -1.0 // <= 0 means infinity (no attenuation)
-            }()
-            let attenuationColor: SIMD3<Float> = material?.propertyNamed(.attenuationColor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
-            let ior: Float = material?.propertyNamed(.ior)?.floatValue ?? 1.5
-            let specularFactor: Float = material?.propertyNamed(.specularFactor)?.floatValue ?? 1.0
-            let specularColorFactor: SIMD3<Float> = material?.propertyNamed(.specularColorFactor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
-            let sheenColorFactor: SIMD3<Float> = material?.propertyNamed(.sheenColorFactor)?.float3Value ?? SIMD3<Float>(0, 0, 0)
-            let sheenRoughnessFactor: Float = material?.propertyNamed(.sheenRoughnessFactor)?.floatValue ?? 0.0
-            let clearcoatFactor: Float = material?.propertyNamed(.clearcoatFactor)?.floatValue ?? 0.0
-            let clearcoatRoughnessFactor: Float = material?.propertyNamed(.clearcoatRoughnessFactor)?.floatValue ?? 0.0
-            let clearcoatNormalScale: Float = material?.propertyNamed(.clearcoatNormalTextureScale)?.floatValue ?? 1.0
-            var clearcoatNormalScaleValue = clearcoatNormalScale
-            let clearcoatFactors = SIMD4<Float>(clearcoatFactor, clearcoatRoughnessFactor, clearcoatNormalScale, 0)
-
-            var materialUniforms = PBRMaterialUniforms(
-                baseColorFactor: baseColorFactor,
-                metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
-                emissiveFactor: SIMD4<Float>(emissiveFactor.x, emissiveFactor.y, emissiveFactor.z, 0),
-                doubleSided: isDoubleSided ? 1 : 0,
-                transmissionThicknessDistance: SIMD4<Float>(transmissionFactor, material?.propertyNamed(.thicknessFactor)?.floatValue ?? 0.0, attenuationDistance, 0),
-                attenuationColor: SIMD4<Float>(attenuationColor.x, attenuationColor.y, attenuationColor.z, 0),
-                ior: ior,
-                specularFactor: specularFactor,
-                specularFactorColor: SIMD4<Float>(specularColorFactor.x, specularColorFactor.y, specularColorFactor.z, 0),
-                sheenColorRoughness: SIMD4<Float>(sheenColorFactor.x, sheenColorFactor.y, sheenColorFactor.z, sheenRoughnessFactor),
-                clearcoatFactors: clearcoatFactors
-            )
-            let tmpMaterialUniformsBuffer = device.makeBuffer(
-                bytes: &materialUniforms,
-                length: MemoryLayout<PBRMaterialUniforms>.size
-            )!
-            let materialUniformsBuffer = try shaderConnection.moveBufferToHeap(
-                from: tmpMaterialUniformsBuffer,
-                use: fragmentHeap
-            )
-
-            let argumentBuffer = try pipelineConnector.makeFragmentArgumentBuffer(
-                materialUniformsBuffer: materialUniformsBuffer,
-                hasBaseColorTexture: &hasBaseColorTexture,
-                baseColorTexture: baseColorTexture,
-                baseColorSampler: baseColorSamplerState,
-                hasNormalTexture: &hasNormalTexture,
-                normalTexture: normalTexture,
-                normalSampler: normalSamplerState,
-                hasMetallicRoughnessTexture: &hasMetallicRoughnessTexture,
-                metallicRoughnessTexture: metallicRoughnessTexture,
-                metallicRoughnessSampler: metallicRoughnessSamplerState,
-                hasEmissiveTexture: &hasEmissiveTexture,
-                emissiveTexture: emissiveTexture,
-                emissiveSampler: emissiveSamplerState,
-                hasOcclusionTexture: &hasOcclusionTexture,
-                occlusionTexture: occlusionTexture,
-                occlusionSampler: occlusionSamplerState,
-                // Pass texCoord indices
-                baseColorTexCoord: &baseColorTexCoord,
-                normalTexCoord: &normalTexCoord,
-                metallicRoughnessTexCoord: &metalRoughnessTexCoord,
-                emissiveTexCoord: &emissiveTexCoord,
-                occlusionTexCoord: &occlusionTexCoord,
-                // Transmission/Thickness
-                hasTransmissionTexture: &hasTransmissionTexture,
-                transmissionTexture: transmissionTexture,
-                transmissionSampler: transmissionSamplerState,
-                transmissionTexCoord: &transmissionTexCoord,
-                hasThicknessTexture: &hasThicknessTexture,
-                thicknessTexture: thicknessTexture,
-                thicknessSampler: thicknessSamplerState,
-                thicknessTexCoord: &thicknessTexCoord,
-                // Specular
-                hasSpecularTexture: &hasSpecularTexture,
-                specularTexture: specularTexture,
-                specularSampler: specularSamplerState,
-                specularTexCoord: &specularTexCoord,
-                hasSpecularColorTexture: &hasSpecularColorTexture,
-                specularColorTexture: specularColorTexture,
-                specularColorSampler: specularColorSamplerState,
-                specularColorTexCoord: &specularColorTexCoord,
-                // Sheen
-                hasSheenColorTexture: &hasSheenColorTexture,
-                sheenColorTexture: sheenColorTexture,
-                sheenColorSampler: sheenColorSamplerState,
-                sheenColorTexCoord: &sheenColorTexCoord,
-                hasSheenRoughnessTexture: &hasSheenRoughnessTexture,
-                sheenRoughnessTexture: sheenRoughnessTexture,
-                sheenRoughnessSampler: sheenRoughnessSamplerState,
-                sheenRoughnessTexCoord: &sheenRoughnessTexCoord,
-                // Clearcoat
-                hasClearcoatTexture: &hasClearcoatTexture,
-                clearcoatTexture: clearcoatTexture,
-                clearcoatSampler: clearcoatSamplerState,
-                clearcoatTexCoord: &clearcoatTexCoord,
-                hasClearcoatRoughnessTexture: &hasClearcoatRoughnessTexture,
-                clearcoatRoughnessTexture: clearcoatRoughnessTexture,
-                clearcoatRoughnessSampler: clearcoatRoughnessSamplerState,
-                clearcoatRoughnessTexCoord: &clearcoatRoughnessTexCoord,
-                hasClearcoatNormalTexture: &hasClearcoatNormalTexture,
-                clearcoatNormalTexture: clearcoatNormalTexture,
-                clearcoatNormalSampler: clearcoatNormalSamplerState,
-                clearcoatNormalTexCoord: &clearcoatNormalTexCoord,
-                clearcoatNormalScale: &clearcoatNormalScaleValue,
-                // Alpha params
-                alphaMode: &alphaModeRaw,
-                alphaCutoff: &alphaCutoff,
-                baseColorTransformOffsetScale: &baseColorTransformOffsetScale,
-                baseColorTransformRotation: &baseColorTransformRotation,
-                normalTransformOffsetScale: &normalTransformOffsetScale,
-                normalTransformRotation: &normalTransformRotation,
-                metallicRoughnessTransformOffsetScale: &metallicRoughnessTransformOffsetScale,
-                metallicRoughnessTransformRotation: &metallicRoughnessTransformRotation,
-                emissiveTransformOffsetScale: &emissiveTransformOffsetScale,
-                emissiveTransformRotation: &emissiveTransformRotation,
-                occlusionTransformOffsetScale: &occlusionTransformOffsetScale,
-                occlusionTransformRotation: &occlusionTransformRotation,
-                transmissionTransformOffsetScale: &transmissionTransformOffsetScale,
-                transmissionTransformRotation: &transmissionTransformRotation,
-                thicknessTransformOffsetScale: &thicknessTransformOffsetScale,
-                thicknessTransformRotation: &thicknessTransformRotation,
-                specularTransformOffsetScale: &specularTransformOffsetScale,
-                specularTransformRotation: &specularTransformRotation,
-                specularColorTransformOffsetScale: &specularColorTransformOffsetScale,
-                specularColorTransformRotation: &specularColorTransformRotation,
-                sheenColorTransformOffsetScale: &sheenColorTransformOffsetScale,
-                sheenColorTransformRotation: &sheenColorTransformRotation,
-                sheenRoughnessTransformOffsetScale: &sheenRoughnessTransformOffsetScale,
-                sheenRoughnessTransformRotation: &sheenRoughnessTransformRotation,
-                clearcoatTransformOffsetScale: &clearcoatTransformOffsetScale,
-                clearcoatTransformRotation: &clearcoatTransformRotation,
-                clearcoatRoughnessTransformOffsetScale: &clearcoatRoughnessTransformOffsetScale,
-                clearcoatRoughnessTransformRotation: &clearcoatRoughnessTransformRotation,
-                clearcoatNormalTransformOffsetScale: &clearcoatNormalTransformOffsetScale,
-                clearcoatNormalTransformRotation: &clearcoatNormalTransformRotation
-            )
-
             // Mesh center in model space (from parser via MDLMaterial property)
             let centerModelSpace: SIMD3<Float> = material?.propertyNamed(.meshCenter)?.float3Value ?? SIMD3<Float>(0, 0, 0)
+
+            // Material index
+            let materialIndex = (mdlSubmesh as? GLTF_MDLSubmesh)?.materialIndex ?? -1
 
             let submeshData = PBRMesh.Submesh(
                 primitiveType: mtkSubmesh.primitiveType,
                 indexCount: mtkSubmesh.indexCount,
                 indexType: mtkSubmesh.indexType,
                 indexBuffer: mtkSubmesh.indexBuffer,
-                fragmentArgumentBuffer: argumentBuffer,
+                materialIndex: materialIndex,
                 alphaMode: alphaModeEnum,
                 alphaCutoff: alphaCutoff,
                 centerModelSpace: centerModelSpace,
                 doubleSided: isDoubleSided,
-                _storedHeapInstance: [
-                    materialUniformsBuffer,
-                    baseColorTexture,
-                    baseColorSamplerState,
-                    normalTexture,
-                    normalSamplerState,
-                    metallicRoughnessTexture,
-                    metallicRoughnessSamplerState,
-                    emissiveTexture,
-                    emissiveSamplerState,
-                    occlusionTexture,
-                    occlusionSamplerState,
-                    transmissionTexture,
-                    transmissionSamplerState,
-                    thicknessTexture,
-                    thicknessSamplerState,
-                    specularTexture,
-                    specularSamplerState,
-                    specularColorTexture,
-                    specularColorSamplerState,
-                    sheenColorTexture,
-                    sheenColorSamplerState,
-                    sheenRoughnessTexture,
-                    sheenRoughnessSamplerState,
-                    clearcoatTexture,
-                    clearcoatSamplerState,
-                    clearcoatRoughnessTexture,
-                    clearcoatRoughnessSamplerState,
-                    clearcoatNormalTexture,
-                    clearcoatNormalSamplerState
-                ]
+                _storedHeapInstance: []
             )
             submeshes.append(submeshData)
+        }
+
+        // Check if any submesh has transmission
+        var hasTransmission = false
+        for (_, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
+            let material = mdlSubmesh.material
+            // Transmission factor
+            let transmissionFactor: Float = material?.propertyNamed(.transmissionFactor)?.floatValue ?? 0.0
+            let (hasTransmissionTexture, _, _) = retrieveTexture(prop: material?.propertyNamed(.transmissionTexture), textureMap: textureMap)
+            hasTransmission = transmissionFactor > 0 || hasTransmissionTexture
         }
 
         // Decide rendering type based on submeshes
@@ -1030,4 +773,352 @@ class PBRMeshLoader {
         let bufferPointer = UnsafeBufferPointer(start: pointer, count: capacity)
         return Array(bufferPointer)
     }
+
+    func makeMaterialBuffers(
+        from asset: MDLAsset,
+        textureMap: [MDLTexture: MTLTexture],
+        pipelineConnector: PBRPipelineConnector,
+        fragmentHeap: MTLHeap
+    ) throws -> (buffer: MTLBuffer?, resources: [Any?]) {
+        let gltfMaterials = asset.objectSafe(atPath: GLTFAssetPath.materials) as? GLTFMaterials
+        guard let gltfMaterials, !gltfMaterials.materials.isEmpty else { return (nil, [] ) }
+
+        var resources: [Any?] = []
+
+        let encoder = pipelineConnector.makeFragmentArgumentEncoder()
+        let buffer = try pipelineConnector.makeFragmentArgumentBuffer(
+            encoder: encoder,
+            argCount: gltfMaterials.materials.count
+        )
+
+        for (index, mdlMaterial) in (gltfMaterials.materials).enumerated() {
+            let resource = try _setMaterialBuffer(
+                encoder: encoder,
+                buffer: buffer,
+                index: index,
+                material: mdlMaterial,
+                textureMap: textureMap,
+                pipelineConnector: pipelineConnector,
+                fragmentHeap: fragmentHeap
+            )
+            resources.append(contentsOf: resource)
+        }
+
+        return (buffer, resources)
+    }
+
+    private func _setMaterialBuffer(
+        encoder: MTLArgumentEncoder,
+        buffer: MTLBuffer,
+        index: Int,
+        material: MDLMaterial?,
+        textureMap: [MDLTexture: MTLTexture],
+        pipelineConnector: PBRPipelineConnector,
+        fragmentHeap: MTLHeap
+    ) throws -> [Any?] { // If possible, change `Any` to `MTLResource`.
+        // Extract material factors to pass to shader
+        let baseColorFactor = material?.propertyNamed(.baseColorFactor)?.float4Value ?? SIMD4<Float>(1, 1, 1, 1)
+        let metallicFactor = material?.propertyNamed(.metallic)?.floatValue ?? 1.0
+        let roughnessFactor = material?.propertyNamed(.roughness)?.floatValue ?? 1.0
+        let occlusionFactor = material?.propertyNamed(.occlusionStrength)?.floatValue ?? 1.0
+        let emissiveFactor = material?.propertyNamed(.emissiveFactor)?.float3Value ?? SIMD3<Float>(0, 0, 0)
+
+        // Base color texture and sampler
+        var (hasBaseColorTexture, baseColorTexture, baseColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.baseColorTexture), textureMap: textureMap)
+
+        // Normal texture and sampler
+        var (hasNormalTexture, normalTexture, normalSamplerState) = retrieveTexture(prop: material?.propertyNamed(.normalTexture), textureMap: textureMap)
+
+        // Make metallic roughness texture and sampler
+        var (hasMetallicRoughnessTexture, metallicRoughnessTexture, metallicRoughnessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.metallicRoughnessTexture), textureMap: textureMap)
+
+        // Make emissive texture and sampler
+        var (hasEmissiveTexture, emissiveTexture, emissiveSamplerState) = retrieveTexture(prop: material?.propertyNamed(.emissiveTexture), textureMap: textureMap)
+
+        // Occlusion texture and sampler
+        var (hasOcclusionTexture, occlusionTexture, occlusionSamplerState) = retrieveTexture(prop: material?.propertyNamed(.occlusion), textureMap: textureMap)
+
+        // Transmission texture and sampler (KHR_materials_transmission)
+        var (hasTransmissionTexture, transmissionTexture, transmissionSamplerState) = retrieveTexture(prop: material?.propertyNamed(.transmissionTexture), textureMap: textureMap)
+        // Thickness texture and sampler (KHR_materials_volume)
+        var (hasThicknessTexture, thicknessTexture, thicknessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.thicknessTexture), textureMap: textureMap)
+        // Specular textures (KHR_materials_specular)
+        var (hasSpecularTexture, specularTexture, specularSamplerState) = retrieveTexture(prop: material?.propertyNamed(.specularTexture), textureMap: textureMap)
+        var (hasSpecularColorTexture, specularColorTexture, specularColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.specularColorTexture), textureMap: textureMap)
+
+        // Sheen textures
+        var (hasSheenColorTexture, sheenColorTexture, sheenColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.sheenColorTexture), textureMap: textureMap)
+        var (hasSheenRoughnessTexture, sheenRoughnessTexture, sheenRoughnessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.sheenRoughnessTexture), textureMap: textureMap)
+
+        // Clearcoat textures
+        var (hasClearcoatTexture, clearcoatTexture, clearcoatSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatTexture), textureMap: textureMap)
+        var (hasClearcoatRoughnessTexture, clearcoatRoughnessTexture, clearcoatRoughnessSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatRoughnessTexture), textureMap: textureMap)
+        var (hasClearcoatNormalTexture, clearcoatNormalTexture, clearcoatNormalSamplerState) = retrieveTexture(prop: material?.propertyNamed(.clearcoatNormalTexture), textureMap: textureMap)
+
+        let baseColorTransform = textureTransform(material: material, offsetScaleName: .baseColorTextureTransformOffsetScale, rotationName: .baseColorTextureTransformRotation)
+        let normalTransform = textureTransform(material: material, offsetScaleName: .normalTextureTransformOffsetScale, rotationName: .normalTextureTransformRotation)
+        let metallicRoughnessTransform = textureTransform(material: material, offsetScaleName: .metallicRoughnessTextureTransformOffsetScale, rotationName: .metallicRoughnessTextureTransformRotation)
+        let emissiveTransform = textureTransform(material: material, offsetScaleName: .emissiveTextureTransformOffsetScale, rotationName: .emissiveTextureTransformRotation)
+        let occlusionTransform = textureTransform(material: material, offsetScaleName: .occlusionTextureTransformOffsetScale, rotationName: .occlusionTextureTransformRotation)
+        let transmissionTransform = textureTransform(material: material, offsetScaleName: .transmissionTextureTransformOffsetScale, rotationName: .transmissionTextureTransformRotation)
+        let thicknessTransform = textureTransform(material: material, offsetScaleName: .thicknessTextureTransformOffsetScale, rotationName: .thicknessTextureTransformRotation)
+        let specularTransform = textureTransform(material: material, offsetScaleName: .specularTextureTransformOffsetScale, rotationName: .specularTextureTransformRotation)
+        let specularColorTransform = textureTransform(material: material, offsetScaleName: .specularColorTextureTransformOffsetScale, rotationName: .specularColorTextureTransformRotation)
+        let sheenColorTransform = textureTransform(material: material, offsetScaleName: .sheenColorTextureTransformOffsetScale, rotationName: .sheenColorTextureTransformRotation)
+        let sheenRoughnessTransform = textureTransform(material: material, offsetScaleName: .sheenRoughnessTextureTransformOffsetScale, rotationName: .sheenRoughnessTextureTransformRotation)
+        let clearcoatTransform = textureTransform(material: material, offsetScaleName: .clearcoatTextureTransformOffsetScale, rotationName: .clearcoatTextureTransformRotation)
+        let clearcoatRoughnessTransform = textureTransform(material: material, offsetScaleName: .clearcoatRoughnessTextureTransformOffsetScale, rotationName: .clearcoatRoughnessTextureTransformRotation)
+        let clearcoatNormalTransform = textureTransform(material: material, offsetScaleName: .clearcoatNormalTextureTransformOffsetScale, rotationName: .clearcoatNormalTextureTransformRotation)
+
+        var baseColorTransformOffsetScale = baseColorTransform.offsetScale
+        var baseColorTransformRotation = baseColorTransform.rotation
+        var normalTransformOffsetScale = normalTransform.offsetScale
+        var normalTransformRotation = normalTransform.rotation
+        var metallicRoughnessTransformOffsetScale = metallicRoughnessTransform.offsetScale
+        var metallicRoughnessTransformRotation = metallicRoughnessTransform.rotation
+        var emissiveTransformOffsetScale = emissiveTransform.offsetScale
+        var emissiveTransformRotation = emissiveTransform.rotation
+        var occlusionTransformOffsetScale = occlusionTransform.offsetScale
+        var occlusionTransformRotation = occlusionTransform.rotation
+        var transmissionTransformOffsetScale = transmissionTransform.offsetScale
+        var transmissionTransformRotation = transmissionTransform.rotation
+        var thicknessTransformOffsetScale = thicknessTransform.offsetScale
+        var thicknessTransformRotation = thicknessTransform.rotation
+        var specularTransformOffsetScale = specularTransform.offsetScale
+        var specularTransformRotation = specularTransform.rotation
+        var specularColorTransformOffsetScale = specularColorTransform.offsetScale
+        var specularColorTransformRotation = specularColorTransform.rotation
+        var sheenColorTransformOffsetScale = sheenColorTransform.offsetScale
+        var sheenColorTransformRotation = sheenColorTransform.rotation
+        var sheenRoughnessTransformOffsetScale = sheenRoughnessTransform.offsetScale
+        var sheenRoughnessTransformRotation = sheenRoughnessTransform.rotation
+        var clearcoatTransformOffsetScale = clearcoatTransform.offsetScale
+        var clearcoatTransformRotation = clearcoatTransform.rotation
+        var clearcoatRoughnessTransformOffsetScale = clearcoatRoughnessTransform.offsetScale
+        var clearcoatRoughnessTransformRotation = clearcoatRoughnessTransform.rotation
+        var clearcoatNormalTransformOffsetScale = clearcoatNormalTransform.offsetScale
+        var clearcoatNormalTransformRotation = clearcoatNormalTransform.rotation
+
+        // Retrieve texture coordinate indices and cast to UInt32
+        let baseColorTexCoordF: Float = material?.propertyNamed(.baseColorTextureTexCoord)?.floatValue ?? 0.0
+        let normalTexCoordF: Float = material?.propertyNamed(.normalTextureTexCoord)?.floatValue ?? 0.0
+        let metalRoughnessTexCoordF: Float = material?.propertyNamed(.metallicRoughnessTextureTexCoord)?.floatValue ?? 0.0
+        let emissiveTexCoordF: Float = material?.propertyNamed(.emissiveTextureTexCoord)?.floatValue ?? 0.0
+        let occlusionTexCoordF: Float = material?.propertyNamed(.occlusionTextureTexCoord)?.floatValue ?? 0.0
+        let transmissionTexCoordF: Float = material?.propertyNamed(.transmissionTextureTexCoord)?.floatValue ?? 0.0
+        let thicknessTexCoordF: Float = material?.propertyNamed(.thicknessTextureTexCoord)?.floatValue ?? 0.0
+        let specularTexCoordF: Float = material?.propertyNamed(.specularTextureTexCoord)?.floatValue ?? 0.0
+        let specularColorTexCoordF: Float = material?.propertyNamed(.specularColorTextureTexCoord)?.floatValue ?? 0.0
+        let sheenColorTexCoordF: Float = material?.propertyNamed(.sheenColorTextureTexCoord)?.floatValue ?? 0.0
+        let sheenRoughnessTexCoordF: Float = material?.propertyNamed(.sheenRoughnessTextureTexCoord)?.floatValue ?? 0.0
+        let clearcoatTexCoordF: Float = material?.propertyNamed(.clearcoatTextureTexCoord)?.floatValue ?? 0.0
+        let clearcoatRoughnessTexCoordF: Float = material?.propertyNamed(.clearcoatRoughnessTextureTexCoord)?.floatValue ?? 0.0
+        let clearcoatNormalTexCoordF: Float = material?.propertyNamed(.clearcoatNormalTextureTexCoord)?.floatValue ?? 0.0
+        var baseColorTexCoord: UInt32 = UInt32(baseColorTexCoordF)
+        var normalTexCoord: UInt32 = UInt32(normalTexCoordF)
+        var metalRoughnessTexCoord: UInt32 = UInt32(metalRoughnessTexCoordF)
+        var emissiveTexCoord: UInt32 = UInt32(emissiveTexCoordF)
+        var occlusionTexCoord: UInt32 = UInt32(occlusionTexCoordF)
+        var transmissionTexCoord: UInt32 = UInt32(transmissionTexCoordF)
+        var thicknessTexCoord: UInt32 = UInt32(thicknessTexCoordF)
+        var specularTexCoord: UInt32 = UInt32(specularTexCoordF)
+        var specularColorTexCoord: UInt32 = UInt32(specularColorTexCoordF)
+        var sheenColorTexCoord: UInt32 = UInt32(sheenColorTexCoordF)
+        var sheenRoughnessTexCoord: UInt32 = UInt32(sheenRoughnessTexCoordF)
+        var clearcoatTexCoord: UInt32 = UInt32(clearcoatTexCoordF)
+        var clearcoatRoughnessTexCoord: UInt32 = UInt32(clearcoatRoughnessTexCoordF)
+        var clearcoatNormalTexCoord: UInt32 = UInt32(clearcoatNormalTexCoordF)
+
+        // Alpha mode & cutoff
+        let alphaModeStr = material?.propertyNamed(.alphaMode)?.stringValue?.uppercased() ?? "OPAQUE"
+        let alphaModeEnum: SwiftGLTFShaderTypes.AlphaMode = {
+            switch alphaModeStr {
+            case "MASK": return AlphaModeMask
+            case "BLEND": return AlphaModeBlend
+            default: return AlphaModeOpaque
+            }
+        }()
+        var alphaModeRaw: UInt32 = alphaModeEnum.rawValue
+        var alphaCutoff: Float = material?.propertyNamed(.alphaCutoff)?.floatValue ?? 0.5
+
+        // Transmission factor
+        let transmissionFactor: Float = material?.propertyNamed(.transmissionFactor)?.floatValue ?? 0.0
+
+        // Double sided flag
+        let isDoubleSided: Bool = (material?.propertyNamed(.doubleSided)?.floatValue ?? 0) != 0
+
+        // Create material uniforms buffer
+        let attenuationDistance: Float = {
+            if let v = material?.propertyNamed(.attenuationDistance)?.floatValue { return v }
+            return -1.0 // <= 0 means infinity (no attenuation)
+        }()
+        let attenuationColor: SIMD3<Float> = material?.propertyNamed(.attenuationColor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
+        let ior: Float = material?.propertyNamed(.ior)?.floatValue ?? 1.5
+        let specularFactor: Float = material?.propertyNamed(.specularFactor)?.floatValue ?? 1.0
+        let specularColorFactor: SIMD3<Float> = material?.propertyNamed(.specularColorFactor)?.float3Value ?? SIMD3<Float>(1, 1, 1)
+        let sheenColorFactor: SIMD3<Float> = material?.propertyNamed(.sheenColorFactor)?.float3Value ?? SIMD3<Float>(0, 0, 0)
+        let sheenRoughnessFactor: Float = material?.propertyNamed(.sheenRoughnessFactor)?.floatValue ?? 0.0
+        let clearcoatFactor: Float = material?.propertyNamed(.clearcoatFactor)?.floatValue ?? 0.0
+        let clearcoatRoughnessFactor: Float = material?.propertyNamed(.clearcoatRoughnessFactor)?.floatValue ?? 0.0
+        let clearcoatNormalScale: Float = material?.propertyNamed(.clearcoatNormalTextureScale)?.floatValue ?? 1.0
+        var clearcoatNormalScaleValue = clearcoatNormalScale
+        let clearcoatFactors = SIMD4<Float>(clearcoatFactor, clearcoatRoughnessFactor, clearcoatNormalScale, 0)
+
+        var materialUniforms = PBRMaterialUniforms(
+            baseColorFactor: baseColorFactor,
+            metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
+            emissiveFactor: SIMD4<Float>(emissiveFactor.x, emissiveFactor.y, emissiveFactor.z, 0),
+            doubleSided: isDoubleSided ? 1 : 0,
+            transmissionThicknessDistance: SIMD4<Float>(transmissionFactor, material?.propertyNamed(.thicknessFactor)?.floatValue ?? 0.0, attenuationDistance, 0),
+            attenuationColor: SIMD4<Float>(attenuationColor.x, attenuationColor.y, attenuationColor.z, 0),
+            ior: ior,
+            specularFactor: specularFactor,
+            specularFactorColor: SIMD4<Float>(specularColorFactor.x, specularColorFactor.y, specularColorFactor.z, 0),
+            sheenColorRoughness: SIMD4<Float>(sheenColorFactor.x, sheenColorFactor.y, sheenColorFactor.z, sheenRoughnessFactor),
+            clearcoatFactors: clearcoatFactors
+        )
+        let tmpMaterialUniformsBuffer = device.makeBuffer(
+            bytes: &materialUniforms,
+            length: MemoryLayout<PBRMaterialUniforms>.size
+        )!
+        let materialUniformsBuffer = try shaderConnection.moveBufferToHeap(
+            from: tmpMaterialUniformsBuffer,
+            use: fragmentHeap
+        )
+
+        try pipelineConnector.setFragmentArgumentArrayBuffer(
+            encoder: encoder,
+            buffer: buffer,
+            argIndex: index,
+            materialUniformsBuffer: materialUniformsBuffer,
+            hasBaseColorTexture: &hasBaseColorTexture,
+            baseColorTexture: baseColorTexture,
+            baseColorSampler: baseColorSamplerState,
+            hasNormalTexture: &hasNormalTexture,
+            normalTexture: normalTexture,
+            normalSampler: normalSamplerState,
+            hasMetallicRoughnessTexture: &hasMetallicRoughnessTexture,
+            metallicRoughnessTexture: metallicRoughnessTexture,
+            metallicRoughnessSampler: metallicRoughnessSamplerState,
+            hasEmissiveTexture: &hasEmissiveTexture,
+            emissiveTexture: emissiveTexture,
+            emissiveSampler: emissiveSamplerState,
+            hasOcclusionTexture: &hasOcclusionTexture,
+            occlusionTexture: occlusionTexture,
+            occlusionSampler: occlusionSamplerState,
+            // Pass texCoord indices
+            baseColorTexCoord: &baseColorTexCoord,
+            normalTexCoord: &normalTexCoord,
+            metallicRoughnessTexCoord: &metalRoughnessTexCoord,
+            emissiveTexCoord: &emissiveTexCoord,
+            occlusionTexCoord: &occlusionTexCoord,
+            // Transmission/Thickness
+            hasTransmissionTexture: &hasTransmissionTexture,
+            transmissionTexture: transmissionTexture,
+            transmissionSampler: transmissionSamplerState,
+            transmissionTexCoord: &transmissionTexCoord,
+            hasThicknessTexture: &hasThicknessTexture,
+            thicknessTexture: thicknessTexture,
+            thicknessSampler: thicknessSamplerState,
+            thicknessTexCoord: &thicknessTexCoord,
+            // Specular
+            hasSpecularTexture: &hasSpecularTexture,
+            specularTexture: specularTexture,
+            specularSampler: specularSamplerState,
+            specularTexCoord: &specularTexCoord,
+            hasSpecularColorTexture: &hasSpecularColorTexture,
+            specularColorTexture: specularColorTexture,
+            specularColorSampler: specularColorSamplerState,
+            specularColorTexCoord: &specularColorTexCoord,
+            // Sheen
+            hasSheenColorTexture: &hasSheenColorTexture,
+            sheenColorTexture: sheenColorTexture,
+            sheenColorSampler: sheenColorSamplerState,
+            sheenColorTexCoord: &sheenColorTexCoord,
+            hasSheenRoughnessTexture: &hasSheenRoughnessTexture,
+            sheenRoughnessTexture: sheenRoughnessTexture,
+            sheenRoughnessSampler: sheenRoughnessSamplerState,
+            sheenRoughnessTexCoord: &sheenRoughnessTexCoord,
+            // Clearcoat
+            hasClearcoatTexture: &hasClearcoatTexture,
+            clearcoatTexture: clearcoatTexture,
+            clearcoatSampler: clearcoatSamplerState,
+            clearcoatTexCoord: &clearcoatTexCoord,
+            hasClearcoatRoughnessTexture: &hasClearcoatRoughnessTexture,
+            clearcoatRoughnessTexture: clearcoatRoughnessTexture,
+            clearcoatRoughnessSampler: clearcoatRoughnessSamplerState,
+            clearcoatRoughnessTexCoord: &clearcoatRoughnessTexCoord,
+            hasClearcoatNormalTexture: &hasClearcoatNormalTexture,
+            clearcoatNormalTexture: clearcoatNormalTexture,
+            clearcoatNormalSampler: clearcoatNormalSamplerState,
+            clearcoatNormalTexCoord: &clearcoatNormalTexCoord,
+            clearcoatNormalScale: &clearcoatNormalScaleValue,
+            // Alpha params
+            alphaMode: &alphaModeRaw,
+            alphaCutoff: &alphaCutoff,
+            baseColorTransformOffsetScale: &baseColorTransformOffsetScale,
+            baseColorTransformRotation: &baseColorTransformRotation,
+            normalTransformOffsetScale: &normalTransformOffsetScale,
+            normalTransformRotation: &normalTransformRotation,
+            metallicRoughnessTransformOffsetScale: &metallicRoughnessTransformOffsetScale,
+            metallicRoughnessTransformRotation: &metallicRoughnessTransformRotation,
+            emissiveTransformOffsetScale: &emissiveTransformOffsetScale,
+            emissiveTransformRotation: &emissiveTransformRotation,
+            occlusionTransformOffsetScale: &occlusionTransformOffsetScale,
+            occlusionTransformRotation: &occlusionTransformRotation,
+            transmissionTransformOffsetScale: &transmissionTransformOffsetScale,
+            transmissionTransformRotation: &transmissionTransformRotation,
+            thicknessTransformOffsetScale: &thicknessTransformOffsetScale,
+            thicknessTransformRotation: &thicknessTransformRotation,
+            specularTransformOffsetScale: &specularTransformOffsetScale,
+            specularTransformRotation: &specularTransformRotation,
+            specularColorTransformOffsetScale: &specularColorTransformOffsetScale,
+            specularColorTransformRotation: &specularColorTransformRotation,
+            sheenColorTransformOffsetScale: &sheenColorTransformOffsetScale,
+            sheenColorTransformRotation: &sheenColorTransformRotation,
+            sheenRoughnessTransformOffsetScale: &sheenRoughnessTransformOffsetScale,
+            sheenRoughnessTransformRotation: &sheenRoughnessTransformRotation,
+            clearcoatTransformOffsetScale: &clearcoatTransformOffsetScale,
+            clearcoatTransformRotation: &clearcoatTransformRotation,
+            clearcoatRoughnessTransformOffsetScale: &clearcoatRoughnessTransformOffsetScale,
+            clearcoatRoughnessTransformRotation: &clearcoatRoughnessTransformRotation,
+            clearcoatNormalTransformOffsetScale: &clearcoatNormalTransformOffsetScale,
+            clearcoatNormalTransformRotation: &clearcoatNormalTransformRotation
+        )
+
+        let storedResources: [Any?] = [
+            materialUniformsBuffer,
+            baseColorTexture,
+            baseColorSamplerState,
+            normalTexture,
+            normalSamplerState,
+            metallicRoughnessTexture,
+            metallicRoughnessSamplerState,
+            emissiveTexture,
+            emissiveSamplerState,
+            occlusionTexture,
+            occlusionSamplerState,
+            transmissionTexture,
+            transmissionSamplerState,
+            thicknessTexture,
+            thicknessSamplerState,
+            specularTexture,
+            specularSamplerState,
+            specularColorTexture,
+            specularColorSamplerState,
+            sheenColorTexture,
+            sheenColorSamplerState,
+            sheenRoughnessTexture,
+            sheenRoughnessSamplerState,
+            clearcoatTexture,
+            clearcoatSamplerState,
+            clearcoatRoughnessTexture,
+            clearcoatRoughnessSamplerState,
+            clearcoatNormalTexture,
+            clearcoatNormalSamplerState
+        ]
+
+        return storedResources
+    }
+
 }

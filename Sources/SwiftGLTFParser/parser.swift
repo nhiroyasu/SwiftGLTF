@@ -41,6 +41,13 @@ public func makeMDLAsset(
     skinsObject.name = GLTFAssetName.skins
     librariesObject.addChild(skinsObject)
 
+    let mdlMaterials = try makeMDLMaterials(gltf, binaryLoader)
+    let materialsObject = GLTFMaterials(
+        materials: mdlMaterials
+    )
+    materialsObject.name = GLTFAssetName.materials
+    librariesObject.addChild(materialsObject)
+
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
     var mdlMeshMap: [MeshIndex: [MDLMesh]] = [:]
@@ -56,6 +63,7 @@ public func makeMDLAsset(
                     using: gltf,
                     allocator: allocator,
                     binaryLoader: binaryLoader,
+                    mdlMaterials: mdlMaterials,
                     options: options
                 )
                 resultDispatch.sync {
@@ -196,6 +204,7 @@ public func makeMDLMesh(
     using gltf: GLTF,
     allocator: MTKMeshBufferAllocator,
     binaryLoader: GLTFBinaryLoader,
+    mdlMaterials: [MDLMaterial],
     options: GLTFDecodeOptions = .default
 ) throws -> [MDLMesh] {
     let allocator = MTKMeshBufferAllocator(device: MTLCreateSystemDefaultDevice()!) // TODO: Metal device should be passed from outside
@@ -275,7 +284,11 @@ public func makeMDLMesh(
         let vertexBuffer = allocator.newBuffer(with: vertexData, type: .vertex)
 
         // Create a MDLMaterial
-        let mdlMaterial = try makeMDLMaterial(for: primitive, gltf, binaryLoader)
+        let mdlMaterial: MDLMaterial? = if let materialIndex = primitive.material {
+            mdlMaterials[materialIndex]
+        } else {
+            nil
+        }
 
         // Calculate mesh center from POSITION accessor min/max and store to material property
         // Used in distance sorting of transparent mesh
@@ -305,12 +318,14 @@ public func makeMDLMesh(
 
         // Generate a submesh
         let submesh: MDLSubmesh
-        submesh = MDLSubmesh(
+        submesh = GLTF_MDLSubmesh(
+            name: "Submesh_\(index)",
             indexBuffer: indexBuffer,
             indexCount: indexInfo.count,
             indexType: indexInfo.type,
             geometryType: .triangles,
-            material: mdlMaterial
+            material: mdlMaterial,
+            materialIndex: primitive.material ?? -1
         )
 
         // Add the mesh to the list
@@ -1095,24 +1110,26 @@ private func makeVertexData(
     return vertexData
 }
 
-private func makeMDLMaterial(
-    for primitive: Primitive,
+private func makeMDLMaterials(
     _ gltf: GLTF,
     _ binaryLoader: GLTFBinaryLoader
-) throws -> MDLMaterial? {
-    guard let materialIndex = primitive.material else {
-        return nil
+) throws -> [MDLMaterial] {
+    var materialsArray: [MDLMaterial] = []
+    for (index, material) in (gltf.materials ?? []).enumerated() {
+        let name = material.name ?? "Material \(index)"
+        let mdlMaterial = try _makeMDLMaterial(name: name, gltfMaterial: material, gltf, binaryLoader)
+        materialsArray.append(mdlMaterial)
     }
+    return materialsArray
+}
 
-    let materials = gltf.materials ?? []
-    guard materials.count > materialIndex else {
-        throw SwiftGLTFError.makeParse(.noValidMaterial, context: .capture(stage: .parse, jsonPointer: "/materials"))
-    }
-
-    let gltfMaterial = materials[materialIndex]
-
-    let material = MDLMaterial(name: gltfMaterial.name ?? "Material \(materialIndex)",
-                               scatteringFunction: MDLScatteringFunction())
+private func _makeMDLMaterial(
+    name: String,
+    gltfMaterial: Material,
+    _ gltf: GLTF,
+    _ binaryLoader: GLTFBinaryLoader
+) throws -> MDLMaterial {
+    let material = MDLMaterial(name: name, scatteringFunction: MDLScatteringFunction())
 
     // Alpha mode / cutoff
     // glTF defaults: alphaMode = "OPAQUE", alphaCutoff = 0.5 (only for MASK)

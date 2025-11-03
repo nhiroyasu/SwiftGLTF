@@ -41,6 +41,7 @@ func drawPBRScreen(
     inverseBindMatricesBuffer: MTLBuffer,
     morphWeightsBuffer: MTLBuffer,
     morphDispatchesBuffer: MTLBuffer,
+    materialBuffer: MTLBuffer?,
     envMapArgBuffer: MTLBuffer,
     fragmentParams: MTLBuffer,
     mvpUniformBuffer: MTLBuffer,
@@ -72,6 +73,11 @@ func drawPBRScreen(
         offset: 0,
         index: PBRFragmentShaderScreenColorBuffer.index
     )
+    renderEncoder.setFragmentBuffer(
+        materialBuffer,
+        offset: 0,
+        index: PBRFragmentShaderArgsPtrBuffer.index
+    )
 
     renderEncoder.setRenderPipelineState(opaquePSO)
     renderEncoder.setDepthStencilState(defaultDSO)
@@ -97,10 +103,11 @@ func _drawPrimitives(renderEncoder: MTLRenderCommandEncoder, meshes: [PBRMesh]) 
         renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
         renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: 1)
         for submesh in mesh.submeshes {
-            renderEncoder.setFragmentBuffer(
-                submesh.fragmentArgumentBuffer,
-                offset: 0,
-                index: PBRFragmentShaderArgsBuffer.index
+            var materialIndex = submesh.materialIndex
+            renderEncoder.setFragmentBytes(
+                &materialIndex,
+                length: MemoryLayout<Int>.size,
+                index: PBRFragmentShaderArgsPtrIndexBuffer.index
             )
             // Culling control per material
             renderEncoder.setCullMode(submesh.doubleSided ? .none : .back)
@@ -134,10 +141,11 @@ func _drawPrimitivesWithSort(
         renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
         renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: 1)
         for submesh in mesh.submeshes {
-            renderEncoder.setFragmentBuffer(
-                submesh.fragmentArgumentBuffer,
-                offset: 0,
-                index: PBRFragmentShaderArgsBuffer.index
+            var materialIndex = submesh.materialIndex
+            renderEncoder.setFragmentBytes(
+                &materialIndex,
+                length: MemoryLayout<Int>.size,
+                index: PBRFragmentShaderArgsPtrIndexBuffer.index
             )
             // Culling control per material
             if submesh.doubleSided {
@@ -206,6 +214,7 @@ func drawPBRTransmission(
     inverseBindMatricesBuffer: MTLBuffer,
     morphWeightsBuffer: MTLBuffer,
     morphDispatchesBuffer: MTLBuffer,
+    materialBuffer: MTLBuffer?,
     envMapArgBuffer: MTLBuffer,
     fragmentParams: MTLBuffer,
     mvpUniformBuffer: MTLBuffer,
@@ -235,6 +244,11 @@ func drawPBRTransmission(
         screenColorArgsBuffer,
         offset: 0,
         index: PBRFragmentShaderScreenColorBuffer.index
+    )
+    renderEncoder.setFragmentBuffer(
+        materialBuffer,
+        offset: 0,
+        index: PBRFragmentShaderArgsPtrBuffer.index
     )
 
     renderEncoder.setRenderPipelineState(pso)

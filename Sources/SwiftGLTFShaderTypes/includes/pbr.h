@@ -132,7 +132,8 @@ enum PBRVertexArgId: int {
 };
 
 typedef enum: int {
-    PBRFragmentShaderArgsBuffer = 0,
+    PBRFragmentShaderArgsPtrIndexBuffer = 0,
+    PBRFragmentShaderArgsPtrBuffer,
     PBRFragmentShaderEnvMapArgsBuffer,
     PBRFragmentShaderSceneUniformsBuffer,
     PBRFragmentShaderScreenColorBuffer,

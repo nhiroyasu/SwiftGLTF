@@ -52,7 +52,10 @@ class PBRPipelineConnector {
         self.alphaBlendPSO = try device.makeRenderPipelineState(descriptor: alphaBlendDescriptor)
     }
 
-    func makeFragmentArgumentBuffer(
+    func setFragmentArgumentArrayBuffer(
+        encoder: MTLArgumentEncoder,
+        buffer: MTLBuffer,
+        argIndex: Int,
         materialUniformsBuffer: MTLBuffer,
         hasBaseColorTexture: UnsafePointer<Bool>,
         baseColorTexture: MTLTexture?,
@@ -147,12 +150,9 @@ class PBRPipelineConnector {
         clearcoatRoughnessTransformRotation: UnsafePointer<Float>,
         clearcoatNormalTransformOffsetScale: UnsafePointer<SIMD4<Float>>,
         clearcoatNormalTransformRotation: UnsafePointer<Float>
-    ) throws -> MTLBuffer {
-        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 0)
-        guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
-            throw SwiftGLTFError.makeRender(.argumentBufferCreateFailed, context: .capture(stage: .render))
-        }
-        encoder.setArgumentBuffer(buffer, offset: 0)
+    ) throws {
+        let argSize = encoder.encodedLength
+        encoder.setArgumentBuffer(buffer, offset: argSize * argIndex)
 
         encoder.setBuffer(materialUniformsBuffer, offset: 0, index: 0)
         let hasBaseColorTextureAddr = encoder.constantData(at: 1)
@@ -321,6 +321,19 @@ class PBRPipelineConnector {
         clearcoatNormalTransformOffsetScaleAddr.copyMemory(from: clearcoatNormalTransformOffsetScale, byteCount: MemoryLayout<SIMD4<Float>>.size)
         let clearcoatNormalTransformRotationAddr = encoder.constantData(at: 87)
         clearcoatNormalTransformRotationAddr.copyMemory(from: clearcoatNormalTransformRotation, byteCount: MemoryLayout<Float>.size)
+    }
+
+    func makeFragmentArgumentEncoder() -> MTLArgumentEncoder {
+        return fragmentFunction.makeArgumentEncoder(bufferIndex: PBRFragmentShaderArgsPtrBuffer.index)
+    }
+
+    func makeFragmentArgumentBuffer(
+        encoder: MTLArgumentEncoder,
+        argCount: Int
+    ) throws -> MTLBuffer {
+        guard let buffer = device.makeBuffer(length: encoder.encodedLength * argCount, options: [.storageModeShared]) else {
+            throw SwiftGLTFError.makeRender(.argumentBufferCreateFailed, context: .capture(stage: .render))
+        }
         return buffer
     }
 
@@ -330,7 +343,7 @@ class PBRPipelineConnector {
         brdfLUT: MTLTexture,
         prefilterSheenMap: MTLTexture
     ) throws -> MTLBuffer {
-        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 1)
+        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: PBRFragmentShaderEnvMapArgsBuffer.index)
         let buffer = device.makeBuffer(length: encoder.encodedLength, options: .storageModeShared)!
         encoder.setArgumentBuffer(buffer, offset: 0)
         encoder.setTexture(prefilterEnvMap, index: 0)
@@ -345,7 +358,7 @@ class PBRPipelineConnector {
         sceneColor: MTLTexture,
         sceneColorSampler: MTLSamplerState
     ) -> MTLBuffer {
-        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 3)
+        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: PBRFragmentShaderScreenColorBuffer.index)
         let buffer = device.makeBuffer(length: encoder.encodedLength, options: .storageModeShared)!
         encoder.setArgumentBuffer(buffer, offset: 0)
         encoder.setTexture(sceneColor, index: 0)
@@ -357,7 +370,7 @@ class PBRPipelineConnector {
     }
 
     func makeScreenColorArgDummy() -> MTLBuffer {
-        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: 3)
+        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: PBRFragmentShaderScreenColorBuffer.index)
         let buffer = device.makeBuffer(length: encoder.encodedLength, options: .storageModeShared)!
         encoder.setArgumentBuffer(buffer, offset: 0)
 
