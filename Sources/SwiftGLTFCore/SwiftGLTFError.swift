@@ -21,7 +21,7 @@ public struct SourceLocation: Sendable, Equatable {
 }
 
 public enum SwiftGLTFStage: String, Sendable {
-    case io, decode, parse, validate, build, render
+    case io, decode, parse, validate, build, render, initialization
 }
 
 public struct SwiftGLTFErrorContext: Sendable, Equatable {
@@ -165,6 +165,7 @@ public enum RenderErrorCode: Sendable, Equatable {
     case meshCreationFailed
     case samplerCreateFailed
     case sceneNotFound
+    case unsupportedFeature(description: String)
 }
 
 public enum ValidateErrorCode: Sendable, Equatable {
@@ -329,6 +330,7 @@ extension SwiftGLTFError: LocalizedError {
         case .meshCreationFailed: return "Failed to create mesh"
         case .samplerCreateFailed: return "Failed to create sampler"
         case .sceneNotFound: return "Scene not found"
+        case let .unsupportedFeature(description): return "Unsupported feature: \(description)"
         }
     }
 
@@ -435,6 +437,7 @@ extension SwiftGLTFError: CustomNSError {
         case .meshCreationFailed: return 17
         case .samplerCreateFailed: return 18
         case .sceneNotFound: return 19
+        case .unsupportedFeature: return 20
         }
     }
 
