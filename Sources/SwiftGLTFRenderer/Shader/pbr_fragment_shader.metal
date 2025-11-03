@@ -8,7 +8,7 @@
 #include "includes/pbr_vertex.h"
 #include "includes/pbr_arguments.h"
 #include "includes/pbr_texture.h"
-#include "includes/arguments_builder.h"
+#include "includes/default_arguments.h"
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
 
 using namespace metal;
