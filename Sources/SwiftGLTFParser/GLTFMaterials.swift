@@ -19,5 +19,6 @@ class GLTFMaterialRefImpl: NSObject, GLTFMaterialRef {
 
     init(materialIndex: Int) {
         self.materialIndex = materialIndex
+        super.init()
     }
 }

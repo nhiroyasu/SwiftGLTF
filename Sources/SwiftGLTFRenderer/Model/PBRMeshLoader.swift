@@ -946,6 +946,7 @@ class PBRMeshLoader {
 
         // Double sided flag
         let isDoubleSided: Bool = (material?.propertyNamed(.doubleSided)?.floatValue ?? 0) != 0
+        let isUnlit: Bool = (material?.propertyNamed(.unlit)?.floatValue ?? 0) != 0
 
         // Create material uniforms buffer
         let attenuationDistance: Float = {
@@ -969,6 +970,7 @@ class PBRMeshLoader {
             metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
             emissiveFactor: SIMD4<Float>(emissiveFactor.x, emissiveFactor.y, emissiveFactor.z, 0),
             doubleSided: isDoubleSided ? 1 : 0,
+            isUnlit: isUnlit ? 1 : 0,
             transmissionThicknessDistance: SIMD4<Float>(transmissionFactor, material?.propertyNamed(.thicknessFactor)?.floatValue ?? 0.0, attenuationDistance, 0),
             attenuationColor: SIMD4<Float>(attenuationColor.x, attenuationColor.y, attenuationColor.z, 0),
             ior: ior,

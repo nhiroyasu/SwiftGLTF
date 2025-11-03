@@ -103,6 +103,7 @@ var body: some View {
 - `KHR_materials_specular`
 - `KHR_materials_sheen`
 - `KHR_texture_transform`
+- `KHR_materials_unlit`
 
 ### Vertex Attributes
 | Attribute     | Supported |

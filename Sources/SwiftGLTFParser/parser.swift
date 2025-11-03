@@ -1157,6 +1157,15 @@ private func _makeMDLMaterial(
     )
     material.setProperty(doubleSidedProp)
 
+    if gltfMaterial.isUnlit {
+        let unlitProp = MDLMaterialProperty(
+            name: MaterialPropertyName.unlit.rawValue,
+            semantic: .userDefined,
+            float: 1.0
+        )
+        material.setProperty(unlitProp)
+    }
+
     // Normal Texture
     if let normalTexInfo = gltfMaterial.normalTexture,
        let sampler = loadTextureSampler(for: normalTexInfo, from: gltf, binaryLoader: binaryLoader) {

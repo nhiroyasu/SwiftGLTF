@@ -32,6 +32,7 @@ public enum MaterialPropertyName: String {
     case occlusionTextureTransformOffsetScale
     case occlusionTextureTransformRotation
     case doubleSided
+    case unlit
     // Transmission (KHR_materials_transmission)
     case transmissionFactor
     case transmissionTexture

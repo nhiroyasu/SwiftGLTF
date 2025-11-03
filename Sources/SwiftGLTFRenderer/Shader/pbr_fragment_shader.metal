@@ -60,6 +60,27 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     ? baseColorTexture.sample(baseColorSampler, uvBC).rgb * modulationColor.rgb * mUni.baseColorFactor.rgb
     : float3(1, 1, 1) * modulationColor.rgb * mUni.baseColorFactor.rgb;
 
+    // Select UV coordinate for emissive
+    uint eCoord = fragArgs.emissiveTexCoord;
+    float2 uvE = (eCoord == 0) ? uv0 : uv1;
+    uvE = apply_texture_transform(uvE, fragArgs.emissiveTransformOffsetScale, fragArgs.emissiveTransformRotation);
+    // Emissive lighting: apply material emissive factor
+    float3 emission = fragArgs.hasEmissiveTexture
+    ? emissiveTexture.sample(emissiveSampler, uvE).rgb * mUni.emissiveFactor.rgb
+    : float3(1, 1, 1) * mUni.emissiveFactor.rgb;
+
+    // Handle unlit materials
+    if (mUni.isUnlit != 0) {
+        float baseAlpha = fragArgs.hasBaseColorTexture ? baseColorTexture.sample(baseColorSampler, uvBC).a : 1.0;
+        float alpha = baseAlpha * modulationColor.a * mUni.baseColorFactor.a;
+        if (fragArgs.alphaMode == AlphaModeMask && alpha < fragArgs.alphaCutoff) {
+            discard_fragment();
+        }
+        float3 color = albedo + emission;
+        color *= fragArgs.alphaMode == AlphaModeBlend ? alpha : 1.0;
+        return float4(color, alpha);
+    }
+
     // Select UV coordinate for metallic-roughness
     uint mrCoord = fragArgs.metallicRoughnessTexCoord;
     float2 uvMR = (mrCoord == 0) ? uv0 : uv1;
@@ -71,15 +92,6 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     float roughness = fragArgs.hasMetallicRoughnessTexture
     ? metallicRoughnessTexture.sample(metallicRoughnessSampler, uvMR).g * mUni.metalRoughnessOcclusion.y
     : 1.0 * mUni.metalRoughnessOcclusion.y;
-
-    // Select UV coordinate for emissive
-    uint eCoord = fragArgs.emissiveTexCoord;
-    float2 uvE = (eCoord == 0) ? uv0 : uv1;
-    uvE = apply_texture_transform(uvE, fragArgs.emissiveTransformOffsetScale, fragArgs.emissiveTransformRotation);
-    // Emissive lighting: apply material emissive factor
-    float3 emission = fragArgs.hasEmissiveTexture
-    ? emissiveTexture.sample(emissiveSampler, uvE).rgb * mUni.emissiveFactor.rgb
-    : float3(1, 1, 1) * mUni.emissiveFactor.rgb;
 
     // Select UV coordinate for occlusion
     uint ocCoord = fragArgs.occlusionTexCoord;
@@ -196,7 +208,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     float3 sigma_a = attenDist > 0.0 ? -log(attColor) / attenDist : float3(0.0);
     float3 attenuation = thickness > 0.0 ? exp(-sigma_a * thickness) : float3(1.0);
 
-    // Background color from previous pass (with refraction offset)
+    // Background color from previous pass (with refraction offset)
     float maxMip = scArgs.useSceneColor ? scArgs.sceneColorTexture.get_num_mip_levels() - 1 : 0;
     float lod = clamp(roughness * maxMip, 0.0, maxMip);
     float ior = mUni.ior;

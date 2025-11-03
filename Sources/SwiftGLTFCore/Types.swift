@@ -118,6 +118,11 @@ public struct Material: Codable, Equatable {
         self.doubleSided = try container.decodeIfPresent(Bool.self, forKey: .doubleSided) ?? false
         self.extensions = try container.decodeIfPresent(MaterialExtensions.self, forKey: .extensions)
     }
+
+    /// Returns true when the material is marked with the KHR_materials_unlit extension.
+    public var isUnlit: Bool {
+        return extensions?.khrMaterialsUnlit != nil
+    }
 }
 
 public struct PBRMetallicRoughness: Codable, Equatable {
@@ -849,10 +854,15 @@ public struct KHRMaterialsEmissiveStrength: Codable, Equatable {
     }
 }
 
+/// Marker type for KHR_materials_unlit extension
+public struct KHRMaterialsUnlit: Codable, Equatable {}
+
 /// Container for material-specific extensions
 public struct MaterialExtensions: Codable, Equatable {
     /// KHR_materials_emissive_strength extension data
     public let khrMaterialsEmissiveStrength: KHRMaterialsEmissiveStrength?
+    /// KHR_materials_unlit extension flag
+    public let khrMaterialsUnlit: KHRMaterialsUnlit?
     /// KHR_materials_transmission extension data
     public let khrMaterialsTransmission: KHRMaterialsTransmission?
     /// KHR_materials_volume extension data
@@ -867,6 +877,7 @@ public struct MaterialExtensions: Codable, Equatable {
     public let khrMaterialsSheen: KHRMaterialsSheen?
     enum CodingKeys: String, CodingKey {
         case khrMaterialsEmissiveStrength = "KHR_materials_emissive_strength"
+        case khrMaterialsUnlit = "KHR_materials_unlit"
         case khrMaterialsTransmission = "KHR_materials_transmission"
         case khrMaterialsVolume = "KHR_materials_volume"
         case khrMaterialsIOR = "KHR_materials_ior"

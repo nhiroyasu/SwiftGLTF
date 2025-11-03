@@ -7,6 +7,7 @@ constant PBRMaterialUniforms kDefaultPBRMaterial = {
     float4(1.0f, 1.0f, 1.0f, 0.0f),          // metalRoughnessOcclusion (metallic, roughness, occlusion, padding)
     float4(0.0f, 0.0f, 0.0f, 0.0f),          // emissiveFactor (RGB, padding)
     0u,                                      // doubleSided flag (0 = single sided)
+    0u,                                      // isUnlit flag
     float4(0.0f, 0.0f, -1.0f, 0.0f),         // transmissionThicknessDistance (transmission, thickness, attenuationDistance, padding)
     float4(1.0f, 1.0f, 1.0f, 0.0f),          // attenuationColor (RGB, padding)
     1.5f,                                    // index of refraction (ior)
