@@ -12,6 +12,7 @@ struct ContentView: View {
                 GLTFSwiftUIView(
                     url: url,
                     sceneIndex: viewModel.sceneIndex,
+                    animationIndex: viewModel.animationIndex,
                     environmentUrl: Bundle.main.url(forResource: "env_map", withExtension: "exr")!,
                     modelBinding: $viewModel.gltf,
                     showDebugHUD: true
@@ -27,7 +28,7 @@ struct ContentView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 Menu {
                     Button("Scene: Default") {
                         viewModel.selectedSceneIndex = nil
@@ -39,6 +40,19 @@ struct ContentView: View {
                     }
                 } label: {
                     Text(viewModel.sceneMenuLabel)
+                }
+
+                Menu {
+                    Button("Animation: None") {
+                        viewModel.selectedAnimationIndex = nil
+                    }
+                    ForEach(0..<viewModel.animationCount, id: \.self) { index in
+                        Button("Animation: \(index)") {
+                            viewModel.selectedAnimationIndex = index
+                        }
+                    }
+                } label: {
+                    Text(viewModel.animationMenuLabel)
                 }
             }
 

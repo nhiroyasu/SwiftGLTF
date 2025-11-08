@@ -13,6 +13,7 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     @Published var showFileImporter = false
     @Published var isLoading: Bool = false
     @Published var selectedSceneIndex: Int? = nil
+    @Published var selectedAnimationIndex: Int? = nil
     @Published var gltf: GLTF?
 
     #if os(iOS)
@@ -89,6 +90,30 @@ class GLTFViewModel: ObservableObject, DropDelegate {
             return "Scene: \(selectedSceneIndex)"
         } else {
             return "Scene: Default"
+        }
+    }
+
+    var animationIndex: Int? {
+        if let animations = gltf?.animations, let selectedAnimationIndex {
+            return min(max(selectedAnimationIndex, 0), animations.count - 1)
+        } else {
+            return nil
+        }
+    }
+
+    var animationCount: Int {
+        gltf?.animations?.count ?? 0
+    }
+
+    var animationMenuLabel: String {
+        if let selectedAnimationIndex {
+            return "Animation: \(selectedAnimationIndex)"
+        } else {
+            if let anim = gltf?.animations, !anim.isEmpty {
+                return "Animation: Default"
+            } else {
+                return "Animation: None"
+            }
         }
     }
 }

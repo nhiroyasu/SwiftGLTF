@@ -139,14 +139,14 @@ public class GLTFView: MTKView {
     ///   - url: The file URL of the glTF (either .gltf or .glb via Data contents).
     ///   - sceneIndex: The index of the scene to display. Pass `nil` to use the default scene.
     /// - Note: The delegate `gltfDelegate` will be notified on completion with either the parsed `GLTF` or an error.
-    public func load(gltf url: URL, sceneIndex: Int?) {
+    public func load(gltf url: URL, sceneIndex: Int? = nil, animationIndex: Int? = nil) {
         do {
             displayType = .loading
             defer { displayType = .drawable }
             let data = try Data(contentsOf: url)
             let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
             let asset = try makeMDLAsset(from: gltfBundle)
-            try renderer.load(from: asset, sceneIndex: sceneIndex)
+            try renderer.load(from: asset, sceneIndex: sceneIndex, animationIndex: animationIndex)
             gltfLoadHandler?(.success(gltfBundle.gltf))
         } catch {
             os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)

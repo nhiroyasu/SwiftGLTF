@@ -11,6 +11,8 @@ class PBRMeshLoader {
     private let shaderConnection: ShaderConnection
     private let textureLoader: MTKTextureLoader
 
+    private let kDefaultAnimationIndex = 0
+
     init(
         device: MTLDevice,
         shaderConnection: ShaderConnection,
@@ -25,7 +27,7 @@ class PBRMeshLoader {
     func loadMeshes(
         from asset: MDLAsset,
         sceneIndex: Int? = nil,
-        animationIndex: Int = 0
+        animationIndex: Int? = nil
     ) throws -> PBRMeshBundle {
         #if DEBUG
         let startTime = Date()
@@ -106,7 +108,7 @@ class PBRMeshLoader {
         let pbrAnimations = makeAnimations(
             from: asset,
             with: nodeLevelHierarchy,
-            animationIndex: animationIndex
+            animationIndex: animationIndex ?? kDefaultAnimationIndex
         )
 
         let vertexMeshHeap = try makeVertexMeshHeap(from: asset)

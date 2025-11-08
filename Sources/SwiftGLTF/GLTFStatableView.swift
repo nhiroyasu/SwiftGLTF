@@ -10,7 +10,7 @@ import os.log
 /// and reloads only when necessary.
 ///
 ///
-/// `GLTFStableView` automatically detects changes when the URL of the GLTF file,
+/// `GLTFStatableView` automatically detects changes when the URL of the GLTF file,
 /// the scene index, or the environment map URL are modified,
 /// and reloads the content only if there is an actual change.
 /// This avoids unnecessary reloads and improves performance.
@@ -18,27 +18,30 @@ import os.log
 /// ## Usage Example
 ///
 /// ```swift
-/// let stableView = try GLTFStableView(frame: bounds)
+/// let statableView = try GLTFStatableView(frame: bounds)
 ///
 /// // Simply setting the URL automatically triggers loading
-/// stableView.gltfURL = Bundle.main.url(forResource: "model", withExtension: "gltf")
-/// stableView.sceneIndex = 0
-/// stableView.environmentURL = Bundle.main.url(forResource: "environment", withExtension: "exr")
+/// statableView.gltfURL = Bundle.main.url(forResource: "model", withExtension: "gltf")
+/// statableView.sceneIndex = 0
+/// statableView.environmentURL = Bundle.main.url(forResource: "environment", withExtension: "exr")
 ///
 /// // Changing the URL or index automatically triggers reload
-/// stableView.gltfURL = newModelURL  // Auto reload
-/// stableView.sceneIndex = 1         // Auto reload
+/// statableView.gltfURL = newModelURL  // Auto reload
+/// statableView.sceneIndex = 1         // Auto reload
 /// ```
 @MainActor
-public class GLTFStableView: GLTFView {
+public class GLTFStatableView: GLTFView {
 
-    // MARK: - Stable Properties
+    // MARK: - Statable Properties
 
     /// The URL of the currently loaded GLTF file
     private var currentGLTFURL: URL?
 
     /// The index of the currently loaded scene
     private var currentSceneIndex: Int?
+
+    /// The index of the currently loaded animation
+    private var currentAnimationIndex: Int?
 
     /// The URL of the currently loaded environment map
     private var currentEnvironmentURL: URL?
@@ -73,6 +76,20 @@ public class GLTFStableView: GLTFView {
         }
     }
 
+    /// The index of the animation to play
+    ///
+    /// When this property is changed, change detection is automatically performed,
+    /// and reload is executed only if necessary.
+    ///
+    /// - Note: If `nil`, no animation is played.
+    public var animationIndex: Int? {
+        didSet {
+            if animationIndex != currentAnimationIndex {
+                reloadGLTFIfNeeded()
+            }
+        }
+    }
+
     /// The URL of the environment map
     ///
     /// When this property is changed, change detection is automatically performed,
@@ -89,7 +106,7 @@ public class GLTFStableView: GLTFView {
 
     // MARK: - Initialization
 
-    /// Initializer for GLTFStableView
+    /// Initializer for GLTFStatableView
     ///
     /// - Parameters:
     ///   - frame: The frame of the view
@@ -118,16 +135,18 @@ public class GLTFStableView: GLTFView {
         guard let url = gltfURL else {
             currentGLTFURL = nil
             currentSceneIndex = nil
+            currentAnimationIndex = nil
             return
         }
 
-        let needsReload = url != currentGLTFURL || sceneIndex != currentSceneIndex
+        let needsReload = url != currentGLTFURL || sceneIndex != currentSceneIndex || animationIndex != currentAnimationIndex
         guard needsReload else { return }
         currentGLTFURL = url
         currentSceneIndex = sceneIndex
+        currentAnimationIndex = animationIndex
 
-        super.load(gltf: url, sceneIndex: sceneIndex)
-        os_log("GLTFStableView: Reloaded GLTF due to asset change", type: .info)
+        super.load(gltf: url, sceneIndex: sceneIndex, animationIndex: animationIndex)
+        os_log("GLTFStatableView: Reloaded GLTF due to asset change", type: .info)
     }
 
     /// Checks if reloading the environment map is necessary and performs it if needed.
@@ -142,7 +161,7 @@ public class GLTFStableView: GLTFView {
         if url != currentEnvironmentURL {
             currentEnvironmentURL = url
             super.load(environment: url)
-            os_log("GLTFStableView: Reloaded environment map", type: .info)
+            os_log("GLTFStatableView: Reloaded environment map", type: .info)
         }
     }
 
@@ -155,9 +174,10 @@ public class GLTFStableView: GLTFView {
     /// - Parameters:
     ///   - url: The URL of the GLTF file to load
     ///   - sceneIndex: The index of the scene to display. If `nil`, the default scene is used.
-    public override func load(gltf url: URL, sceneIndex: Int?) {
+    public override func load(gltf url: URL, sceneIndex: Int?, animationIndex: Int?) {
         currentGLTFURL = url
         currentSceneIndex = sceneIndex
+        currentAnimationIndex = animationIndex
         reloadGLTFIfNeeded()
     }
 
