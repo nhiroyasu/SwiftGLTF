@@ -126,14 +126,8 @@ public class GLTFStableView: GLTFView {
         currentGLTFURL = url
         currentSceneIndex = sceneIndex
 
-        do {
-            super.load(gltf: url, sceneIndex: sceneIndex)
-            os_log("GLTFStableView: Reloaded GLTF due to asset change", type: .info)
-        } catch {
-            os_log("GLTFStableView: Failed to check GLTF asset: %@", type: .error, error.localizedDescription)
-            // Attempt reload even if an error occurs
-            super.load(gltf: url, sceneIndex: sceneIndex)
-        }
+        super.load(gltf: url, sceneIndex: sceneIndex)
+        os_log("GLTFStableView: Reloaded GLTF due to asset change", type: .info)
     }
 
     /// Checks if reloading the environment map is necessary and performs it if needed.

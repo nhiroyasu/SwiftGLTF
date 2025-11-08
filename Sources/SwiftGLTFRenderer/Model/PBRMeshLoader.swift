@@ -302,11 +302,7 @@ class PBRMeshLoader {
                 default: return AlphaModeOpaque
                 }
             }()
-            var alphaModeRaw: UInt32 = alphaModeEnum.rawValue
-            var alphaCutoff: Float = material?.propertyNamed(.alphaCutoff)?.floatValue ?? 0.5
-
-            // Transmission factor
-            let transmissionFactor: Float = material?.propertyNamed(.transmissionFactor)?.floatValue ?? 0.0
+            let alphaCutoff: Float = material?.propertyNamed(.alphaCutoff)?.floatValue ?? 0.5
 
             // Double sided flag
             let isDoubleSided: Bool = (material?.propertyNamed(.doubleSided)?.floatValue ?? 0) != 0
