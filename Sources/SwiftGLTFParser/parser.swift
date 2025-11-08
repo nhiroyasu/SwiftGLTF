@@ -179,22 +179,6 @@ public func makeMDLAsset(
         }
     }
 
-    if options.autoScale {
-        let meshes = gltf.meshes ?? []
-        let accessors = gltf.accessors ?? []
-        let positionAccessorIndexOpt: Int? = meshes
-            .flatMap { $0.primitives.map { $0.attributes[GLTFAttribute.position.rawValue] } }
-            .first ?? nil
-        if let positionAccessorIndex = positionAccessorIndexOpt,
-           positionAccessorIndex < accessors.count,
-           let max = accessors[positionAccessorIndex].max?.max() {
-            let scale = 1 / max
-            let rootNode = asset.object(atPath: GLTFAssetPath.nodes(atScene: gltf.scene ?? 0))
-            rootNode.transform = GLTFTransform(matrix: scaleMatrix(scale, scale, scale) * (rootNode.transform?.matrix ?? matrix_identity_float4x4))
-            os_log("Scaling asset by factor: %{public}f", log: .default, type: .info, scale)
-        }
-    }
-
     return asset
 }
 

@@ -31,14 +31,14 @@ final class PBRRenderTests {
         return device.makeTexture(descriptor: desc)!
     }
 
-    func renderMesh(to output: MTLTexture, meshURL: URL) async throws {
+    func renderMesh(to output: MTLTexture, meshURL: URL, eye: SIMD3<Float>?) async throws {
         // Create view-projection matrix buffer
-        let eye = SIMD3<Float>(-2.83, 2.83, -2.83)
+        let eye = eye ?? SIMD3<Float>(-1.41, 1.41, -1.41)
         let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
         let aspect: Float = Float(output.width) / Float(output.height)
         let fovY = Float.pi / 3.0
         let fovX = 2 * atan(tan(fovY / 2) * aspect)
-        let projection = perspectiveMatrix(fov: fovY, aspect: aspect, near: 0.1, far: 100.0)
+        let projection = perspectiveMatrix(fov: fovY, aspect: aspect, near: 0.1, far: 1000.0)
         var vertexVariableParams = MVPUniform(
             view: view,
             projection: projection,
@@ -113,24 +113,25 @@ final class PBRRenderTests {
 
     let goldenFilePrefix = "golden_pbr_mesh_"
     let outputFilePrefix = "pbr_mesh_"
-    let meshFiles: [(String, String)] = [
-        ("BoxTextured", "glb"),
-        ("CompareBaseColor", "glb"),
-        ("CompareEmissiveStrength", "glb"),
-        ("CompareMetallic", "glb"),
-        ("CompareNormal", "glb"),
-        ("CompareRoughness", "glb"),
-        ("OrientationTest", "glb"),
-        ("TextureCoordinateTest", "glb"),
-        ("VertexColorTest", "glb"),
-        ("Fox", "glb"),
-        ("MultiUVTest", "glb"),
-        ("TextureSettingsTest", "glb"),
-        ("SimpleSkin", "gltf"),
-        ("MorphPrimitivesTest", "glb"),
-        ("CompareTransmission", "glb"),
-        ("CompareClearcoat", "glb"),
-        ("TextureTransformMultiTest", "glb"),
+    let meshFiles: [(String, String, SIMD3<Float>?)] = [
+        // Mesh Name, Extension, Optional Eye Position
+        ("BoxTextured", "glb", nil),
+        ("CompareBaseColor", "glb", nil),
+        ("CompareEmissiveStrength", "glb", nil),
+        ("CompareMetallic", "glb", nil),
+        ("CompareNormal", "glb", nil),
+        ("CompareRoughness", "glb", nil),
+        ("OrientationTest", "glb", SIMD3<Float>(-10.6, 10.6, -10.6)),
+        ("TextureCoordinateTest", "glb", SIMD3<Float>(-2.83, 2.83, -2.83)),
+        ("VertexColorTest", "glb", nil),
+        ("Fox", "glb", SIMD3<Float>(-106, 106, -106)),
+        ("MultiUVTest", "glb", SIMD3<Float>(-2.83, 2.83, -2.83)),
+        ("TextureSettingsTest", "glb", SIMD3<Float>(-4.24, 4.24, -4.24)),
+        ("SimpleSkin", "gltf", SIMD3<Float>(-2.83, 2.83, -2.83)),
+        ("MorphPrimitivesTest", "glb", SIMD3<Float>(-0.7, 0.7, -0.7)),
+        ("CompareTransmission", "glb", nil),
+        ("CompareClearcoat", "glb", nil),
+        ("TextureTransformMultiTest", "glb", nil),
     ]
 
     // Export baseline textures
@@ -139,10 +140,10 @@ final class PBRRenderTests {
     func ExportGoldenImages() async throws {
         guard EXPORT_GOLDEN_IMAGES_FLAG, !isCI() else { return }
 
-        for (meshName, ext) in meshFiles {
+        for (meshName, ext, eye) in meshFiles {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
             let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-            try await renderMesh(to: meshTarget, meshURL: meshURL)
+            try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye)
             try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName).png")
         }
     }
@@ -154,10 +155,10 @@ final class PBRRenderTests {
         // This rendering test is not run on CI because it depends on the GPU and the supported Metal version.
         guard !isCI() else { return }
 
-        for (meshName, ext) in meshFiles {
+        for (meshName, ext, eye) in meshFiles {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
             let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-            try await renderMesh(to: meshTarget, meshURL: meshURL)
+            try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye)
 
             assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
 

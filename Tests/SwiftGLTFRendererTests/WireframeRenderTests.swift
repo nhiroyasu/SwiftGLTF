@@ -38,7 +38,7 @@ final class WireframeRenderTests {
         return device.makeTexture(descriptor: desc)!
     }
 
-    func renderMesh(to output: MTLTexture, meshURL: URL) async throws {
+    func renderMesh(to output: MTLTexture, meshURL: URL, eye: SIMD3<Float>) async throws {
         let pipelineConnector = try WireframePipelineConnector(
             device: device,
             library: library,
@@ -56,9 +56,8 @@ final class WireframeRenderTests {
         )
         
         // Create view-projection matrix buffer
-        let eye = SIMD3<Float>(-2.83, 2.83, -2.83)
         let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
-        let projection = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
+        let projection = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 1000.0)
         var mvpUniform = MVPUniform(
             view: view,
             projection: projection,
@@ -133,14 +132,14 @@ final class WireframeRenderTests {
 
     let goldenFilePrefix = "golden_wireframe_mesh_"
     let outputFilePrefix = "wireframe_mesh_"
-    let meshNames: [String] = [
-        "BoxTextured",
-        "BoxTextured",
-        "CompareBaseColor",
-        "OrientationTest",
-        "TextureCoordinateTest",
-        "VertexColorTest",
-        "Fox"
+    let meshNames: [(String, SIMD3<Float>)] = [
+        // name, eye
+        ("BoxTextured", SIMD3<Float>(-1.41, 1.41, -1.41)),
+        ("CompareBaseColor", SIMD3<Float>(-1.41, 1.41, -1.41)),
+        ("OrientationTest", SIMD3<Float>(-10.6, 10.6, -10.6)),
+        ("TextureCoordinateTest", SIMD3<Float>(-2.83, 2.83, -2.83)),
+        ("VertexColorTest", SIMD3<Float>(-1.41, 1.41, -1.41)),
+        ("Fox", SIMD3<Float>(-106, 106, -106)),
     ]
 
     // Export baseline textures
@@ -149,10 +148,10 @@ final class WireframeRenderTests {
     func ExportGoldenImages() async throws {
         guard EXPORT_GOLDEN_IMAGES_FLAG, !isCI() else { return }
 
-        for meshName in meshNames {
+        for (meshName, eye) in meshNames {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
             let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
-            try await renderMesh(to: meshTarget, meshURL: meshURL)
+            try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye)
             try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName).png")
         }
     }
@@ -161,10 +160,10 @@ final class WireframeRenderTests {
 
     @Test
     func testMeshRenderingMatchesGolden() async throws {
-        for meshName in meshNames {
+        for (meshName, eye) in meshNames {
             let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
             let meshURL = Bundle.module.url(forResource: meshName, withExtension: "glb")!
-            try await renderMesh(to: meshTarget, meshURL: meshURL)
+            try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye)
 
             assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
 

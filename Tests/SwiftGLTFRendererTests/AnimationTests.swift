@@ -34,10 +34,10 @@ final class AnimationTests {
     func renderMesh(
         to output: MTLTexture,
         meshURL: URL,
+        eye: SIMD3<Float>,
         animationState: RendererAnimationState
     ) async throws {
         // Create view-projection matrix buffer
-        let eye = SIMD3<Float>(-2.83, 2.83, -2.83)
         let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
         let aspect: Float = Float(output.width) / Float(output.height)
         let fovY = Float.pi / 3.0
@@ -119,9 +119,10 @@ final class AnimationTests {
 
     let goldenFilePrefix = "golden_animation_mesh_"
     let outputFilePrefix = "animation_mesh_"
-    let meshFiles: [(String, String)] = [
-        ("AnimatedColorsCube", "glb"),
-        ("AnimatedMorphCube", "glb"),
+    let meshFiles: [(String, String, SIMD3<Float>)] = [
+        // Mesh name, extension, eye
+        ("AnimatedColorsCube", "glb", SIMD3<Float>(-5.66, 5.66, -5.66)),
+        ("AnimatedMorphCube", "glb", SIMD3<Float>(-2.83, 2.83, -2.83))
     ]
 
 
@@ -135,10 +136,10 @@ final class AnimationTests {
         guard EXPORT_GOLDEN_IMAGES_FLAG, !isCI() else { return }
 
         while time > currentTime {
-            for (meshName, ext) in meshFiles {
+            for (meshName, ext, eye) in meshFiles {
                 let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
                 let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-                try await renderMesh(to: meshTarget, meshURL: meshURL, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
+                try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
                 try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName)_\(String(format: "%.1f", currentTime)).png")
             }
             currentTime += interval
@@ -153,10 +154,10 @@ final class AnimationTests {
         guard !isCI() else { return }
 
         while time > currentTime {
-            for (meshName, ext) in meshFiles {
+            for (meshName, ext, eye) in meshFiles {
                 let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
                 let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-                try await renderMesh(to: meshTarget, meshURL: meshURL, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
+                try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
 
                 assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)_\(String(format: "%.1f", currentTime))")
 
