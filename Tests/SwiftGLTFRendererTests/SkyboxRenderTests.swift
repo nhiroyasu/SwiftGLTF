@@ -114,7 +114,7 @@ final class SkyboxRenderTests {
             worldTransformBuffer: worldTransformDummyBuffer(device: device),
             cameraIndexBuffer: cameraIndexBuffer,
             freeCameraUniformsBuffer: freeCameraUniformsBuffer,
-            nodeCameraUniformsBuffer: nodeCameraUniformsDummyBuffer(device: device),
+            nodeCameraUniformsBuffer: NodeCameraUniforms.makeDummyBuffer(device: device),
             specularCubeMapTexture: envMap
         )
         encoder.endEncoding()

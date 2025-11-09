@@ -1,0 +1,39 @@
+{
+  "configurations" : [
+    {
+      "id" : "2C5EE34F-902C-4845-84A1-AB9C5BE7B6EB",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "SwiftGLTFCoreTests",
+        "name" : "SwiftGLTFCoreTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "SwiftGLTFParserTests",
+        "name" : "SwiftGLTFParserTests"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "SwiftGLTFRendererTests",
+        "name" : "SwiftGLTFRendererTests"
+      }
+    }
+  ],
+  "version" : 1
+}

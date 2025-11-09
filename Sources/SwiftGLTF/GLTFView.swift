@@ -526,23 +526,35 @@ public class GLTFView: MTKView {
 
     #endif
 
-    private func activeCameraAspectRatio() -> Double? {
+    private func activeCameraAspectRatio() -> CGFloat? {
         guard let cameraIndex,
               cameraIndex >= 0,
               let gltf = loadedGLTF,
               let cameras = gltf.cameras,
-              cameras.indices.contains(cameraIndex),
-              let perspective = cameras[cameraIndex].perspective,
-              let aspect = perspective.aspectRatio,
-              aspect > 0 else {
+              cameras.indices.contains(cameraIndex) else {
             return nil
         }
-        return Double(aspect)
+        switch cameras[cameraIndex].type {
+        case .perspective:
+            guard let perspective = cameras[cameraIndex].perspective,
+                  let aspect = perspective.aspectRatio,
+                  aspect > 0 else {
+                return nil
+            }
+            return CGFloat(aspect)
+        case .orthographic:
+            guard let orthographic = cameras[cameraIndex].orthographic,
+                  orthographic.ymag > 0,
+                  orthographic.xmag > 0 else {
+                return nil
+            }
+            return CGFloat(orthographic.xmag / orthographic.ymag)
+        }
     }
 
     private func makeRenderViewport(for size: CGSize) -> MTLViewport {
-        let width = max(Double(size.width), 1)
-        let height = max(Double(size.height), 1)
+        let width = max(size.width, 1)
+        let height = max(size.height, 1)
         guard let targetAspect = activeCameraAspectRatio(), height > 0 else {
             return MTLViewport(originX: 0, originY: 0, width: width, height: height, znear: 0, zfar: 1)
         }

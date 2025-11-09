@@ -38,11 +38,12 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
     ? compute_skin_matrix(worldTransforms, skinJoints, skinInverseBindMatrices, inverseWorldTransform, args.skinDispatch, in.joints, in.weights)
     : float4x4(1.0);
 
+    // TODO: cameraIndex may exceed the count of nodeCameraUniforms(fragment and skybox too)
     float4x4 view = cameraIndex >= 0
     ? inverse_affine(worldTransforms[nodeCameraUniforms[cameraIndex].nodeHierarchyOffset])
     : freeCameraUniforms.viewMatrix;
     float4x4 projection = cameraIndex >= 0
-    ? perspectiveMatrix(nodeCameraUniforms[cameraIndex], freeCameraUniforms.aspectRatio)
+    ? projectionMatrix(nodeCameraUniforms[cameraIndex], freeCameraUniforms.aspectRatio)
     : freeCameraUniforms.projectionMatrix;
     float4x4 modelTransform = rootModelMatrix * worldTransform * skinMatrix;
     float4x4 mvpTransform = projection * view * modelTransform;

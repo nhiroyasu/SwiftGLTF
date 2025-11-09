@@ -1633,29 +1633,24 @@ func makeMDLCameras(from gltf: GLTF) -> [CameraIndex: MDLCamera] {
     guard let cameras = gltf.cameras else { return map }
 
     for (index, camera) in cameras.enumerated() {
-        let mdlCamera = MDLCamera()
+        var mdlCamera = MDLCamera()
         mdlCamera.name = camera.name ?? "Camera_\(index)"
 
         switch camera.type {
         case .perspective:
             if let perspective = camera.perspective {
-                mdlCamera.projection = .perspective
-                mdlCamera.fieldOfView = perspective.yfov * 180.0 / .pi
-                mdlCamera.nearVisibilityDistance = Float(max(perspective.znear, 0.0001))
-                mdlCamera.sensorAspect = perspective.aspectRatio ?? -1.0
-                if let zfar = perspective.zfar {
-                    mdlCamera.farVisibilityDistance = zfar
-                } else {
-                    mdlCamera.farVisibilityDistance = .infinity
-                }
+                mdlCamera = GLTFCamera(perspective: perspective)
             } else {
                 // Invalid camera definition, skip
                 continue
             }
         case .orthographic:
-            mdlCamera.projection = .orthographic
-            // Not yet supported, keep placeholder for future extension.
-            // TODO: next action
+            if let orthographic = camera.orthographic {
+                mdlCamera = GLTFCamera(orthographic: orthographic)
+            } else {
+                // Invalid camera definition, skip
+                continue
+            }
         }
 
         map[CameraIndex(index)] = mdlCamera

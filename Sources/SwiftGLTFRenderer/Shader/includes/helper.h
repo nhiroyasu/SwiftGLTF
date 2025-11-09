@@ -36,7 +36,7 @@ float3 toWorld(float3 h, float3 N);
 uint wangHash(uint x);
 float2 hash2(uint x, uint y, uint z, uint w);
 float remapSheenRoughness(float r);
-float4x4 perspectiveMatrix(NodeCameraUniforms nodeCameraUniforms, float defaultAspectRatio);
+float4x4 projectionMatrix(NodeCameraUniforms nodeCameraUniforms, float defaultAspectRatio);
 float4x4 perspectiveMatrix(float fov, float aspect, float near, float far);
 
 #endif /* helper_h */

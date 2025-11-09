@@ -119,12 +119,20 @@ typedef struct {
     int64_t length;
 } MorphDispatch;
 
+typedef enum : int {
+    CameraProjectionTypePerspective = 0,
+    CameraProjectionTypeOrthographic = 1,
+} CameraProjectionType;
+
 typedef struct {
+    CameraProjectionType projectionType;
     int64_t nodeHierarchyOffset;
-    vector_float2 fov;      // x: fovx, y: fovy
-    float aspectRatio;    // width / height. if -1, use viewport aspect ratio
     float znear;
     float zfar;
+    vector_float2 fov;                      // x: fovx, y: fovy. for perspective projection
+    float aspectRatio;                      // width / height. if -1, use viewport aspect ratio. for perspective projection
+    float xmag;                             // for orthographic projection
+    float ymag;                             // for orthographic projection
 } NodeCameraUniforms;
 
 enum PBRVertexArgId: int {

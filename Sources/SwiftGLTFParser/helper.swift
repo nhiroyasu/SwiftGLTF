@@ -164,3 +164,22 @@ func flipToLeftHanded(_ transform: simd_float4x4) -> simd_float4x4 {
 
     return modelMatrixLH
 }
+
+func orthographicMatrix(xmag: Float, ymag: Float, near: Float, far: Float) -> simd_float4x4 {
+    return simd_float4x4(
+        SIMD4<Float>(2 / xmag, 0, 0, 0),
+        SIMD4<Float>(0, 2 / ymag, 0, 0),
+        SIMD4<Float>(0, 0, 1 / (far - near), 0),
+        SIMD4<Float>(0, 0, -near / (far - near), 1)
+    )
+}
+
+func perspectiveMatrix(fov: Float, aspect: Float, near: Float, far: Float) -> simd_float4x4 {
+    let f = 1.0 / tan(fov / 2.0)
+    return simd_float4x4(
+        simd_float4(f / aspect, 0,  0,  0),
+        simd_float4(0, f,  0,  0),
+        simd_float4(0, 0, far / (far - near), 1),
+        simd_float4(0, 0, -far * near / (far - near), 0)
+    )
+}

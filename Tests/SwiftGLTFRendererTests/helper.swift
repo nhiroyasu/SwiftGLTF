@@ -120,19 +120,3 @@ func worldTransformDummyBuffer(device: MTLDevice) -> MTLBuffer {
     )!
     return worldTransformBuffer
 }
-
-func nodeCameraUniformsDummyBuffer(device: MTLDevice) -> MTLBuffer {
-    var nodeCameraUniformsDummy: [NodeCameraUniforms] = [.init(
-        nodeHierarchyOffset: 0,
-        fov: SIMD2<Float>(0, 0),
-        aspectRatio: 1.0,
-        znear: 0.0,
-        zfar: 1.0
-    )]
-    let nodeCameraUniformsBuffer = device.makeBuffer(
-        bytes: &nodeCameraUniformsDummy,
-        length: MemoryLayout<NodeCameraUniforms>.size,
-        options: .storageModeShared
-    )!
-    return nodeCameraUniformsBuffer
-}

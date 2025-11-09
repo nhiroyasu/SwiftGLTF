@@ -144,6 +144,7 @@ final class CameraTests {
         // Mesh name, extension, camera
         ("Cameras", "gltf", -1),
         ("Cameras", "gltf", 0),
+        ("Cameras", "gltf", 1),
     ]
 
 

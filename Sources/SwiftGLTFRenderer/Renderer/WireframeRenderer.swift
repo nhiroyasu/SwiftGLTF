@@ -105,25 +105,13 @@ public class WireframeRenderer {
             length: MemoryLayout<Int>.size,
             options: .storageModeShared
         )!
-        var nodeCameraUniformsDummy: [NodeCameraUniforms] = [.init(
-            nodeHierarchyOffset: 0,
-            fov: SIMD2<Float>(1,1),
-            aspectRatio: -1,
-            znear: 0,
-            zfar: 1
-        )]
-        let nodeCameraUniformsBuffer = device.makeBuffer(
-            bytes: &nodeCameraUniformsDummy,
-            length: MemoryLayout<NodeCameraUniforms>.size,
-            options: .storageModeShared
-        )!
         drawSkybox(
             renderEncoder: renderEncoder,
             mesh: skyboxMesh,
             worldTransformBuffer: worldTransformBuffer,
             cameraIndexBuffer: cameraIndexBuffer,
             freeCameraUniformsBuffer: freeCameraUniformsBuffer,
-            nodeCameraUniformsBuffer: nodeCameraUniformsBuffer,
+            nodeCameraUniformsBuffer: NodeCameraUniforms.makeDummyBuffer(device: device),
             specularCubeMapTexture: _specularCubeMapTexture
         )
 

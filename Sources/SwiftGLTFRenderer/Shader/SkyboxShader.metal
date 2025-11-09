@@ -24,7 +24,7 @@ vertex SkyboxOut skybox_vertex_shader(uint vertexID [[vertex_id]],
     ? inverse_affine(worldTransforms[nodeCameraUniforms[cameraIndex].nodeHierarchyOffset])
     : freeCameraUniforms.viewMatrix;
     float4x4 projection = cameraIndex >= 0
-    ? perspectiveMatrix(nodeCameraUniforms[cameraIndex], freeCameraUniforms.aspectRatio)
+    ? projectionMatrix(nodeCameraUniforms[cameraIndex], freeCameraUniforms.aspectRatio)
     : freeCameraUniforms.projectionMatrix;
 
     float3x3 R = _float3x3(view);

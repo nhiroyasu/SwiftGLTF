@@ -1138,33 +1138,41 @@ class PBRMeshLoader {
         cameraIndices: [CameraIndex]
     ) -> MTLBuffer {
         guard let gltfCameras = asset.objectSafe(atPath: GLTFAssetPath.cameras) else {
-            var dummy: NodeCameraUniforms = .init(
-                nodeHierarchyOffset: 0,
-                fov: SIMD2<Float>(0, 0),
-                aspectRatio: -1,
-                znear: 0,
-                zfar: 1
-            )
-            return device.makeBuffer(
-                bytes: &dummy,
-                length: MemoryLayout<NodeCameraUniforms>.size
-            )!
+            return NodeCameraUniforms.makeDummyBuffer(device: device)
         }
-        let cameras: [MDLCamera] = gltfCameras.children.objects.compactMap({ $0 as? MDLCamera })
+        let cameras: [GLTFCamera] = gltfCameras.children.objects.compactMap({ $0 as? GLTFCamera })
 
         var cameraUniformsArray: [NodeCameraUniforms] = []
         for (cameraIndex, cameraLevelNode) in zip(cameraIndices, cameraLevelNodes) {
             let camera = cameras[cameraIndex.value]
-            if camera.projection == .perspective {
+            switch camera.projection {
+            case .perspective:
                 let yfov = camera.fieldOfView * .pi / 180.0
                 let cameraUniforms = NodeCameraUniforms(
+                    projectionType: CameraProjectionTypePerspective,
                     nodeHierarchyOffset: Int64(cameraLevelNode),
+                    znear: camera.nearVisibilityDistance,
+                    zfar: camera.farVisibilityDistance,
                     fov: SIMD2<Float>(xfov(yfov: yfov, aspect: camera.sensorAspect), yfov),
                     aspectRatio: camera.sensorAspect,
-                    znear: camera.nearVisibilityDistance,
-                    zfar: camera.farVisibilityDistance
+                    xmag: 0.0,
+                    ymag: 0.0
                 )
                 cameraUniformsArray.append(cameraUniforms)
+            case .orthographic:
+                let cameraUniforms = NodeCameraUniforms(
+                    projectionType: CameraProjectionTypeOrthographic,
+                    nodeHierarchyOffset: Int64(cameraLevelNode),
+                    znear: camera.nearVisibilityDistance,
+                    zfar: camera.farVisibilityDistance,
+                    fov: SIMD2<Float>(-1, -1),
+                    aspectRatio: -1,
+                    xmag: camera.xmag ?? 0.0,
+                    ymag: camera.ymag ?? 0.0
+                )
+                cameraUniformsArray.append(cameraUniforms)
+            @unknown default:
+                continue
             }
         }
 
@@ -1175,17 +1183,7 @@ class PBRMeshLoader {
             )!
             return cameraUniformsBuffer
         } else {
-            var dummy: NodeCameraUniforms = .init(
-                nodeHierarchyOffset: 0,
-                fov: SIMD2<Float>(0, 0),
-                aspectRatio: -1,
-                znear: 0,
-                zfar: 1
-            )
-            return device.makeBuffer(
-                bytes: &dummy,
-                length: MemoryLayout<NodeCameraUniforms>.size
-            )!
+            return NodeCameraUniforms.makeDummyBuffer(device: device)
         }
     }
 }
