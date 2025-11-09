@@ -10,6 +10,9 @@ public enum GLTFAssetPath {
     public static func nodes(atScene: Int) -> String {
         "\(Self.scene(atScene))/\(GLTFAssetName.nodes)"
     }
+    public static var cameras: String {
+        "/\(GLTFAssetName.cameras)"
+    }
     public static var libraries: String {
         "/\(GLTFAssetName.libraries)"
     }
@@ -32,4 +35,5 @@ public enum GLTFAssetName {
     public static let materials = "Materials"
     public static let skins = "Skins"
     public static let meshes = "Meshes"
+    public static let cameras = "Cameras"
 }

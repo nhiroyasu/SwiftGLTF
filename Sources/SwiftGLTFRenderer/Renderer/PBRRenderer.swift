@@ -242,9 +242,12 @@ public class PBRRenderer {
         commandBuffer: MTLCommandBuffer,
         renderPassDescriptor: MTLRenderPassDescriptor,
         drawableSize: CGSize,
-        mvpUniformBuffer: MTLBuffer,
+        viewport: MTLViewport,
         fragmentParams: MTLBuffer,
         viewPos: SIMD3<Float>,
+        cameraIndexBuffer: MTLBuffer,
+        freeCameraUniformsBuffer: MTLBuffer,
+        modelMatrixBuffer: MTLBuffer,
         showsSkybox: Bool = true,
         waitFence: MTLFence? = nil
     ) {
@@ -263,12 +266,15 @@ public class PBRRenderer {
         // Pass 1: draw opaque + masked + blended to offscreen
         guard let screenColorRE = commandBuffer.makeRenderCommandEncoder(descriptor: screenColorRPD) else { return }
         screenColorRE.label = "[SwiftGLTF] PBR Screen Color Render Encoder"
+        screenColorRE.setViewport(viewport)
         encodeScreenPass(
             renderEncoder: screenColorRE,
             bundle: bundle,
-            mvpUniformBuffer: mvpUniformBuffer,
             fragmentParams: fragmentParams,
             viewPos: viewPos,
+            cameraIndexBuffer: cameraIndexBuffer,
+            freeCameraUniformsBuffer: freeCameraUniformsBuffer,
+            modelMatrixBuffer: modelMatrixBuffer,
             showsSkybox: showsSkybox,
             waitFence: waitFence
         )
@@ -280,13 +286,16 @@ public class PBRRenderer {
             // Pass 3: draw transmission to offscreen
             guard let transmissionRE = commandBuffer.makeRenderCommandEncoder(descriptor: transmissionRPD) else { return }
             transmissionRE.label = "[SwiftGLTF] PBR Transmission Render Encoder"
+            transmissionRE.setViewport(viewport)
             encodeTransmissionPass(
                 renderEncoder: transmissionRE,
                 screenPrefilterTexture: screenPrefilterTexture,
                 bundle: bundle,
-                mvpUniformBuffer: mvpUniformBuffer,
                 fragmentParams: fragmentParams,
-                viewPos: viewPos
+                viewPos: viewPos,
+                cameraIndexBuffer: cameraIndexBuffer,
+                freeCameraUniformsBuffer: freeCameraUniformsBuffer,
+                modelMatrixBuffer: modelMatrixBuffer
             )
         }
 
@@ -306,9 +315,11 @@ public class PBRRenderer {
     private func encodeScreenPass(
         renderEncoder: MTLRenderCommandEncoder,
         bundle: PBRMeshBundle,
-        mvpUniformBuffer: MTLBuffer,
         fragmentParams: MTLBuffer,
         viewPos: SIMD3<Float>,
+        cameraIndexBuffer: MTLBuffer,
+        freeCameraUniformsBuffer: MTLBuffer,
+        modelMatrixBuffer: MTLBuffer,
         showsSkybox: Bool,
         waitFence: MTLFence?
     ) {
@@ -318,7 +329,10 @@ public class PBRRenderer {
             drawSkybox(
                 renderEncoder: renderEncoder,
                 mesh: skyboxMesh,
-                mvpUniformBuffer: mvpUniformBuffer,
+                worldTransformBuffer: bundle.worldTransformBuffer,
+                cameraIndexBuffer: cameraIndexBuffer,
+                freeCameraUniformsBuffer: freeCameraUniformsBuffer,
+                nodeCameraUniformsBuffer: bundle.nodeCameraUniformsBuffer,
                 specularCubeMapTexture: _prefilterEnvMap
             )
         }
@@ -342,10 +356,13 @@ public class PBRRenderer {
             inverseBindMatricesBuffer: bundle.inverseBindMatricesBuffer,
             morphWeightsBuffer: bundle.morphWeightsBuffer,
             morphDispatchesBuffer: bundle.morphDispatchesBuffer,
+            cameraIndexBuffer: cameraIndexBuffer,
+            freeCameraUniformsBuffer: freeCameraUniformsBuffer,
+            nodeCameraUniformsBuffer: bundle.nodeCameraUniformsBuffer,
             materialBuffer: bundle.materialBuffer,
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams,
-            mvpUniformBuffer: mvpUniformBuffer,
+            modelMatrixBuffer: modelMatrixBuffer,
             screenColorArgsBuffer: pipelineConnector.makeScreenColorArgDummy(),
             viewPos: viewPos
         )
@@ -356,9 +373,11 @@ public class PBRRenderer {
         renderEncoder: MTLRenderCommandEncoder,
         screenPrefilterTexture: MTLTexture,
         bundle: PBRMeshBundle,
-        mvpUniformBuffer: MTLBuffer,
         fragmentParams: MTLBuffer,
-        viewPos: SIMD3<Float>
+        viewPos: SIMD3<Float>,
+        cameraIndexBuffer: MTLBuffer,
+        freeCameraUniformsBuffer: MTLBuffer,
+        modelMatrixBuffer: MTLBuffer
     ) {
         let sceneColorArgBuffer = pipelineConnector.makeScreenColorArgBuffer(
             sceneColor: screenPrefilterTexture,
@@ -379,10 +398,13 @@ public class PBRRenderer {
             inverseBindMatricesBuffer: bundle.inverseBindMatricesBuffer,
             morphWeightsBuffer: bundle.morphWeightsBuffer,
             morphDispatchesBuffer: bundle.morphDispatchesBuffer,
+            cameraIndexBuffer: cameraIndexBuffer,
+            freeCameraUniformsBuffer: freeCameraUniformsBuffer,
+            nodeCameraUniformsBuffer: bundle.nodeCameraUniformsBuffer,
             materialBuffer: bundle.materialBuffer,
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams,
-            mvpUniformBuffer: mvpUniformBuffer,
+            modelMatrixBuffer: modelMatrixBuffer,
             screenColorArgsBuffer: sceneColorArgBuffer,
             viewPos: viewPos
         )

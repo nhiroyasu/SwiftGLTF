@@ -1,5 +1,6 @@
 #include <metal_stdlib>
 #include "includes/helper.h"
+#include "../../SwiftGLTFShaderTypes/includes/pbr.h"
 
 using namespace metal;
 
@@ -305,4 +306,23 @@ float2 hash2(uint x, uint y, uint z, uint w) {
 float remapSheenRoughness(float r) {
     // ensure at least 0.07
     return clamp(0.5*r + 0.5*r*r, 0.07, 1.0);
+}
+
+float4x4 perspectiveMatrix(NodeCameraUniforms nodeCameraUniforms, float defaultAspectRatio) {
+    float aspectRatio = nodeCameraUniforms.aspectRatio > 0
+        ? nodeCameraUniforms.aspectRatio
+        : defaultAspectRatio;
+    return perspectiveMatrix(nodeCameraUniforms.fov.y,
+                             aspectRatio,
+                             nodeCameraUniforms.znear,
+                             nodeCameraUniforms.zfar);
+}
+
+float4x4 perspectiveMatrix(float fov, float aspect, float near, float far) {
+    float f = 1.0 / tan(fov / 2.0);
+    return float4x4(float4(f / aspect, 0,  0,  0),
+                    float4(0, f,  0,  0),
+                    float4(0, 0, far / (far - near), 1),
+                    float4(0, 0, -far * near / (far - near), 0)
+                    );
 }

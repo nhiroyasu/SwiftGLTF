@@ -14,6 +14,7 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     @Published var isLoading: Bool = false
     @Published var selectedSceneIndex: Int? = nil
     @Published var selectedAnimationIndex: Int? = nil
+    @Published var selectedCameraIndex: Int? = nil
     @Published var gltf: GLTF?
 
     #if os(iOS)
@@ -114,6 +115,26 @@ class GLTFViewModel: ObservableObject, DropDelegate {
             } else {
                 return "Animation: None"
             }
+        }
+    }
+
+    var cameraIndex: Int? {
+        if let cameras = gltf?.cameras, let selectedCameraIndex {
+            return min(max(selectedCameraIndex, 0), cameras.count - 1)
+        } else {
+            return nil
+        }
+    }
+
+    var cameraCount: Int {
+        gltf?.cameras?.count ?? 0
+    }
+
+    var cameraMenuLabel: String {
+        if let selectedCameraIndex {
+            return "Camera: \(selectedCameraIndex)"
+        } else {
+            return "Camera: Free"
         }
     }
 }

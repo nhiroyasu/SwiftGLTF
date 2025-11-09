@@ -7,7 +7,7 @@ import SwiftGLTFParser
 import SwiftGLTFShaderTypes
 @testable import SwiftGLTFRenderer
 
-final class AnimationTests {
+final class CameraTests {
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
     let renderer: PBRRenderer
@@ -34,8 +34,7 @@ final class AnimationTests {
     func renderMesh(
         to output: MTLTexture,
         meshURL: URL,
-        eye: SIMD3<Float>,
-        animationState: RendererAnimationState
+        cameraIndex: Int
     ) async throws {
         let viewport = MTLViewport(
             originX: 0,
@@ -46,6 +45,7 @@ final class AnimationTests {
             zfar: 1
         )
         // Create view-projection matrix buffer
+        let eye: SIMD3<Float> = SIMD3<Float>(-1.41, 1.41, -1.41)
         let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
         let aspect: Float = Float(viewport.width / max(viewport.height, 1))
         let fovY = Float.pi / 3.0
@@ -57,8 +57,9 @@ final class AnimationTests {
             length: MemoryLayout<simd_float4x4>.size,
             options: .storageModeShared
         )!
+        var bCameraIndex = cameraIndex
         let cameraIndexBuffer = device.makeBuffer(
-            bytes: [Int(-1)],
+            bytes: &bCameraIndex,
             length: MemoryLayout<Int>.size,
             options: .storageModeShared
         )!
@@ -118,7 +119,6 @@ final class AnimationTests {
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
 
-        let fence = renderer.animation(commandBuffer: cmdBuf, animationState: animationState)
         renderer.render(
             commandBuffer: cmdBuf,
             renderPassDescriptor: passDesc,
@@ -129,8 +129,7 @@ final class AnimationTests {
             cameraIndexBuffer: cameraIndexBuffer,
             freeCameraUniformsBuffer: freeCameraUniformsBuffer,
             modelMatrixBuffer: modelMatrixBuffer,
-            showsSkybox: false,
-            waitFence: fence
+            showsSkybox: false
         )
 
         cmdBuf.commit()
@@ -139,32 +138,26 @@ final class AnimationTests {
 
     // MARK: - Export golden images
 
-    let goldenFilePrefix = "golden_animation_mesh_"
-    let outputFilePrefix = "animation_mesh_"
-    let meshFiles: [(String, String, SIMD3<Float>)] = [
-        // Mesh name, extension, eye
-        ("AnimatedColorsCube", "glb", SIMD3<Float>(-5.66, 5.66, -5.66)),
-        ("AnimatedMorphCube", "glb", SIMD3<Float>(-2.83, 2.83, -2.83))
+    let goldenFilePrefix = "golden_camera_mesh_"
+    let outputFilePrefix = "camera_mesh_"
+    let meshFiles: [(String, String, Int)] = [
+        // Mesh name, extension, camera
+        ("Cameras", "gltf", -1),
+        ("Cameras", "gltf", 0),
     ]
 
 
-    let time: Float = 4
-    let interval: Float = 0.4
-    var currentTime: Float = 0.0
     // Export baseline textures
     // These should be run manually to generate expected textures
     @Test
     func ExportGoldenImages() async throws {
         guard EXPORT_GOLDEN_IMAGES_FLAG, !isCI() else { return }
 
-        while time > currentTime {
-            for (meshName, ext, eye) in meshFiles {
-                let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
-                let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-                try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
-                try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName)_\(String(format: "%.1f", currentTime)).png")
-            }
-            currentTime += interval
+        for (meshName, ext, cameraIndex) in meshFiles {
+            let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
+            let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
+            try await renderMesh(to: meshTarget, meshURL: meshURL, cameraIndex: cameraIndex)
+            try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName)_\(String(cameraIndex)).png")
         }
     }
 
@@ -175,19 +168,20 @@ final class AnimationTests {
         // This rendering test is not run on CI because it depends on the GPU and the supported Metal version.
         guard !isCI() else { return }
 
-        while time > currentTime {
-            for (meshName, ext, eye) in meshFiles {
-                let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
-                let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-                try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
+        for (meshName, ext, cameraIndex) in meshFiles {
+            let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
+            let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
+            try await renderMesh(
+                to: meshTarget,
+                meshURL: meshURL,
+                cameraIndex: cameraIndex
+            )
 
-                assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)_\(String(format: "%.1f", currentTime))")
+            assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)_\(String(cameraIndex))")
 
-                if EXPORT_OUTPUT_IMAGES_FLAG, !isCI() {
-                    try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName)_\(String(format: "%.1f", currentTime)).png")
-                }
+            if EXPORT_OUTPUT_IMAGES_FLAG, !isCI() {
+                try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName)_\(String(cameraIndex)).png")
             }
-            currentTime += interval
         }
     }
 }

@@ -144,6 +144,12 @@ class PBRMeshLoader {
 
         let boundingSpheresBuffer = try shaderConnection.computeBoundingSpheres(meshes: pbrMeshes)
 
+        let cameraUniformsBuffer = makeCameraUniformsBuffer(
+            from: asset,
+            cameraLevelNodes: nodeLevelHierarchy.cameraLevelNodes,
+            cameraIndices: nodeLevelHierarchy.cameraIndices
+        )
+
         return PBRMeshBundle(
             meshes: pbrMeshes,
             opaqueMeshes: pbrMeshes.filter { $0.renderingType == .opaque },
@@ -162,6 +168,7 @@ class PBRMeshLoader {
             nodeLevelHierarchy: nodeLevelHierarchy,
             originMorphWeights: morphWeights,
             morphDispatches: morphDispatches,
+            nodeCameraUniformsBuffer: cameraUniformsBuffer,
             vertexResources: pbrMeshes.flatMap({ $0.vertexResources }).compactMap({ $0 }),
             vertexHeaps: [vertexMeshHeap].compactMap({ $0 }),
             fragmentHeaps: [texturesHeap, fragmentHeap].compactMap({ $0 }),
@@ -777,9 +784,13 @@ class PBRMeshLoader {
         textureMap: [MDLTexture: MTLTexture],
         pipelineConnector: PBRPipelineConnector,
         fragmentHeap: MTLHeap
-    ) throws -> (buffer: MTLBuffer?, resources: [Any?]) {
+    ) throws -> (buffer: MTLBuffer, resources: [Any?]) {
         let gltfMaterials = asset.objectSafe(atPath: GLTFAssetPath.materials) as? GLTFMaterials
-        guard let gltfMaterials, !gltfMaterials.materials.isEmpty else { return (nil, [] ) }
+        guard let gltfMaterials, !gltfMaterials.materials.isEmpty else {
+            let encoder = pipelineConnector.makeFragmentArgumentEncoder()
+            let dummy = try pipelineConnector.makeFragmentArgumentBuffer(encoder: encoder, argCount: 1)
+            return (dummy, [])
+        }
 
         var resources: [Any?] = []
 
@@ -1121,4 +1132,60 @@ class PBRMeshLoader {
         return storedResources
     }
 
+    func makeCameraUniformsBuffer(
+        from asset: MDLAsset,
+        cameraLevelNodes: [NodeHierarchyOffset],
+        cameraIndices: [CameraIndex]
+    ) -> MTLBuffer {
+        guard let gltfCameras = asset.objectSafe(atPath: GLTFAssetPath.cameras) else {
+            var dummy: NodeCameraUniforms = .init(
+                nodeHierarchyOffset: 0,
+                fov: SIMD2<Float>(0, 0),
+                aspectRatio: -1,
+                znear: 0,
+                zfar: 1
+            )
+            return device.makeBuffer(
+                bytes: &dummy,
+                length: MemoryLayout<NodeCameraUniforms>.size
+            )!
+        }
+        let cameras: [MDLCamera] = gltfCameras.children.objects.compactMap({ $0 as? MDLCamera })
+
+        var cameraUniformsArray: [NodeCameraUniforms] = []
+        for (cameraIndex, cameraLevelNode) in zip(cameraIndices, cameraLevelNodes) {
+            let camera = cameras[cameraIndex.value]
+            if camera.projection == .perspective {
+                let yfov = camera.fieldOfView * .pi / 180.0
+                let cameraUniforms = NodeCameraUniforms(
+                    nodeHierarchyOffset: Int64(cameraLevelNode),
+                    fov: SIMD2<Float>(xfov(yfov: yfov, aspect: camera.sensorAspect), yfov),
+                    aspectRatio: camera.sensorAspect,
+                    znear: camera.nearVisibilityDistance,
+                    zfar: camera.farVisibilityDistance
+                )
+                cameraUniformsArray.append(cameraUniforms)
+            }
+        }
+
+        if !cameraUniformsArray.isEmpty {
+            let cameraUniformsBuffer = device.makeBuffer(
+                bytes: cameraUniformsArray,
+                length: MemoryLayout<NodeCameraUniforms>.size * cameraUniformsArray.count
+            )!
+            return cameraUniformsBuffer
+        } else {
+            var dummy: NodeCameraUniforms = .init(
+                nodeHierarchyOffset: 0,
+                fov: SIMD2<Float>(0, 0),
+                aspectRatio: -1,
+                znear: 0,
+                zfar: 1
+            )
+            return device.makeBuffer(
+                bytes: &dummy,
+                length: MemoryLayout<NodeCameraUniforms>.size
+            )!
+        }
+    }
 }

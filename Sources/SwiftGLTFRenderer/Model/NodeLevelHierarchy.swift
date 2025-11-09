@@ -1,5 +1,7 @@
 import ModelIO
 import os.log
+import SwiftGLTFCore
+import SwiftGLTFParser
 
 /// Hierarchy representation of node tree for model matrix calculation in shaders.
 ///
@@ -28,6 +30,10 @@ struct NodeLevelHierarchy {
     let indexToObject: [MDLObject]
     let objectToIndex: [ObjectIdentifier: NodeHierarchyOffset]
 
+    // options
+    let cameraLevelNodes: [NodeHierarchyOffset]
+    let cameraIndices: [CameraIndex]
+
     var maxDepth: Int { levelCounts.count }
 
     func copy(localTransforms: [float4x4]) -> NodeLevelHierarchy {
@@ -39,7 +45,9 @@ struct NodeLevelHierarchy {
             levelCounts: levelCounts,
             localTransforms: localTransforms,
             indexToObject: indexToObject,
-            objectToIndex: objectToIndex
+            objectToIndex: objectToIndex,
+            cameraLevelNodes: cameraLevelNodes,
+            cameraIndices: cameraIndices
         )
     }
 }
@@ -56,6 +64,8 @@ func makeNodeLevelHierarchy(root: MDLObject) -> NodeLevelHierarchy {
     var levelStarts: [Int] = []
     var levelCounts: [Int] = []
     var localTransforms: [float4x4] = []
+    var cameraLevelNodes: [Int] = []
+    var cameraIndices: [CameraIndex] = []
 
     // 訪問済み（防御：循環/重複参照を避ける）
     var visited: Set<ObjectIdentifier> = []
@@ -80,6 +90,10 @@ func makeNodeLevelHierarchy(root: MDLObject) -> NodeLevelHierarchy {
 
             parentIndex.append(p)
             levelNodes.append(idx)
+            if let cameraNode = obj as? GLTFCameraNode {
+                cameraLevelNodes.append(idx)
+                cameraIndices.append(cameraNode.cameraIndex)
+            }
             localTransforms.append(obj.transform?.matrix ?? float4x4(1))
         }
         levelStarts.append(start)
@@ -108,6 +122,9 @@ func makeNodeLevelHierarchy(root: MDLObject) -> NodeLevelHierarchy {
         levelCounts: levelCounts,
         localTransforms: localTransforms,
         indexToObject: indexToObject,
-        objectToIndex: objectToIndex
+        objectToIndex: objectToIndex,
+        // options
+        cameraLevelNodes: cameraLevelNodes,
+        cameraIndices: cameraIndices
     )
 }

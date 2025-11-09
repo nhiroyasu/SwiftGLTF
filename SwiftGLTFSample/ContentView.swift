@@ -13,6 +13,7 @@ struct ContentView: View {
                     url: url,
                     sceneIndex: viewModel.sceneIndex,
                     animationIndex: viewModel.animationIndex,
+                    cameraIndex: viewModel.cameraIndex,
                     environmentUrl: Bundle.main.url(forResource: "env_map", withExtension: "exr")!,
                     modelBinding: $viewModel.gltf,
                     showDebugHUD: true
@@ -53,6 +54,19 @@ struct ContentView: View {
                     }
                 } label: {
                     Text(viewModel.animationMenuLabel)
+                }
+
+                Menu {
+                    Button("Camera: Free") {
+                        viewModel.selectedCameraIndex = nil
+                    }
+                    ForEach(0..<viewModel.cameraCount, id: \.self) { index in
+                        Button("Camera: \(index)") {
+                            viewModel.selectedCameraIndex = index
+                        }
+                    }
+                } label: {
+                    Text(viewModel.cameraMenuLabel)
                 }
             }
 

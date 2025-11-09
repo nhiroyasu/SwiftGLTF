@@ -19,6 +19,10 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                     constant PBREnvMapArguments &envMapArgs [[buffer(PBRFragmentShaderEnvMapArgsBuffer)]],
                                     constant SceneUniforms &scene [[buffer(PBRFragmentShaderSceneUniformsBuffer)]],
                                     constant PBRScreenColorArguments &scArgs [[buffer(PBRFragmentShaderScreenColorBuffer)]],
+                                    constant float4x4* worldTransforms [[buffer(PBRFragmentShaderWorldTransformsBuffer)]],
+                                    constant int64_t &cameraIndex [[buffer(PBRFragmentShaderCameraIndexBuffer)]],
+                                    constant FreeCameraUniforms &freeCameraUniforms [[buffer(PBRFragmentShaderFreeCameraUniformsBuffer)]],
+                                    constant NodeCameraUniforms* nodeCameraUniforms [[buffer(PBRFragmentShaderNodeCameraUniformsBuffer)]],
                                     bool isFrontFacing [[front_facing]])
 {
     PBRFragmentArguments fragArgs = (fragArgsPtrIndex >= 0)
@@ -208,6 +212,17 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     float3 sigma_a = attenDist > 0.0 ? -log(attColor) / attenDist : float3(0.0);
     float3 attenuation = thickness > 0.0 ? exp(-sigma_a * thickness) : float3(1.0);
 
+    // Resolved camera parameters
+    float4x4 viewMatrix = cameraIndex >= 0
+    ? inverse_affine(worldTransforms[nodeCameraUniforms[cameraIndex].nodeHierarchyOffset])
+    : freeCameraUniforms.viewMatrix;
+    float2 fov = cameraIndex >= 0
+    ? nodeCameraUniforms[cameraIndex].fov
+    : freeCameraUniforms.fov;
+    float3 camRight = float3(1, 0, 0); // TODO: It is unclear whether it is necessary.
+    float3 camUp = float3(0, 1, 0); // TODO: It is unclear whether it is necessary.
+    float3 viewPosition = inverse_affine(viewMatrix).columns[3].xyz;
+
     // Background color from previous pass (with refraction offset)
     float maxMip = scArgs.useSceneColor ? scArgs.sceneColorTexture.get_num_mip_levels() - 1 : 0;
     float lod = clamp(roughness * maxMip, 0.0, maxMip);
@@ -222,16 +237,15 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
                                              thickness,
                                              ior,
                                              in.positionVS,
-                                             scene.fov,
+                                             fov,
                                              scene.viewportSize,
-                                             scene.camRight,
-                                             scene.camUp);
+                                             camRight,
+                                             camUp);
     float3 Lbg = scArgs.useSceneColor
     ? scArgs.sceneColorTexture.sample(scArgs.sceneColorSampler, screenUV + dUV, level(lod)).rgb
     : float3(0.0);
 
     float3 worldPosition = in.worldPosition;
-    float3 viewPosition = scene.viewPosition;
 
     constexpr sampler brdfLUTSampler(mag_filter::linear, min_filter::linear, s_address::clamp_to_edge, t_address::clamp_to_edge);
 

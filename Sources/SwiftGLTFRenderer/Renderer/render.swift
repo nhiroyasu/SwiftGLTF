@@ -4,13 +4,20 @@ import SwiftGLTFShaderTypes
 func drawSkybox(
     renderEncoder: MTLRenderCommandEncoder,
     mesh: SkyboxMesh,
-    mvpUniformBuffer: MTLBuffer,
+    worldTransformBuffer: MTLBuffer,
+    cameraIndexBuffer: MTLBuffer,
+    freeCameraUniformsBuffer: MTLBuffer,
+    nodeCameraUniformsBuffer: MTLBuffer,
     specularCubeMapTexture: MTLTexture
 ) {
     renderEncoder.setRenderPipelineState(mesh.pso)
     renderEncoder.setDepthStencilState(mesh.dso)
     renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-    renderEncoder.setVertexBuffer(mvpUniformBuffer, offset: 0, index: 1)
+    renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: 1)
+    renderEncoder.setVertexBuffer(cameraIndexBuffer, offset: 0, index: 2)
+    renderEncoder.setVertexBuffer(freeCameraUniformsBuffer, offset: 0, index: 3)
+    renderEncoder.setVertexBuffer(nodeCameraUniformsBuffer, offset: 0, index: 4)
+
     renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
 
     renderEncoder.drawIndexedPrimitives(
@@ -41,10 +48,13 @@ func drawPBRScreen(
     inverseBindMatricesBuffer: MTLBuffer,
     morphWeightsBuffer: MTLBuffer,
     morphDispatchesBuffer: MTLBuffer,
+    cameraIndexBuffer: MTLBuffer,
+    freeCameraUniformsBuffer: MTLBuffer,
+    nodeCameraUniformsBuffer: MTLBuffer,
     materialBuffer: MTLBuffer?,
     envMapArgBuffer: MTLBuffer,
     fragmentParams: MTLBuffer,
-    mvpUniformBuffer: MTLBuffer,
+    modelMatrixBuffer: MTLBuffer,
     screenColorArgsBuffer: MTLBuffer,
     viewPos: SIMD3<Float>
 ) {
@@ -52,12 +62,16 @@ func drawPBRScreen(
     renderEncoder.useResources(vertexResources, usage: .read, stages: .vertex)
     renderEncoder.useHeaps(vertexHeaps, stages: .vertex)
     renderEncoder.useHeaps(fragmentHeaps, stages: .fragment)
-    renderEncoder.setVertexBuffer(mvpUniformBuffer, offset: 0, index: 2)
-    renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: 3)
-    renderEncoder.setVertexBuffer(jointsBuffer, offset: 0, index: 4)
-    renderEncoder.setVertexBuffer(inverseBindMatricesBuffer, offset: 0, index: 5)
-    renderEncoder.setVertexBuffer(morphWeightsBuffer, offset: 0, index: 6)
-    renderEncoder.setVertexBuffer(morphDispatchesBuffer, offset: 0, index: 7)
+    renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: PBRVertexShaderWorldTransformsBuffer.index)
+    renderEncoder.setVertexBuffer(jointsBuffer, offset: 0, index: PBRVertexShaderSkinJointsBuffer.index)
+    renderEncoder.setVertexBuffer(inverseBindMatricesBuffer, offset: 0, index: PBRVertexShaderSkinInverseBindMatricesBuffer.index)
+    renderEncoder.setVertexBuffer(morphWeightsBuffer, offset: 0, index: PBRVertexShaderMorphWeightsBuffer.index)
+    renderEncoder.setVertexBuffer(morphDispatchesBuffer, offset: 0, index: PBRVertexShaderMorphDispatchesBuffer.index)
+    renderEncoder.setVertexBuffer(cameraIndexBuffer, offset: 0, index: PBRVertexShaderCameraIndexBuffer.index)
+    renderEncoder.setVertexBuffer(freeCameraUniformsBuffer, offset: 0, index: PBRVertexShaderFreeCameraUniformsBuffer.index)
+    renderEncoder.setVertexBuffer(nodeCameraUniformsBuffer, offset: 0, index: PBRVertexShaderNodeCameraUniformsBuffer.index)
+    renderEncoder.setVertexBuffer(modelMatrixBuffer, offset: 0, index: PBRVertexShaderModelMatrixBuffer.index)
+    
     renderEncoder.setFragmentBuffer(
         envMapArgBuffer,
         offset: 0,
@@ -77,6 +91,26 @@ func drawPBRScreen(
         materialBuffer,
         offset: 0,
         index: PBRFragmentShaderArgsPtrBuffer.index
+    )
+    renderEncoder.setFragmentBuffer(
+        worldTransformBuffer,
+        offset: 0,
+        index: PBRFragmentShaderWorldTransformsBuffer.index
+    )
+    renderEncoder.setFragmentBuffer(
+        cameraIndexBuffer,
+        offset: 0,
+        index: PBRFragmentShaderCameraIndexBuffer.index
+    )
+    renderEncoder.setFragmentBuffer(
+        freeCameraUniformsBuffer,
+        offset: 0,
+        index: PBRFragmentShaderFreeCameraUniformsBuffer.index
+    )
+    renderEncoder.setFragmentBuffer(
+        nodeCameraUniformsBuffer,
+        offset: 0,
+        index: PBRFragmentShaderNodeCameraUniformsBuffer.index
     )
 
     renderEncoder.setRenderPipelineState(opaquePSO)
@@ -100,8 +134,8 @@ func drawPBRScreen(
 
 func _drawPrimitives(renderEncoder: MTLRenderCommandEncoder, meshes: [PBRMesh]) {
     for mesh in meshes {
-        renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-        renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: 1)
+        renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: PBRVertexShaderMeshVertexBuffer.index)
+        renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: PBRVertexShaderArgsBuffer.index)
         for submesh in mesh.submeshes {
             var materialIndex = submesh.materialIndex
             renderEncoder.setFragmentBytes(
@@ -138,8 +172,8 @@ func _drawPrimitivesWithSort(
 
     for item in drawItems {
         let mesh = meshes[item.meshIndex]
-        renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
-        renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: 1)
+        renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: PBRVertexShaderMeshVertexBuffer.index)
+        renderEncoder.setVertexBuffer(mesh.vertexArgumentBuffer, offset: 0, index: PBRVertexShaderArgsBuffer.index)
         for submesh in mesh.submeshes {
             var materialIndex = submesh.materialIndex
             renderEncoder.setFragmentBytes(
@@ -214,22 +248,29 @@ func drawPBRTransmission(
     inverseBindMatricesBuffer: MTLBuffer,
     morphWeightsBuffer: MTLBuffer,
     morphDispatchesBuffer: MTLBuffer,
+    cameraIndexBuffer: MTLBuffer,
+    freeCameraUniformsBuffer: MTLBuffer,
+    nodeCameraUniformsBuffer: MTLBuffer,
     materialBuffer: MTLBuffer?,
     envMapArgBuffer: MTLBuffer,
     fragmentParams: MTLBuffer,
-    mvpUniformBuffer: MTLBuffer,
+    modelMatrixBuffer: MTLBuffer,
     screenColorArgsBuffer: MTLBuffer,
     viewPos: SIMD3<Float>
 ) {
     renderEncoder.setFrontFacing(.counterClockwise)
     renderEncoder.useHeaps(vertexResources, stages: .vertex)
     renderEncoder.useHeaps(fragmentResources, stages: .fragment)
-    renderEncoder.setVertexBuffer(mvpUniformBuffer, offset: 0, index: 2)
-    renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: 3)
-    renderEncoder.setVertexBuffer(jointsBuffer, offset: 0, index: 4)
-    renderEncoder.setVertexBuffer(inverseBindMatricesBuffer, offset: 0, index: 5)
-    renderEncoder.setVertexBuffer(morphWeightsBuffer, offset: 0, index: 6)
-    renderEncoder.setVertexBuffer(morphDispatchesBuffer, offset: 0, index: 7)
+    renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: PBRVertexShaderWorldTransformsBuffer.index)
+    renderEncoder.setVertexBuffer(jointsBuffer, offset: 0, index: PBRVertexShaderSkinJointsBuffer.index)
+    renderEncoder.setVertexBuffer(inverseBindMatricesBuffer, offset: 0, index: PBRVertexShaderSkinInverseBindMatricesBuffer.index)
+    renderEncoder.setVertexBuffer(morphWeightsBuffer, offset: 0, index: PBRVertexShaderMorphWeightsBuffer.index)
+    renderEncoder.setVertexBuffer(morphDispatchesBuffer, offset: 0, index: PBRVertexShaderMorphDispatchesBuffer.index)
+    renderEncoder.setVertexBuffer(cameraIndexBuffer, offset: 0, index: PBRVertexShaderCameraIndexBuffer.index)
+    renderEncoder.setVertexBuffer(freeCameraUniformsBuffer, offset: 0, index: PBRVertexShaderFreeCameraUniformsBuffer.index)
+    renderEncoder.setVertexBuffer(nodeCameraUniformsBuffer, offset: 0, index: PBRVertexShaderNodeCameraUniformsBuffer.index)
+    renderEncoder.setVertexBuffer(modelMatrixBuffer, offset: 0, index: PBRVertexShaderModelMatrixBuffer.index)
+
     renderEncoder.setFragmentBuffer(
         envMapArgBuffer,
         offset: 0,
@@ -250,6 +291,27 @@ func drawPBRTransmission(
         offset: 0,
         index: PBRFragmentShaderArgsPtrBuffer.index
     )
+    renderEncoder.setFragmentBuffer(
+        worldTransformBuffer,
+        offset: 0,
+        index: PBRFragmentShaderWorldTransformsBuffer.index
+    )
+    renderEncoder.setFragmentBuffer(
+        cameraIndexBuffer,
+        offset: 0,
+        index: PBRFragmentShaderCameraIndexBuffer.index
+    )
+    renderEncoder.setFragmentBuffer(
+        freeCameraUniformsBuffer,
+        offset: 0,
+        index: PBRFragmentShaderFreeCameraUniformsBuffer.index
+    )
+    renderEncoder.setFragmentBuffer(
+        nodeCameraUniformsBuffer,
+        offset: 0,
+        index: PBRFragmentShaderNodeCameraUniformsBuffer.index
+    )
+
 
     renderEncoder.setRenderPipelineState(pso)
     renderEncoder.setDepthStencilState(dso)
@@ -268,14 +330,16 @@ func drawWireframe(
     pipelineState: MTLRenderPipelineState,
     depthStencilState: MTLDepthStencilState,
     meshes: [WireframeMesh],
-    mvpUniformBuffer: MTLBuffer,
-    worldTransformBuffer: MTLBuffer
+    modelBuffer: MTLBuffer,
+    worldTransformBuffer: MTLBuffer,
+    freeCameraUniformsBuffer: MTLBuffer
 ) {
     renderEncoder.setTriangleFillMode(.lines)
     renderEncoder.setRenderPipelineState(pipelineState)
     renderEncoder.setDepthStencilState(depthStencilState)
-    renderEncoder.setVertexBuffer(mvpUniformBuffer, offset: 0, index: 1)
+    renderEncoder.setVertexBuffer(modelBuffer, offset: 0, index: 1)
     renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: 2)
+    renderEncoder.setVertexBuffer(freeCameraUniformsBuffer, offset: 0, index: 4)
     for mesh in meshes {
         renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
         var transformIndex: Int = mesh.transformIndex

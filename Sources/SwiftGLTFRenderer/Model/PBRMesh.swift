@@ -19,7 +19,7 @@ struct PBRMeshBundle {
     let boundingSpheresBuffer: MTLBuffer
 
     // Materials
-    let materialBuffer: MTLBuffer?
+    let materialBuffer: MTLBuffer
     let materialResources: [Any?]
 
     // Animation
@@ -29,6 +29,9 @@ struct PBRMeshBundle {
     let nodeLevelHierarchy: NodeLevelHierarchy
     let originMorphWeights: [Float]
     let morphDispatches: [MorphDispatch]
+
+    // Cameras
+    let nodeCameraUniformsBuffer: MTLBuffer
 
     // Resources
     let vertexResources: [MTLResource]

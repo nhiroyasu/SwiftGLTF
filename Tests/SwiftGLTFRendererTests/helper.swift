@@ -2,6 +2,7 @@ import Foundation
 import MetalKit
 import UniformTypeIdentifiers
 import Testing
+import SwiftGLTFShaderTypes
 
 // If you want to export golden images, manually set this flag to true and run the test.
 let EXPORT_GOLDEN_IMAGES_FLAG = false
@@ -108,4 +109,30 @@ func assertEqual(output: MTLTexture, goldenName: String) {
         mismatchCount <= maxAllowedMismatchedPixels,
         "Output differs from golden image \(goldenName).png with \(mismatchCount) mismatched bytes (tolerance=\(tolerance))"
     )
+}
+
+func worldTransformDummyBuffer(device: MTLDevice) -> MTLBuffer {
+    var worldTransformDummy: [float4x4] = [float4x4(1)]
+    let worldTransformBuffer = device.makeBuffer(
+        bytes: &worldTransformDummy,
+        length: MemoryLayout<float4x4>.size,
+        options: .storageModeShared
+    )!
+    return worldTransformBuffer
+}
+
+func nodeCameraUniformsDummyBuffer(device: MTLDevice) -> MTLBuffer {
+    var nodeCameraUniformsDummy: [NodeCameraUniforms] = [.init(
+        nodeHierarchyOffset: 0,
+        fov: SIMD2<Float>(0, 0),
+        aspectRatio: 1.0,
+        znear: 0.0,
+        zfar: 1.0
+    )]
+    let nodeCameraUniformsBuffer = device.makeBuffer(
+        bytes: &nodeCameraUniformsDummy,
+        length: MemoryLayout<NodeCameraUniforms>.size,
+        options: .storageModeShared
+    )!
+    return nodeCameraUniformsBuffer
 }

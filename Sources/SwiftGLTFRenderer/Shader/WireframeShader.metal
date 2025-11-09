@@ -15,13 +15,14 @@ struct WireframeVertexArguments {
 };
 
 vertex VertexOut_Wireframe wireframe_vertex_shader(VertexIn_Wireframe in [[stage_in]],
-                                                   constant MVPUniform &mvp [[buffer(1)]],
+                                                   constant float4x4 &modelTransform [[buffer(1)]],
                                                    constant float4x4* worldTransforms [[buffer(2)]],
-                                                   constant int64_t &transformIndex [[buffer(3)]])
+                                                   constant int64_t &transformIndex [[buffer(3)]],
+                                                   constant FreeCameraUniforms &camera [[buffer(4)]])
 {
     VertexOut_Wireframe out;
 
-    float4x4 mvpMatrix = mvp.projection * mvp.view * worldTransforms[transformIndex];
+    float4x4 mvpMatrix = camera.projectionMatrix * camera.viewMatrix * worldTransforms[transformIndex];
 
     out.position = mvpMatrix * float4(in.position, 1.0);
     return out;
