@@ -143,7 +143,8 @@ var body: some View {
 ### Cameras
 | Feature                 | Supported |
 |-------------------------|-----------|
-| Camera                  | ❌         |
+| Perspective             | ✅        |
+| Orthographic            | ✅        |
 
 ## Build
 ### Sample Project
