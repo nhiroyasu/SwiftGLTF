@@ -2,7 +2,7 @@
 glTFおよびGLBファイルをSwiftで利用できるようにするプロジェクト
 
 <div>
-    <img height="200" alt="preview1" src="https://github.com/user-attachments/assets/cc06cb52-4cd2-4957-87e9-e2083c264a04" />
+    <img height="400" alt="preview1" src="https://github.com/user-attachments/assets/c84b561e-7260-4221-8535-b3b894dfe660" />
     <img height="200" alt="preview1" src="https://github.com/user-attachments/assets/9bc8de85-b574-431e-ac05-49439461c704" />
     <img height="200" alt="preview2" src="https://github.com/user-attachments/assets/bb2c9ec4-66b3-4c34-baa7-ae36f04624d1" />
 </div>
