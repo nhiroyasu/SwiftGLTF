@@ -42,6 +42,8 @@ public class PBRRenderer {
     private var sceneTransmissionTexture: MTLTexture? = nil
     private var screenPrefilterTexture: MTLTexture? = nil // mip-chain prefiltered scene for rough transmission
     private var sceneDepthMSAATexture: MTLTexture? = nil
+    private var screenColorArgBuffer: MTLBuffer? = nil
+    private let notUsedScreenColorArgBuffer: MTLBuffer
     private let sceneColorSampler: MTLSamplerState
     private var screenColorRPD: MTLRenderPassDescriptor? = nil
     private var transmissionRPD: MTLRenderPassDescriptor? = nil
@@ -148,6 +150,9 @@ public class PBRRenderer {
         composeDesc.depthAttachmentPixelFormat = depthPixelFormat
         composeDesc.rasterSampleCount = sampleCount
         self.composePipelineState = try device.makeRenderPipelineState(descriptor: composeDesc)
+
+        // Dummy screen color arg buffer
+        notUsedScreenColorArgBuffer = pipelineConnector.makeScreenColorArgDummy()
     }
 
     // MARK: - Rendering
@@ -363,7 +368,7 @@ public class PBRRenderer {
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams,
             modelMatrixBuffer: modelMatrixBuffer,
-            screenColorArgsBuffer: pipelineConnector.makeScreenColorArgDummy(),
+            screenColorArgsBuffer: notUsedScreenColorArgBuffer,
             viewPos: viewPos
         )
         renderEncoder.endEncoding()
@@ -379,10 +384,11 @@ public class PBRRenderer {
         freeCameraUniformsBuffer: MTLBuffer,
         modelMatrixBuffer: MTLBuffer
     ) {
-        let sceneColorArgBuffer = pipelineConnector.makeScreenColorArgBuffer(
-            sceneColor: screenPrefilterTexture,
-            sceneColorSampler: sceneColorSampler
-        )
+        guard let screenColorArgBuffer = self.screenColorArgBuffer else {
+            os_log("screen color argument buffer is not available", type: .error)
+            renderEncoder.endEncoding()
+            return
+        }
         renderEncoder.useResources([screenPrefilterTexture], usage: .read, stages: .fragment) // TODO: move to heap
 
         drawPBRTransmission(
@@ -405,7 +411,7 @@ public class PBRRenderer {
             envMapArgBuffer: envMapArgBuffer,
             fragmentParams: fragmentParams,
             modelMatrixBuffer: modelMatrixBuffer,
-            screenColorArgsBuffer: sceneColorArgBuffer,
+            screenColorArgsBuffer: screenColorArgBuffer,
             viewPos: viewPos
         )
         renderEncoder.endEncoding()
@@ -498,6 +504,14 @@ public class PBRRenderer {
         prefilDesc.usage = [.shaderRead, .shaderWrite]
         prefilDesc.storageMode = .shared
         self.screenPrefilterTexture = device.makeTexture(descriptor: prefilDesc)
+        if let screenPrefilterTexture = self.screenPrefilterTexture {
+            self.screenColorArgBuffer = pipelineConnector.makeScreenColorArgBuffer(
+                sceneColor: screenPrefilterTexture,
+                sceneColorSampler: sceneColorSampler
+            )
+        } else {
+            self.screenColorArgBuffer = nil
+        }
     }
 
     // MARK: - Update states
