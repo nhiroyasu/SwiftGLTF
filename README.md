@@ -4,7 +4,7 @@
 A project that enables using glTF files in Swift.
 
 <div>
-    <img height="400" alt="preview1" src="https://github.com/user-attachments/assets/8e48f43c-db0e-4aa8-8ee6-cf1c179a988c" />
+    <img height="400" alt="preview1" src="https://github.com/user-attachments/assets/c84b561e-7260-4221-8535-b3b894dfe660" />
     <img height="400" alt="preview2" src="https://github.com/user-attachments/assets/ca5b82de-4fc1-4b0e-8a61-dc1c855a1e3b" />
     <img height="400" alt="preview1" src="https://github.com/user-attachments/assets/9bc8de85-b574-431e-ac05-49439461c704" />
 </div>
