@@ -9,13 +9,16 @@
 using namespace metal;
 
 vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
-                                      constant PBRVertexArguments &args [[buffer(1)]],
-                                      constant MVPUniform &mvp [[buffer(2)]],
-                                      constant float4x4* worldTransforms [[buffer(3)]],
-                                      constant int64_t* skinJoints [[buffer(4)]],
-                                      constant float4x4* skinInverseBindMatrices [[buffer(5)]],
-                                      constant float* morphWeights [[buffer(6)]],
-                                      constant MorphDispatch* morphDispatches [[buffer(7)]],
+                                      constant PBRVertexArguments &args [[buffer(PBRVertexShaderArgsBuffer)]],
+                                      constant float4x4* worldTransforms [[buffer(PBRVertexShaderWorldTransformsBuffer)]],
+                                      constant int64_t* skinJoints [[buffer(PBRVertexShaderSkinJointsBuffer)]],
+                                      constant float4x4* skinInverseBindMatrices [[buffer(PBRVertexShaderSkinInverseBindMatricesBuffer)]],
+                                      constant float* morphWeights [[buffer(PBRVertexShaderMorphWeightsBuffer)]],
+                                      constant MorphDispatch* morphDispatches [[buffer(PBRVertexShaderMorphDispatchesBuffer)]],
+                                      constant int64_t &cameraIndex [[buffer(PBRVertexShaderCameraIndexBuffer)]],
+                                      constant FreeCameraUniforms &freeCameraUniforms [[buffer(PBRVertexShaderFreeCameraUniformsBuffer)]],
+                                      constant NodeCameraUniforms* nodeCameraUniforms [[buffer(PBRVertexShaderNodeCameraUniformsBuffer)]],
+                                      constant float4x4 &rootModelMatrix [[buffer(PBRVertexShaderModelMatrixBuffer)]],
                                       uint vid [[vertex_id]])
 {
     PBRVertexOut out;
@@ -34,16 +37,24 @@ vertex PBRVertexOut pbr_vertex_shader(VertexIn in [[stage_in]],
     float4x4 skinMatrix = args.skinDispatch.offset != -1
     ? compute_skin_matrix(worldTransforms, skinJoints, skinInverseBindMatrices, inverseWorldTransform, args.skinDispatch, in.joints, in.weights)
     : float4x4(1.0);
-    float4x4 modelTransform = mvp.externalTransform * worldTransform * skinMatrix;
-    float4x4 mvpTransform = mvp.projection * mvp.view * modelTransform;
+
+    // TODO: cameraIndex may exceed the count of nodeCameraUniforms(fragment and skybox too)
+    float4x4 view = cameraIndex >= 0
+    ? inverse_affine(worldTransforms[nodeCameraUniforms[cameraIndex].nodeHierarchyOffset])
+    : freeCameraUniforms.viewMatrix;
+    float4x4 projection = cameraIndex >= 0
+    ? projectionMatrix(nodeCameraUniforms[cameraIndex], freeCameraUniforms.aspectRatio)
+    : freeCameraUniforms.projectionMatrix;
+    float4x4 modelTransform = rootModelMatrix * worldTransform * skinMatrix;
+    float4x4 mvpTransform = projection * view * modelTransform;
 
     float3x3 normalTransform = transpose(inverse(_float3x3(modelTransform)));
 
     out.position = mvpTransform * float4(pos, 1.0);
-    out.positionVS = (mvp.view * modelTransform * float4(pos, 1.0)).xyz;
+    out.positionVS = (view * modelTransform * float4(pos, 1.0)).xyz;
     out.worldPosition = (modelTransform * float4(pos, 1.0)).xyz;
     out.normal = normalize(normalTransform * normal);
-    out.normalVS = normalize(_float3x3(mvp.view * modelTransform) * normal);
+    out.normalVS = normalize(_float3x3(view * modelTransform) * normal);
     out.tangent = normalize(float4(normalTransform * tan.xyz, tan.w));
     out.uv = in.uv;
     out.uv1 = in.uv1;

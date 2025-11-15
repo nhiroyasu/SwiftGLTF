@@ -64,18 +64,33 @@ final class SkyboxRenderTests {
             options: .storageModeShared
         )!
         let skyboxTarget = SIMD3<Float>(0, 0, 1)
+        let aspect: Float = 1.0
         let vMatrix = lookAt(eye: SIMD3<Float>(0, 0, 0), target: skyboxTarget, up: SIMD3<Float>(0, 1, 0))
-        let pMatrix = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 100.0)
-        var mvpUniform = MVPUniform(
-            view: vMatrix,
-            projection: pMatrix,
-            externalTransform: float4x4(1)
-        )
-        let mvpUniformsBuf = device.makeBuffer(bytes: &mvpUniform, length: MemoryLayout.size(ofValue: mvpUniform))!
+        let pMatrix = perspectiveMatrix(fov: .pi / 3, aspect: aspect, near: 0.1, far: 100.0)
         let envMap = try generateCubeTexture(
             device: device,
             exr: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
         )
+        var cameraIndex = -1
+        let cameraIndexBuffer = device.makeBuffer(
+            bytes: &cameraIndex,
+            length: MemoryLayout<Int>.size,
+            options: .storageModeShared
+        )!
+        var freeCameraUniforms = FreeCameraUniforms(
+            viewMatrix: vMatrix,
+            projectionMatrix: pMatrix,
+            position: SIMD3<Float>(0, 0, 0),
+            fov: SIMD2<Float>(.pi / 3, .pi / 3),
+            camRight: SIMD3<Float>(1, 0, 0),
+            camUp: SIMD3<Float>(0, 1, 0),
+            aspectRatio: aspect
+        )
+        let freeCameraUniformsBuffer = device.makeBuffer(
+            bytes: &freeCameraUniforms,
+            length: MemoryLayout<FreeCameraUniforms>.size,
+            options: .storageModeShared
+        )!
 
         let passDesc = MTLRenderPassDescriptor()
         passDesc.colorAttachments[0].texture = output
@@ -96,7 +111,10 @@ final class SkyboxRenderTests {
         drawSkybox(
             renderEncoder: encoder,
             mesh: skyboxMesh,
-            mvpUniformBuffer: mvpUniformsBuf,
+            worldTransformBuffer: worldTransformDummyBuffer(device: device),
+            cameraIndexBuffer: cameraIndexBuffer,
+            freeCameraUniformsBuffer: freeCameraUniformsBuffer,
+            nodeCameraUniformsBuffer: NodeCameraUniforms.makeDummyBuffer(device: device),
             specularCubeMapTexture: envMap
         )
         encoder.endEncoding()

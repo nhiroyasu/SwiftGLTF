@@ -9,6 +9,7 @@ public struct GLTFSwiftUIView: UIViewRepresentable {
     private let url: URL
     private let sceneIndex: Int?
     private let animationIndex: Int?
+    private let cameraIndex: Int?
     private let environmentUrl: URL?
     private let modelBinding: Binding<GLTF?>?
     private let showDebugHUD: Bool
@@ -18,6 +19,7 @@ public struct GLTFSwiftUIView: UIViewRepresentable {
         url: URL,
         sceneIndex: Int? = nil,
         animationIndex: Int? = nil,
+        cameraIndex: Int? = nil,
         environmentUrl: URL? = nil,
         modelBinding: Binding<GLTF?>? = nil,
         showDebugHUD: Bool = false,
@@ -26,6 +28,7 @@ public struct GLTFSwiftUIView: UIViewRepresentable {
         self.url = url
         self.sceneIndex = sceneIndex
         self.animationIndex = animationIndex
+        self.cameraIndex = cameraIndex
         self.environmentUrl = environmentUrl
         self.modelBinding = modelBinding
         self.showDebugHUD = showDebugHUD
@@ -46,6 +49,7 @@ public struct GLTFSwiftUIView: UIViewRepresentable {
         uiView.gltfURL = url
         uiView.sceneIndex = sceneIndex
         uiView.animationIndex = animationIndex
+        uiView.cameraIndex = cameraIndex
         uiView.environmentURL = environmentUrl
         uiView.gltfLoadHandler = { result in
             DispatchQueue.main.async {
@@ -70,6 +74,7 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
     private let url: URL
     private let sceneIndex: Int?
     private let animationIndex: Int?
+    private let cameraIndex: Int?
     private let environmentUrl: URL?
     private let modelBinding: Binding<GLTF?>?
     private let showDebugHUD: Bool
@@ -81,6 +86,7 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
         url: URL,
         sceneIndex: Int? = nil,
         animationIndex: Int? = nil,
+        cameraIndex: Int? = nil,
         environmentUrl: URL? = nil,
         modelBinding: Binding<GLTF?>? = nil,
         showDebugHUD: Bool = false,
@@ -89,6 +95,7 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
         self.url = url
         self.sceneIndex = sceneIndex
         self.animationIndex = animationIndex
+        self.cameraIndex = cameraIndex
         self.environmentUrl = environmentUrl
         self.modelBinding = modelBinding
         self.showDebugHUD = showDebugHUD
@@ -109,6 +116,7 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
         nsView.gltfURL = url
         nsView.sceneIndex = sceneIndex
         nsView.animationIndex = animationIndex
+        nsView.cameraIndex = cameraIndex
         nsView.environmentURL = environmentUrl
         nsView.gltfLoadHandler = { result in
             DispatchQueue.main.async {

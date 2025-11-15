@@ -2,6 +2,7 @@ import MetalKit
 import simd
 import os.log
 import SwiftGLTFCore
+import SwiftGLTFShaderTypes
 
 public class WireframeRenderer {
     private var bundle: WireframeMeshBundle?
@@ -79,7 +80,8 @@ public class WireframeRenderer {
 
     public func render(
         using renderEncoder: MTLRenderCommandEncoder,
-        mvpUniformBuffer: MTLBuffer,
+        freeCameraUniformsBuffer: MTLBuffer,
+        modelMatrixBuffer: MTLBuffer,
         fragmentParams: MTLBuffer,
     ) {
         guard let bundle else {
@@ -91,10 +93,25 @@ public class WireframeRenderer {
             return
         }
 
+        var worldTransformDummy: [SIMD4<Float>] = [SIMD4<Float>(1, 0, 0, 0)]
+        let worldTransformBuffer = device.makeBuffer(
+            bytes: &worldTransformDummy,
+            length: MemoryLayout<SIMD4<Float>>.size,
+            options: .storageModeShared
+        )!
+        var cameraIndex = -1
+        let cameraIndexBuffer = device.makeBuffer(
+            bytes: &cameraIndex,
+            length: MemoryLayout<Int>.size,
+            options: .storageModeShared
+        )!
         drawSkybox(
             renderEncoder: renderEncoder,
             mesh: skyboxMesh,
-            mvpUniformBuffer: mvpUniformBuffer,
+            worldTransformBuffer: worldTransformBuffer,
+            cameraIndexBuffer: cameraIndexBuffer,
+            freeCameraUniformsBuffer: freeCameraUniformsBuffer,
+            nodeCameraUniformsBuffer: NodeCameraUniforms.makeDummyBuffer(device: device),
             specularCubeMapTexture: _specularCubeMapTexture
         )
 
@@ -103,8 +120,9 @@ public class WireframeRenderer {
             pipelineState: pipelineConnector.pipelineState,
             depthStencilState: depthStencilState,
             meshes: bundle.meshes,
-            mvpUniformBuffer: mvpUniformBuffer,
-            worldTransformBuffer: bundle.worldTransformBuffer
+            modelBuffer: modelMatrixBuffer,
+            worldTransformBuffer: bundle.worldTransformBuffer,
+            freeCameraUniformsBuffer: freeCameraUniformsBuffer
         )
     }
 

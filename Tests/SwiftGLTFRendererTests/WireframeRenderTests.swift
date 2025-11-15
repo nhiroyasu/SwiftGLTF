@@ -56,16 +56,13 @@ final class WireframeRenderTests {
         )
         
         // Create view-projection matrix buffer
+        let aspect: Float = 1.0
         let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
-        let projection = perspectiveMatrix(fov: .pi / 3, aspect: 1, near: 0.1, far: 1000.0)
-        var mvpUniform = MVPUniform(
-            view: view,
-            projection: projection,
-            externalTransform: simd_float4x4(1)
-        )
-        let mvpUniformBuffer = device.makeBuffer(
-            bytes: &mvpUniform,
-            length: MemoryLayout<MVPUniform>.size,
+        let projection = perspectiveMatrix(fov: .pi / 3, aspect: aspect, near: 0.1, far: 1000.0)
+        var modelMatrix = simd_float4x4(1)
+        let modelMatrixBuffer = device.makeBuffer(
+            bytes: &modelMatrix,
+            length: MemoryLayout<simd_float4x4>.size,
             options: .storageModeShared
         )!
 
@@ -94,6 +91,22 @@ final class WireframeRenderTests {
         depthTextureDesc.storageMode = .private
         let depthTexture = device.makeTexture(descriptor: depthTextureDesc)!
 
+        var freeCameraUniforms = FreeCameraUniforms(
+            viewMatrix: view,
+            projectionMatrix: projection,
+            position: eye,
+            fov: SIMD2<Float>(.pi / 3, .pi / 3),
+            camRight: SIMD3<Float>(1, 0, 0),
+            camUp: SIMD3<Float>(0, 1, 0),
+            aspectRatio: aspect
+        )
+        let freeCameraUniformsBuffer = device.makeBuffer(
+            bytes: &freeCameraUniforms,
+            length: MemoryLayout<FreeCameraUniforms>.size,
+            options: .storageModeShared
+        )!
+
+
         // Set up render pass descriptor
         let passDesc = MTLRenderPassDescriptor()
         passDesc.colorAttachments[0].texture = output
@@ -119,8 +132,9 @@ final class WireframeRenderTests {
             pipelineState: pipelineState,
             depthStencilState: depthStencilState,
             meshes: bundle.meshes,
-            mvpUniformBuffer: mvpUniformBuffer,
-            worldTransformBuffer: bundle.worldTransformBuffer
+            modelBuffer: modelMatrixBuffer,
+            worldTransformBuffer: bundle.worldTransformBuffer,
+            freeCameraUniformsBuffer: freeCameraUniformsBuffer
         )
 
         encoder.endEncoding()

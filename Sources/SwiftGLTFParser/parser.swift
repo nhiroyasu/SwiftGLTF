@@ -33,6 +33,10 @@ public func makeMDLAsset(
     scenesObject.setComponent(GLTFDefaultSceneImpl(index: gltf.scene ?? 0), for: GLTFDefaultScene.self)
     asset.add(scenesObject)
 
+    let camerasObject = MDLObject()
+    camerasObject.name = GLTFAssetName.cameras
+    asset.add(camerasObject)
+
     let librariesObject = MDLObject()
     librariesObject.name = GLTFAssetName.libraries
     asset.add(librariesObject)
@@ -82,7 +86,9 @@ public func makeMDLAsset(
     }
 
     // Add all meshes to libraries for reference
-    let meshes = mdlMeshMap.values.flatMap { $0 }
+    let meshes = mdlMeshMap
+        .sorted(by: { $0.key.value < $1.key.value })
+        .flatMap { $0.value }
     let meshObject = MDLObject()
     meshObject.name = GLTFAssetName.meshes
     for mesh in meshes {
@@ -120,7 +126,7 @@ public func makeMDLAsset(
     }
 
     // Skin nodes are added as children of the root asset
-    for (_, skin) in skinMap {
+    for (_, skin) in skinMap.sorted(by: { $0.key.value < $1.key.value }) { // TODO: mapだと順番が保証されない
         skinsObject.addChild(skin)
     }
 
@@ -156,6 +162,11 @@ public func makeMDLAsset(
     }
     asset.animations = animationsContainer
 
+    let cameraMap = makeMDLCameras(from: gltf)
+    for (_, mdlCamera) in cameraMap.sorted(by: { $0.key.value < $1.key.value }) {
+        camerasObject.addChild(mdlCamera)
+    }
+
     // Build the node tree
     for (i, scene) in (gltf.scenes ?? []).enumerated() {
         let sceneObject = MDLObject()
@@ -171,6 +182,7 @@ public func makeMDLAsset(
                 nodeIndex: rootNodeIndex,
                 meshMap: mdlMeshMap,
                 skinMap: skinMap,
+                cameraMap: cameraMap,
                 animations: animations,
                 gltf: gltf,
                 options: options
@@ -348,6 +360,7 @@ func buildNodeTree(
     nodeIndex: Int,
     meshMap: [MeshIndex: [MDLMesh]],
     skinMap: [SkinIndex: GLTFSkin],
+    cameraMap: [CameraIndex: MDLCamera],
     animations: [MDLObject],
     gltf: GLTF,
     options: GLTFDecodeOptions = .default
@@ -355,9 +368,19 @@ func buildNodeTree(
     let nodes = gltf.nodes ?? []
     let node: Node = {
         if nodes.indices.contains(nodeIndex) { return nodes[nodeIndex] }
-        return Node(name: nil, mesh: nil, skin: nil, weights: nil, children: nil, translation: nil, rotation: nil, scale: nil, matrix: nil)
+        return Node(name: nil, mesh: nil, skin: nil, weights: nil, children: nil, translation: nil, rotation: nil, scale: nil, matrix: nil, camera: nil)
     }()
-    let object = MDLObject()
+
+    let object: MDLObject
+    if let cameraIndex = node.camera, let mdlCamera = cameraMap[cameraIndex] {
+        object = GLTFCameraNode(
+            nodeIndex: nodeIndex,
+            cameraIndex: cameraIndex,
+            camera: mdlCamera
+        )
+    } else {
+        object = MDLObject()
+    }
     object.name = node.name ?? "Node_\(nodeIndex)" // ノード名が無ければデフォルト名を設定. en: Set default name if node name is missing
     // Attach glTF node index for later animation application
     object.setComponent(GLTFNodeIndex(index: nodeIndex), for: GLTFNodeIndexProtocol.self)
@@ -433,6 +456,7 @@ func buildNodeTree(
                 nodeIndex: childIndex,
                 meshMap: meshMap,
                 skinMap: skinMap,
+                cameraMap: cameraMap,
                 animations: animations,
                 gltf: gltf,
                 options: options
@@ -1602,6 +1626,37 @@ private func _makeMDLMaterial(
     }
 
     return material
+}
+
+func makeMDLCameras(from gltf: GLTF) -> [CameraIndex: MDLCamera] {
+    var map: [CameraIndex: MDLCamera] = [:]
+    guard let cameras = gltf.cameras else { return map }
+
+    for (index, camera) in cameras.enumerated() {
+        var mdlCamera = MDLCamera()
+        mdlCamera.name = camera.name ?? "Camera_\(index)"
+
+        switch camera.type {
+        case .perspective:
+            if let perspective = camera.perspective {
+                mdlCamera = GLTFCamera(perspective: perspective)
+            } else {
+                // Invalid camera definition, skip
+                continue
+            }
+        case .orthographic:
+            if let orthographic = camera.orthographic {
+                mdlCamera = GLTFCamera(orthographic: orthographic)
+            } else {
+                // Invalid camera definition, skip
+                continue
+            }
+        }
+
+        map[CameraIndex(index)] = mdlCamera
+    }
+
+    return map
 }
 
 private func generateNormalVertex(

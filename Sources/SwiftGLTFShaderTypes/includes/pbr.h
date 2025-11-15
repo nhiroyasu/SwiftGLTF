@@ -27,13 +27,19 @@ typedef struct {
 
 typedef struct {
     vector_float3 lightPosition; // Position of the light source
-    vector_float3 viewPosition; // Position of the camera/viewer
     vector_float3 ambientLightColor; // Ambient light color
     vector_float2 viewportSize; // render target size (width, height)
-    vector_float2 fov; // x: fovx, y: fovy
+} SceneUniforms;
+
+typedef struct {
+    matrix_float4x4 viewMatrix;
+    matrix_float4x4 projectionMatrix;
+    vector_float3 position; // camera position in world space
+    vector_float2 fov;      // x: fovx, y: fovy
     vector_float3 camRight; // right direction in view space (usually float3(1,0,0))
     vector_float3 camUp;    // up direction in view space (usually float3(0,1,0))
-} SceneUniforms;
+    float aspectRatio;    // width / height. 
+} FreeCameraUniforms;
 
 typedef struct {
     float roughness;
@@ -111,8 +117,23 @@ typedef struct {
     // if -1, no morph
     int64_t offset;
     int64_t length;
-
 } MorphDispatch;
+
+typedef enum : int {
+    CameraProjectionTypePerspective = 0,
+    CameraProjectionTypeOrthographic = 1,
+} CameraProjectionType;
+
+typedef struct {
+    CameraProjectionType projectionType;
+    int64_t nodeHierarchyOffset;
+    float znear;
+    float zfar;
+    vector_float2 fov;                      // x: fovx, y: fovy. for perspective projection
+    float aspectRatio;                      // width / height. if -1, use viewport aspect ratio. for perspective projection
+    float xmag;                             // for orthographic projection
+    float ymag;                             // for orthographic projection
+} NodeCameraUniforms;
 
 enum PBRVertexArgId: int {
     PBRVertexArgIdModel = 0,
@@ -133,10 +154,31 @@ enum PBRVertexArgId: int {
 };
 
 typedef enum: int {
+    PBRVertexShaderMeshVertexBuffer = 0,
+    PBRVertexShaderArgsBuffer,
+    PBRVertexShaderWorldTransformsBuffer,
+    PBRVertexShaderSkinJointsBuffer,
+    PBRVertexShaderSkinInverseBindMatricesBuffer,
+    PBRVertexShaderMorphWeightsBuffer,
+    PBRVertexShaderMorphDispatchesBuffer,
+    PBRVertexShaderCameraIndexBuffer,
+    PBRVertexShaderFreeCameraUniformsBuffer,
+    PBRVertexShaderNodeCameraUniformsBuffer,
+    PBRVertexShaderModelMatrixBuffer,
+} PBRVertexShaderBufferIndex;
+
+typedef enum: int {
     PBRFragmentShaderArgsPtrIndexBuffer = 0,
     PBRFragmentShaderArgsPtrBuffer,
     PBRFragmentShaderEnvMapArgsBuffer,
     PBRFragmentShaderSceneUniformsBuffer,
+    // Transform
+    PBRFragmentShaderWorldTransformsBuffer,
+    // Camera
+    PBRFragmentShaderCameraIndexBuffer,
+    PBRFragmentShaderFreeCameraUniformsBuffer,
+    PBRFragmentShaderNodeCameraUniformsBuffer,
+    // Material
     PBRFragmentShaderScreenColorBuffer,
 } PBRFragmentShaderBufferIndex;
 

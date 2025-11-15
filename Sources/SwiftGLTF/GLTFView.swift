@@ -20,7 +20,10 @@ public class GLTFView: MTKView {
     private let commandQueue: MTLCommandQueue
     private let renderer: PBRRenderer
     private let sceneUniformsBuffer: FrameInFlightBuffer
-    private let mvpUniformBuffer: FrameInFlightBuffer
+    private let modelMatrixBuffer: FrameInFlightBuffer
+    private let cameraIndexBuffer: FrameInFlightBuffer
+    private let freeCameraUniformsBuffer: FrameInFlightBuffer
+    private var loadedGLTF: GLTF?
 
     // MARK: - Display State
     private var displayType: DisplayType = .loading {
@@ -50,6 +53,9 @@ public class GLTFView: MTKView {
 
     private var ambientLightColor: SIMD3<Float>
     private var lightPosition: SIMD3<Float>
+
+    // MARK: - Camera
+    public var cameraIndex: Int? = nil
 
     // MARK: - Frame Management
     private let maxFramesInFlight = 2
@@ -103,9 +109,21 @@ public class GLTFView: MTKView {
                 options: []
             )!
         }
-        self.mvpUniformBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+        self.modelMatrixBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
-                length: MemoryLayout<MVPUniform>.size,
+                length: MemoryLayout<float4x4>.size,
+                options: .storageModeShared
+            )!
+        }
+        self.cameraIndexBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+            device.makeBuffer(
+                length: MemoryLayout<Int>.size,
+                options: .storageModeShared
+            )!
+        }
+        self.freeCameraUniformsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
+            device.makeBuffer(
+                length: MemoryLayout<FreeCameraUniforms>.size,
                 options: .storageModeShared
             )!
         }
@@ -147,10 +165,12 @@ public class GLTFView: MTKView {
             let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
             let asset = try makeMDLAsset(from: gltfBundle)
             try renderer.load(from: asset, sceneIndex: sceneIndex, animationIndex: animationIndex)
+            loadedGLTF = gltfBundle.gltf
             gltfLoadHandler?(.success(gltfBundle.gltf))
         } catch {
             os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
             displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
+            loadedGLTF = nil
             gltfLoadHandler?(.failure(error) )
         }
     }
@@ -194,22 +214,26 @@ public class GLTFView: MTKView {
     // MARK: - Buffer Management
 
     private func updateSceneBuffer(
-        toVertexParams: MTLBuffer,
+        toModelMatrix: MTLBuffer,
         toFragmentParams: MTLBuffer,
+        toCameraIndex: MTLBuffer,
+        toFreeCameraUniforms: MTLBuffer,
         eye: SIMD3<Float>,
         target: SIMD3<Float>,
         lightPosition: SIMD3<Float>,
         ambientLightColor: SIMD3<Float>,
         upSign: Float32,
-        drawableSize: CGSize
+        renderViewport: MTLViewport
     ) {
+        let viewportWidth = max(renderViewport.width, 1)
+        let viewportHeight = max(renderViewport.height, 1)
         let view = lookAt(
             eye: eye,
             target: target,
             up: simd_float3(0, upSign, 0)
         )
 
-        let aspect = Float(drawableSize.width / drawableSize.height)
+        let aspect = Float(viewportWidth / viewportHeight)
         let fovY = Float.pi / 3.0
         let fovX = 2 * atan(tan(fovY / 2) * aspect)
         let projection = perspectiveMatrix(
@@ -218,28 +242,40 @@ public class GLTFView: MTKView {
             near: 0.1,
             far: 1000.0
         )
-        var vpUniforms = MVPUniform(
-            view: view,
-            projection: projection,
-            externalTransform: matrix_identity_float4x4
-        )
-        toVertexParams.contents().copyMemory(
-            from: &vpUniforms,
-            byteCount: MemoryLayout<MVPUniform>.size
+        var modelMatrix = matrix_identity_float4x4
+        toModelMatrix.contents().copyMemory(
+            from: &modelMatrix,
+            byteCount: MemoryLayout<float4x4>.size
         )
 
         var pbrSceneUniforms = SceneUniforms(
             lightPosition: lightPosition,
-            viewPosition: eye,
             ambientLightColor: ambientLightColor,
-            viewportSize: SIMD2<Float>(Float(drawableSize.width), Float(drawableSize.height)),
-            fov: SIMD2<Float>(fovX, fovY),
-            camRight: SIMD3<Float>(1, 0, 0),
-            camUp: SIMD3<Float>(0, 1, 0)
+            viewportSize: SIMD2<Float>(Float(viewportWidth), Float(viewportHeight)),
         )
         toFragmentParams.contents().copyMemory(
             from: &pbrSceneUniforms,
             byteCount: MemoryLayout<SceneUniforms>.size
+        )
+
+        var bCameraIndex = cameraIndex ?? -1
+        toCameraIndex.contents().copyMemory(
+            from: &bCameraIndex,
+            byteCount: MemoryLayout<Int>.size
+        )
+
+        var freeCameraUniforms = FreeCameraUniforms(
+            viewMatrix: view,
+            projectionMatrix: projection,
+            position: eye,
+            fov: SIMD2<Float>(fovX, fovY),
+            camRight: SIMD3<Float>(1, 0, 0),
+            camUp: SIMD3<Float>(0, 1, 0),
+            aspectRatio: aspect
+        )
+        toFreeCameraUniforms.contents().copyMemory(
+            from: &freeCameraUniforms,
+            byteCount: MemoryLayout<FreeCameraUniforms>.size
         )
     }
 
@@ -252,20 +288,24 @@ public class GLTFView: MTKView {
             return
         }
 
+        let renderViewport = makeRenderViewport(for: drawableSize)
+
         // Update frame buffer index
         frameSemaphores.wait()
         currentBuffer = (currentBuffer + 1) % maxFramesInFlight
 
         // Update buffers
         updateSceneBuffer(
-            toVertexParams: mvpUniformBuffer.buffer(currentBuffer),
+            toModelMatrix: modelMatrixBuffer.buffer(currentBuffer),
             toFragmentParams: sceneUniformsBuffer.buffer(currentBuffer),
+            toCameraIndex: cameraIndexBuffer.buffer(currentBuffer),
+            toFreeCameraUniforms: freeCameraUniformsBuffer.buffer(currentBuffer),
             eye: eye,
             target: freeCameraTarget,
             lightPosition: lightPosition,
             ambientLightColor: ambientLightColor,
             upSign: freeCameraUpSign,
-            drawableSize: drawableSize
+            renderViewport: renderViewport
         )
 
         // Advance animation and apply to the asset if available
@@ -289,9 +329,12 @@ public class GLTFView: MTKView {
             commandBuffer: commandBuffer,
             renderPassDescriptor: descriptor,
             drawableSize: drawableSize,
-            mvpUniformBuffer: mvpUniformBuffer.buffer(currentBuffer),
+            viewport: renderViewport,
             fragmentParams: sceneUniformsBuffer.buffer(currentBuffer),
             viewPos: eye,
+            cameraIndexBuffer: cameraIndexBuffer.buffer(currentBuffer),
+            freeCameraUniformsBuffer: freeCameraUniformsBuffer.buffer(currentBuffer),
+            modelMatrixBuffer: modelMatrixBuffer.buffer(currentBuffer),
             waitFence: animationFence
         )
         commandBuffer.present(drawable)
@@ -482,6 +525,61 @@ public class GLTFView: MTKView {
     }
 
     #endif
+
+    private func activeCameraAspectRatio() -> CGFloat? {
+        guard let cameraIndex,
+              cameraIndex >= 0,
+              let gltf = loadedGLTF,
+              let cameras = gltf.cameras,
+              cameras.indices.contains(cameraIndex) else {
+            return nil
+        }
+        switch cameras[cameraIndex].type {
+        case .perspective:
+            guard let perspective = cameras[cameraIndex].perspective,
+                  let aspect = perspective.aspectRatio,
+                  aspect > 0 else {
+                return nil
+            }
+            return CGFloat(aspect)
+        case .orthographic:
+            guard let orthographic = cameras[cameraIndex].orthographic,
+                  orthographic.ymag > 0,
+                  orthographic.xmag > 0 else {
+                return nil
+            }
+            return CGFloat(orthographic.xmag / orthographic.ymag)
+        }
+    }
+
+    private func makeRenderViewport(for size: CGSize) -> MTLViewport {
+        let width = max(size.width, 1)
+        let height = max(size.height, 1)
+        guard let targetAspect = activeCameraAspectRatio(), height > 0 else {
+            return MTLViewport(originX: 0, originY: 0, width: width, height: height, znear: 0, zfar: 1)
+        }
+
+        let viewAspect = width / height
+        let epsilon = 1e-4
+        if abs(viewAspect - targetAspect) < epsilon {
+            return MTLViewport(originX: 0, originY: 0, width: width, height: height, znear: 0, zfar: 1)
+        }
+
+        let clampedAspect = max(targetAspect, epsilon)
+        let useWidth = viewAspect > clampedAspect
+        let letterboxWidth = useWidth ? height * clampedAspect : width
+        let letterboxHeight = useWidth ? height : width / clampedAspect
+        let originX = (width - letterboxWidth) * 0.5
+        let originY = (height - letterboxHeight) * 0.5
+        return MTLViewport(
+            originX: originX,
+            originY: originY,
+            width: letterboxWidth,
+            height: letterboxHeight,
+            znear: 0,
+            zfar: 1
+        )
+    }
 
     private func updateCameraHUD() {
         guard showDebugHUD else { return }

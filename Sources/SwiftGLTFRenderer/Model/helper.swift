@@ -167,3 +167,7 @@ func linearToSrgb(_ rgb: (Float, Float, Float)) -> (Float, Float, Float) {
         linearToSrgb(rgb.2)
     )
 }
+
+func xfov(yfov: Float, aspect: Float) -> Float {
+    return 2 * atan(tan(yfov * 0.5) * aspect)
+}

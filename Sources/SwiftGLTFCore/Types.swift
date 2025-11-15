@@ -24,6 +24,7 @@ public struct GLTF: Codable, Equatable {
     public let scenes: [Scene]?
     public let scene: Int? // spec: default undefined
     public let nodes: [Node]?
+    public let cameras: [Camera]?
     public let skins: [Skin]?
     public let animations: [Animation]?
     public let materials: [Material]?
@@ -42,6 +43,7 @@ public struct GLTF: Codable, Equatable {
         case scenes
         case scene
         case nodes
+        case cameras
         case skins
         case animations
         case materials
@@ -62,6 +64,7 @@ public struct GLTF: Codable, Equatable {
         self.scenes = try container.decodeIfPresent([Scene].self, forKey: .scenes)
         self.scene = try container.decodeIfPresent(Int.self, forKey: .scene)
         self.nodes = try container.decodeIfPresent([Node].self, forKey: .nodes)
+        self.cameras = try container.decodeIfPresent([Camera].self, forKey: .cameras)
         self.skins = try container.decodeIfPresent([Skin].self, forKey: .skins)
         self.animations = try container.decodeIfPresent([Animation].self, forKey: .animations)
         self.materials = try container.decodeIfPresent([Material].self, forKey: .materials)
@@ -337,8 +340,20 @@ public struct Node: Codable, Equatable {
     public let rotation: [Float]?
     public let scale: [Float]?
     public let matrix: [Float]?
+    public let camera: CameraIndex?
 
-    public init(name: String?, mesh: MeshIndex?, skin: SkinIndex?, weights: [Float]?, children: [Int]?, translation: [Float]?, rotation: [Float]?, scale: [Float]?, matrix: [Float]?) {
+    public init(
+        name: String?,
+        mesh: MeshIndex?,
+        skin: SkinIndex?,
+        weights: [Float]?,
+        children: [Int]?,
+        translation: [Float]?,
+        rotation: [Float]?,
+        scale: [Float]?,
+        matrix: [Float]?,
+        camera: CameraIndex?
+    ) {
         self.name = name
         self.mesh = mesh
         self.skin = skin
@@ -348,6 +363,7 @@ public struct Node: Codable, Equatable {
         self.rotation = rotation
         self.scale = scale
         self.matrix = matrix
+        self.camera = camera
     }
 }
 
@@ -366,6 +382,54 @@ public struct NodeIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatab
         let container = try decoder.singleValueContainer()
         value = try container.decode(Int.self)
     }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
+public struct CameraIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
+    public let value: Int
+
+    public init(_ value: Int) {
+        self.value = value
+    }
+
+    public init(integerLiteral value: Int) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try container.decode(Int.self)
+    }
+}
+
+public struct Camera: Codable, Equatable {
+    public let name: String?
+    public let type: CameraType
+    public let perspective: PerspectiveCamera?
+    public let orthographic: OrthographicCamera?
+}
+
+public enum CameraType: String, Codable, Equatable {
+    case perspective
+    case orthographic
+}
+
+public struct PerspectiveCamera: Codable, Equatable {
+    public let yfov: Float
+    public let znear: Float
+    public let zfar: Float?
+    public let aspectRatio: Float?
+}
+
+public struct OrthographicCamera: Codable, Equatable {
+    public let xmag: Float
+    public let ymag: Float
+    public let znear: Float
+    public let zfar: Float
 }
 
 public struct Asset: Codable, Equatable {
