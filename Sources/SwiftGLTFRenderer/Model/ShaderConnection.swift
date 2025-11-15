@@ -208,7 +208,11 @@ class ShaderConnection {
         let heapBuffer = heap.makeBuffer(
             length: buffer.length,
             options: [.storageModePrivate]
-        )!
+        )
+        guard let heapBuffer else {
+            throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+        }
+        
         encoder.copy(from: buffer, sourceOffset: 0, to: heapBuffer, destinationOffset: 0, size: buffer.length)
 
         encoder.endEncoding()

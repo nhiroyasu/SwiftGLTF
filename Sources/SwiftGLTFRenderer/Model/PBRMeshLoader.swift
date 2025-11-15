@@ -111,7 +111,7 @@ class PBRMeshLoader {
             animationIndex: animationIndex ?? kDefaultAnimationIndex
         )
 
-        let vertexMeshHeap = try makeVertexMeshHeap(from: asset)
+        let vertexMeshHeap = try makeVertexMeshHeap(from: asset, sceneIndex: sceneIndex)
         let meshVertexBufferMap = try extractMeshVertexBufferMap(from: asset, use: vertexMeshHeap)
 
         var textureMap = try extractAllTextureMap(from: asset)
@@ -137,6 +137,7 @@ class PBRMeshLoader {
             textureMap: textureMap,
             skinDispatchMap: skinDispatchMap,
             morphDispatchMap: morphDispatchMap,
+            vertexHeap: vertexMeshHeap,
             fragmentHeap: fragmentHeap,
             parentTransform: float4x4(1),
             nodeLevelHierarchy: nodeLevelHierarchy
@@ -169,7 +170,6 @@ class PBRMeshLoader {
             originMorphWeights: morphWeights,
             morphDispatches: morphDispatches,
             nodeCameraUniformsBuffer: cameraUniformsBuffer,
-            vertexResources: pbrMeshes.flatMap({ $0.vertexResources }).compactMap({ $0 }),
             vertexHeaps: [vertexMeshHeap].compactMap({ $0 }),
             fragmentHeaps: [texturesHeap, fragmentHeap].compactMap({ $0 }),
         )
@@ -182,6 +182,7 @@ class PBRMeshLoader {
         textureMap: [MDLTexture: MTLTexture],
         skinDispatchMap: [GLTFSkin: SkinDispatch],
         morphDispatchMap: [MDLObject: MorphDispatch],
+        vertexHeap: MTLHeap,
         fragmentHeap: MTLHeap,
         parentTransform: float4x4,
         nodeLevelHierarchy: NodeLevelHierarchy
@@ -204,6 +205,7 @@ class PBRMeshLoader {
                     device: device,
                     obj: obj,
                     mdlMesh: mdlMesh,
+                    vertexHeap: vertexHeap,
                     fragmentHeap: fragmentHeap,
                     meshVertexBufferMap: meshVertexBufferMap,
                     textureMap: textureMap,
@@ -223,6 +225,7 @@ class PBRMeshLoader {
                 textureMap: textureMap,
                 skinDispatchMap: skinDispatchMap,
                 morphDispatchMap: morphDispatchMap,
+                vertexHeap: vertexHeap,
                 fragmentHeap: fragmentHeap,
                 parentTransform: totalTransform,
                 nodeLevelHierarchy: nodeLevelHierarchy
@@ -237,6 +240,7 @@ class PBRMeshLoader {
         device: MTLDevice,
         obj: MDLObject,
         mdlMesh: MDLMesh,
+        vertexHeap: MTLHeap,
         fragmentHeap: MTLHeap,
         meshVertexBufferMap: [MDLMesh: MTLBuffer],
         textureMap: [MDLTexture: MTLTexture],
@@ -257,10 +261,10 @@ class PBRMeshLoader {
         // Model & Inverse Model matrix buffers
         var model = totalTransform
         var inverseModel = model.inverse
-        let modelBuffer = device.makeBuffer(length: MemoryLayout<float4x4>.size)!
-        modelBuffer.contents().copyMemory(from: &model, byteCount: MemoryLayout<float4x4>.size)
-        let inverseModelBuffer = device.makeBuffer(length: MemoryLayout<float4x4>.size)!
-        inverseModelBuffer.contents().copyMemory(from: &inverseModel, byteCount: MemoryLayout<float4x4>.size)
+        let tmpModelBuffer = device.makeBuffer(bytes: &model, length: MemoryLayout<float4x4>.size)!
+        let tmpInverseModelBuffer = device.makeBuffer(bytes: &inverseModel, length: MemoryLayout<float4x4>.size)!
+        let modelBuffer = try shaderConnection.moveBufferToHeap(from: tmpModelBuffer, use: vertexHeap)
+        let inverseModelBuffer = try shaderConnection.moveBufferToHeap(from: tmpInverseModelBuffer, use: vertexHeap)
 
         // Morph data detection on this mesh
         var morphCount: UInt32 = 0
@@ -268,8 +272,9 @@ class PBRMeshLoader {
         var morphTargetBuffers: [MTLBuffer] = []
         if let morphComp = mdlMesh.component(ofType: GLTFMorphTargets.self) {
             morphCount = UInt32(morphComp.targetCount)
-            morphWeightsBuffer = device.makeBuffer(length: MemoryLayout<Float>.size * morphComp.targetCount)!
-            morphWeightsBuffer!.contents().copyMemory(from: morphComp.defaultWeights, byteCount: MemoryLayout<Float>.size * morphComp.targetCount)
+            let tmpMorphWeightsBuffer = device.makeBuffer(length: MemoryLayout<Float>.size * morphComp.targetCount)!
+            tmpMorphWeightsBuffer.contents().copyMemory(from: morphComp.defaultWeights, byteCount: MemoryLayout<Float>.size * morphComp.targetCount)
+            morphWeightsBuffer = try shaderConnection.moveBufferToHeap(from: tmpMorphWeightsBuffer, use: vertexHeap)
 
             // Convert target MDLMesh -> MTLBuffer (vertex buffer 0)
             for targetMDL in morphComp.targetMeshes.prefix(8) { // Limit to max 8
@@ -378,12 +383,7 @@ class PBRMeshLoader {
             positionStride: positionStride,
             positionOffset: positionOffset,
             renderingType: renderingType,
-            vertexResources: [
-                morphWeightsBuffer,
-                modelBuffer,
-                inverseModelBuffer
-            ],
-            _storedHeapInstance: morphTargetBuffers
+            _storedHeapInstance: morphTargetBuffers + [morphWeightsBuffer, modelBuffer, inverseModelBuffer]
         )
         return pbrMesh
     }
@@ -592,6 +592,25 @@ class PBRMeshLoader {
         return drawingCount
     }
 
+    func extractDrawingMeshCount(from asset: MDLAsset, sceneIndex: Int) -> Int {
+        var count = 0
+
+        func traverse(object: MDLObject) {
+            if let gltfMesh = object.component(ofType: GLTFMesh.self) {
+                count += gltfMesh.primitives.count
+            }
+
+            for child in object.children.objects {
+                traverse(object: child)
+            }
+        }
+
+        let scene = asset.object(atPath: GLTFAssetPath.scene(sceneIndex))
+        traverse(object: scene)
+
+        return count
+    }
+
     func extractAllMeshVertexBuffer(from asset: MDLAsset) -> [MDLMeshBuffer] {
         var buffers: [MDLMeshBuffer] = []
 
@@ -614,6 +633,29 @@ class PBRMeshLoader {
         }
 
         return buffers
+    }
+
+    func extractMorphWeightsCount(from asset: MDLAsset, sceneIndex: Int) -> Int {
+        var count = 0
+
+        func traverse(object: MDLObject) {
+            if let gltfMesh = object.component(ofType: GLTFMesh.self) {
+                for mesh in gltfMesh.primitives {
+                    if let morph = mesh.component(ofType: GLTFMorphTargets.self) {
+                        count += morph.targetCount
+                    }
+                }
+            }
+
+            for child in object.children.objects {
+                traverse(object: child)
+            }
+        }
+
+        let scene = asset.object(atPath: GLTFAssetPath.scene(sceneIndex))
+        traverse(object: scene)
+
+        return count
     }
 
     func makeTexturesHeap(from textures: [MTLTexture]) throws -> MTLHeap? {
@@ -667,7 +709,7 @@ class PBRMeshLoader {
         return skeletonHeap
     }
 
-    func makeVertexMeshHeap(from asset: MDLAsset) throws -> MTLHeap {
+    func makeVertexMeshHeap(from asset: MDLAsset, sceneIndex: Int) throws -> MTLHeap {
         let vertexBuffers = extractAllMeshVertexBuffer(from: asset)
         let morphVertexBuffers = extractAllMorphVertexBuffer(from: asset)
 
@@ -676,6 +718,14 @@ class PBRMeshLoader {
             let size = device.heapBufferSizeAndAlign(length: vertexBuffer.length).alignedSize
             bufferSize += size
         }
+
+        // morph weights buffer size
+        let morphWeightsCount = extractMorphWeightsCount(from: asset, sceneIndex: sceneIndex)
+        bufferSize += device.heapBufferSizeAndAlign(length: MemoryLayout<Float>.size).alignedSize * morphWeightsCount
+
+        // model matrix and inverse model matrix buffers
+        let drawingMeshCount = extractDrawingMeshCount(from: asset, sceneIndex: sceneIndex)
+        bufferSize += device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * drawingMeshCount * 2
 
         let heapDescriptor = MTLHeapDescriptor()
         heapDescriptor.size = bufferSize

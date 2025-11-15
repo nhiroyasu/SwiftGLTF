@@ -34,7 +34,6 @@ struct PBRMeshBundle {
     let nodeCameraUniformsBuffer: MTLBuffer
 
     // Resources
-    let vertexResources: [MTLResource]
     let vertexHeaps: [MTLHeap]
     let fragmentHeaps: [MTLHeap]
 }
@@ -57,7 +56,6 @@ struct PBRMesh {
     let positionStride: Int
     let positionOffset: Int
     let renderingType: RenderingType
-    let vertexResources: [MTLResource?]
     let _storedHeapInstance: [MTLResource?]
 
     struct Submesh {

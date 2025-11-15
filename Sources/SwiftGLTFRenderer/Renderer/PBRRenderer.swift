@@ -348,7 +348,6 @@ public class PBRRenderer {
             alphaBlendPSO: pipelineConnector.alphaBlendPSO,
             defaultDSO: defaultDSO,
             noWriteDSO: noWriteDSO,
-            vertexResources: bundle.vertexResources,
             vertexHeaps: bundle.vertexHeaps,
             fragmentHeaps: bundle.fragmentHeaps + [envMapHeap],
             opaqueMeshes: bundle.opaqueMeshes,

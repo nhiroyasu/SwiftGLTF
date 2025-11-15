@@ -35,7 +35,6 @@ func drawPBRScreen(
     alphaBlendPSO: MTLRenderPipelineState,
     defaultDSO: MTLDepthStencilState,
     noWriteDSO: MTLDepthStencilState,
-    vertexResources: [MTLResource],
     vertexHeaps: [MTLHeap],
     fragmentHeaps: [MTLHeap],
     opaqueMeshes: [PBRMesh],
@@ -59,7 +58,6 @@ func drawPBRScreen(
     viewPos: SIMD3<Float>
 ) {
     renderEncoder.setFrontFacing(.counterClockwise)
-    renderEncoder.useResources(vertexResources, usage: .read, stages: .vertex)
     renderEncoder.useHeaps(vertexHeaps, stages: .vertex)
     renderEncoder.useHeaps(fragmentHeaps, stages: .fragment)
     renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: PBRVertexShaderWorldTransformsBuffer.index)
