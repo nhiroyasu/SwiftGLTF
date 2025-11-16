@@ -199,7 +199,7 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     // Thickness
     float thickness = mUni.transmissionThicknessDistance.y;
     thickness *= fragArgs.hasThicknessTexture
-    ? fragArgs.thicknessTexture.sample(fragArgs.thicknessSampler, uvTh).r
+    ? fragArgs.thicknessTexture.sample(fragArgs.thicknessSampler, uvTh).g
     : 1.0;
 
     // Attenuation

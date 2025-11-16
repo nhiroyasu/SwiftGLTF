@@ -154,6 +154,7 @@ final class PBRRenderTests {
         ("CompareTransmission", "glb", nil),
         ("CompareClearcoat", "glb", nil),
         ("TextureTransformMultiTest", "glb", nil),
+        ("CompareVolume", "glb", nil)
     ]
 
     // Export baseline textures
