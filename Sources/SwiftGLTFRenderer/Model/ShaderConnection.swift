@@ -69,6 +69,9 @@ class ShaderConnection {
             outputTextureDescriptor.pixelFormat = .rgba32Float
             outputTextureDescriptor.width = texture.width
             outputTextureDescriptor.height = texture.height
+            outputTextureDescriptor.mipmapLevelCount = texture.mipmapLevelCount
+            outputTextureDescriptor.textureType = texture.textureType
+            outputTextureDescriptor.arrayLength = texture.arrayLength
             outputTextureDescriptor.usage = [.shaderRead, .shaderWrite]
             guard let outputTexture = texture.device.makeTexture(descriptor: outputTextureDescriptor) else {
                 throw SwiftGLTFError.makeRender(.outputTextureCreateFailed, context: .capture(stage: .render))
@@ -76,17 +79,40 @@ class ShaderConnection {
 
             let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
             computeEncoder.setComputePipelineState(pso)
-            computeEncoder.setTexture(texture, index: 0)
-            computeEncoder.setTexture(outputTexture, index: 1)
-            let threadsPerThreadgroup = MTLSize(width: 16, height: 16, depth: 1)
-            let threadgroups = MTLSize(
-                width: (texture.width + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
-                height: (texture.height + threadsPerThreadgroup.height - 1) / threadsPerThreadgroup.height,
-                depth: 1
-            )
-            computeEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
-            computeEncoder.endEncoding()
 
+            // 各mipmapレベルに対して変換処理を実行
+            for mipLevel in 0..<texture.mipmapLevelCount {
+                let mipWidth = max(texture.width >> mipLevel, 1)
+                let mipHeight = max(texture.height >> mipLevel, 1)
+
+                // テクスチャビューを作成して特定のmipmapレベルを指定
+                let inputTextureView = texture.makeTextureView(
+                    pixelFormat: texture.pixelFormat,
+                    textureType: texture.textureType,
+                    levels: mipLevel..<(mipLevel + 1),
+                    slices: 0..<texture.arrayLength
+                )!
+
+                let outputTextureView = outputTexture.makeTextureView(
+                    pixelFormat: outputTexture.pixelFormat,
+                    textureType: outputTexture.textureType,
+                    levels: mipLevel..<(mipLevel + 1),
+                    slices: 0..<outputTexture.arrayLength
+                )!
+
+                computeEncoder.setTexture(inputTextureView, index: 0)
+                computeEncoder.setTexture(outputTextureView, index: 1)
+
+                let threadsPerThreadgroup = MTLSize(width: 16, height: 16, depth: 1)
+                let threadgroups = MTLSize(
+                    width: (mipWidth + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
+                    height: (mipHeight + threadsPerThreadgroup.height - 1) / threadsPerThreadgroup.height,
+                    depth: 1
+                )
+                computeEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
+            }
+
+            computeEncoder.endEncoding()
             output.append(outputTexture)
         }
 
@@ -212,7 +238,7 @@ class ShaderConnection {
         guard let heapBuffer else {
             throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
         }
-        
+
         encoder.copy(from: buffer, sourceOffset: 0, to: heapBuffer, destinationOffset: 0, size: buffer.length)
 
         encoder.endEncoding()

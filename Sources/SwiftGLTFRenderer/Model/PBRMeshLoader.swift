@@ -784,7 +784,8 @@ class PBRMeshLoader {
             options: [
                 .origin: MTKTextureLoader.Origin.topLeft,
                 .textureStorageMode: NSNumber(value: MTLStorageMode.private.rawValue),
-                .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue)
+                .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue),
+                .generateMipmaps: NSNumber(value: true)
             ]
         )
     }
@@ -792,6 +793,7 @@ class PBRMeshLoader {
     private func makeSamplerState(from sampler: MDLTextureSampler, device: MTLDevice) throws -> MTLSamplerState {
         let descriptor = MTLSamplerDescriptor()
         descriptor.supportArgumentBuffers = true
+        descriptor.mipFilter = .linear
 
         switch sampler.hardwareFilter?.magFilter {
         case .nearest: descriptor.magFilter = .nearest
