@@ -672,6 +672,7 @@ class PBRMeshLoader {
         guard let texturesHeap = device.makeHeap(descriptor: heapDescriptor) else {
             throw SwiftGLTFError.makeRender(.texturesHeapCreateFailed, context: .capture(stage: .render))
         }
+        texturesHeap.label = "[SwiftGLTF] Textures Heap"
         return texturesHeap
     }
 
@@ -689,6 +690,7 @@ class PBRMeshLoader {
         guard let fragmentArgumentHeap = device.makeHeap(descriptor: heapDescriptor) else {
             throw SwiftGLTFError.makeRender(.fragmentArgumentHeapCreateFailed, context: .capture(stage: .render))
         }
+        fragmentArgumentHeap.label = "[SwiftGLTF] Fragment Heap"
         return fragmentArgumentHeap
     }
 
@@ -706,6 +708,7 @@ class PBRMeshLoader {
         guard let skeletonHeap = device.makeHeap(descriptor: heapDescriptor) else {
             return nil
         }
+        skeletonHeap.label = "[SwiftGLTF] Skeleton Heap"
         return skeletonHeap
     }
 
@@ -737,6 +740,7 @@ class PBRMeshLoader {
         guard let vertexModelHeap = device.makeHeap(descriptor: heapDescriptor) else {
             throw SwiftGLTFError.makeRender(.vertexModelHeapCreateFailed, context: .capture(stage: .render))
         }
+        vertexModelHeap.label = "[SwiftGLTF] Vertex Heap"
         return vertexModelHeap
     }
 
