@@ -221,16 +221,16 @@ func evaluateTRS(
         let dt = max(1e-8, t1 - t0)
         switch type {
         case .translation(let values):
-            let v0: simd_float3x3 = simd_float3x3(rows: [
-                values[k0 * 3 + 0],
-                values[k0 * 3 + 1],
-                values[k0 * 3 + 2],
-            ])
-            let v1: simd_float3x3 = simd_float3x3(rows: [
-                values[k1 * 3 + 0],
-                values[k1 * 3 + 1],
-                values[k1 * 3 + 2],
-            ])
+            let v0: simd_float3x3 = simd_float3x3(
+                values[k0 * 3 + 0], // tangent in
+                values[k0 * 3 + 1], // value
+                values[k0 * 3 + 2], // tangent out
+            )
+            let v1: simd_float3x3 = simd_float3x3(
+                values[k1 * 3 + 0], // tangent in
+                values[k1 * 3 + 1], // value
+                values[k1 * 3 + 2], // tangent out
+            )
             let p0 = v0[1]
             let m0 = v0[2] * dt
             let p1 = v1[1]
@@ -241,16 +241,16 @@ func evaluateTRS(
             trs.translation = SIMD3<Float>(x, y, z)
 
         case .scale(let values):
-            let v0: simd_float3x3 = simd_float3x3(rows: [
-                values[k0 * 3 + 0],
-                values[k0 * 3 + 1],
-                values[k0 * 3 + 2],
-            ])
-            let v1: simd_float3x3 = simd_float3x3(rows: [
-                values[k1 * 3 + 0],
-                values[k1 * 3 + 1],
-                values[k1 * 3 + 2],
-            ])
+            let v0: simd_float3x3 = simd_float3x3(
+                values[k0 * 3 + 0], // tangent in
+                values[k0 * 3 + 1], // value
+                values[k0 * 3 + 2], // tangent out
+            )
+            let v1: simd_float3x3 = simd_float3x3(
+                values[k1 * 3 + 0], // tangent in
+                values[k1 * 3 + 1], // value
+                values[k1 * 3 + 2], // tangent out
+            )
             let p0 = v0[1]
             let m0 = v0[2] * dt
             let p1 = v1[1]
@@ -262,16 +262,14 @@ func evaluateTRS(
 
         case .rotation(let values):
             let v0: [simd_quatf] = [
-                values[k0 * 4 + 0],
-                values[k0 * 4 + 1],
-                values[k0 * 4 + 2],
-                values[k0 * 4 + 3],
+                values[k0 * 3 + 0], // tangent in
+                values[k0 * 3 + 1], // value
+                values[k0 * 3 + 2], // tangent out
             ]
             let v1: [simd_quatf] = [
-                values[k1 * 4 + 0],
-                values[k1 * 4 + 1],
-                values[k1 * 4 + 2],
-                values[k1 * 4 + 3],
+                values[k1 * 3 + 0], // tangent in
+                values[k1 * 3 + 1], // value
+                values[k1 * 3 + 2], // tangent out
             ]
             let p0 = v0[1]
             let m0 = v0[2] * dt

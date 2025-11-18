@@ -35,8 +35,9 @@ final class AnimationTests {
         to output: MTLTexture,
         meshURL: URL,
         eye: SIMD3<Float>,
+        animationIndex: Int,
         animationState: RendererAnimationState
-    ) async throws {
+    ) throws {
         let viewport = MTLViewport(
             originX: 0,
             originY: 0,
@@ -112,7 +113,7 @@ final class AnimationTests {
 
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL, options: .init(autoScale: false))
-        try renderer.load(from: asset)
+        try renderer.load(from: asset, animationIndex: animationIndex)
         try renderer.setEnvironment(url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
 
         // Create command buffer and render encoder
@@ -134,17 +135,20 @@ final class AnimationTests {
         )
 
         cmdBuf.commit()
-        await cmdBuf.completed()
+        cmdBuf.waitUntilCompleted()
     }
 
     // MARK: - Export golden images
 
     let goldenFilePrefix = "golden_animation_mesh_"
     let outputFilePrefix = "animation_mesh_"
-    let meshFiles: [(String, String, SIMD3<Float>)] = [
-        // Mesh name, extension, eye
-        ("AnimatedColorsCube", "glb", SIMD3<Float>(-5.66, 5.66, -5.66)),
-        ("AnimatedMorphCube", "glb", SIMD3<Float>(-2.83, 2.83, -2.83))
+    let meshFiles: [(String, String, SIMD3<Float>, Int)] = [
+        // Mesh name, extension, eye, animationIndex
+        ("AnimatedColorsCube", "glb", SIMD3<Float>(-5.66, 5.66, -5.66), 0),
+        ("AnimatedMorphCube", "glb", SIMD3<Float>(-2.83, 2.83, -2.83), 0),
+        ("InterpolationTest", "glb", SIMD3<Float>(-14.1, 14.1, -14.1), 2),
+        ("InterpolationTest", "glb", SIMD3<Float>(-14.1, 14.1, -14.1), 4),
+        ("InterpolationTest", "glb", SIMD3<Float>(-14.1, 14.1, -14.1), 7),
     ]
 
 
@@ -154,15 +158,15 @@ final class AnimationTests {
     // Export baseline textures
     // These should be run manually to generate expected textures
     @Test
-    func ExportGoldenImages() async throws {
+    func ExportGoldenImages() throws {
         guard EXPORT_GOLDEN_IMAGES_FLAG, !isCI() else { return }
 
         while time > currentTime {
-            for (meshName, ext, eye) in meshFiles {
+            for (meshName, ext, eye, animIndex) in meshFiles {
                 let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
                 let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-                try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
-                try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName)_\(String(format: "%.1f", currentTime)).png")
+                try renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationIndex: animIndex, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
+                try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName)_\(animIndex)_\(String(format: "%.1f", currentTime)).png")
             }
             currentTime += interval
         }
@@ -171,20 +175,20 @@ final class AnimationTests {
     // MARK: - Tests
 
     @Test
-    func testMeshRenderingMatchesGolden() async throws {
+    func testMeshRenderingMatchesGolden() throws {
         // This rendering test is not run on CI because it depends on the GPU and the supported Metal version.
         guard !isCI() else { return }
 
         while time > currentTime {
-            for (meshName, ext, eye) in meshFiles {
+            for (meshName, ext, eye, animIndex) in meshFiles {
                 let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
                 let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-                try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
+                try renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationIndex: animIndex, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
 
-                assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)_\(String(format: "%.1f", currentTime))")
+                assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)_\(animIndex)_\(String(format: "%.1f", currentTime))")
 
                 if EXPORT_OUTPUT_IMAGES_FLAG, !isCI() {
-                    try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName)_\(String(format: "%.1f", currentTime)).png")
+                    try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName)_\(animIndex)_\(String(format: "%.1f", currentTime)).png")
                 }
             }
             currentTime += interval

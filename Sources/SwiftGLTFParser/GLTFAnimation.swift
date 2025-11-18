@@ -85,7 +85,9 @@ enum GLTFAnimationChannelBuilder {
         let animationType: GLTFAnimationType
         switch channel.target.path {
         case .translation:
-            if gltf.accessors?[sampler.output.value].type == .vec3 {
+            if let accessor = gltf.accessors?[sampler.output.value],
+               accessor.type == .vec3,
+               accessor.componentType == .float {
                 let outputArray: [Float] = outputData.withUnsafeBytes { ptr in
                     let floatPtr = ptr.bindMemory(to: Float.self)
                     return Array(floatPtr)
@@ -102,7 +104,9 @@ enum GLTFAnimationChannelBuilder {
                 animationType = .unknown
             }
         case .scale:
-            if gltf.accessors?[sampler.output.value].type == .vec3 {
+            if let accessor = gltf.accessors?[sampler.output.value],
+               accessor.type == .vec3,
+               accessor.componentType == .float {
                 let outputArray: [Float] = outputData.withUnsafeBytes { ptr in
                     let floatPtr = ptr.bindMemory(to: Float.self)
                     return Array(floatPtr)
@@ -116,7 +120,9 @@ enum GLTFAnimationChannelBuilder {
                 animationType = .unknown
             }
         case .rotation:
-            if gltf.accessors?[sampler.output.value].type == .vec4 {
+            if let accessor = gltf.accessors?[sampler.output.value],
+                accessor.type == .vec4,
+                accessor.componentType == .float {
                 let outputArray: [Float] = outputData.withUnsafeBytes { ptr in
                     let floatPtr = ptr.bindMemory(to: Float.self)
                     return Array(floatPtr)
@@ -133,7 +139,9 @@ enum GLTFAnimationChannelBuilder {
                 animationType = .unknown
             }
         case .weights:
-            if gltf.accessors?[sampler.output.value].type == .scalar {
+            if let accessor = gltf.accessors?[sampler.output.value],
+               accessor.type == .scalar,
+               accessor.componentType == .float {
                 let outputArray: [Float] = outputData.withUnsafeBytes { ptr in
                     let floatPtr = ptr.bindMemory(to: Float.self)
                     return Array(floatPtr)

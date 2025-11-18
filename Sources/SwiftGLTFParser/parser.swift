@@ -56,32 +56,18 @@ public func makeMDLAsset(
     // en: Convert all meshes first and keep them for reuse
     var mdlMeshMap: [MeshIndex: [MDLMesh]] = [:]
     if let meshes = gltf.meshes, !meshes.isEmpty {
-        let resultDispatch = DispatchQueue(label: "gltf.mesh.convert")
-        var errors: [Error?] = Array(repeating: nil, count: meshes.count)
-        DispatchQueue.concurrentPerform(iterations: meshes.count) { index in
-            do {
-                let mesh = meshes[index]
-                let meshes = try makeMDLMesh(
-                    from: mesh,
-                    name: mesh.name ?? "Mesh_\(index)",
-                    using: gltf,
-                    allocator: allocator,
-                    binaryLoader: binaryLoader,
-                    mdlMaterials: mdlMaterials,
-                    options: options
-                )
-                resultDispatch.sync {
-                    mdlMeshMap[MeshIndex(index)] = meshes
-                }
-            } catch {
-                os_log("Failed to convert mesh at index %{public}d: %{public}@", log: .default, type: .error, index, String(describing: error))
-                resultDispatch.sync {
-                    errors[index] = error
-                }
-            }
-        }
-        if let error = errors.compactMap({ $0 }).first {
-            throw error
+        for index in 0..<meshes.count {
+            let mesh = meshes[index]
+            let meshes = try makeMDLMesh(
+                from: mesh,
+                name: mesh.name ?? "Mesh_\(index)",
+                using: gltf,
+                allocator: allocator,
+                binaryLoader: binaryLoader,
+                mdlMaterials: mdlMaterials,
+                options: options
+            )
+            mdlMeshMap[MeshIndex(index)] = meshes
         }
     }
 

@@ -27,7 +27,6 @@
       }
     },
     {
-      "parallelizable" : false,
       "target" : {
         "containerPath" : "container:",
         "identifier" : "SwiftGLTFRendererTests",
