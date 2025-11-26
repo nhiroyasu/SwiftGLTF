@@ -2,6 +2,7 @@ import ModelIO
 
 public class GLTF_MDLSubmesh: MDLSubmesh {
     public let materialIndex: Int
+    public let variantMappings: [GLTFVariantMapping]
 
     init(
         name: String,
@@ -10,9 +11,11 @@ public class GLTF_MDLSubmesh: MDLSubmesh {
         indexType: MDLIndexBitDepth,
         geometryType: MDLGeometryType,
         material: MDLMaterial?,
-        materialIndex: Int
+        materialIndex: Int,
+        variantMappings: [GLTFVariantMapping]
     ) {
         self.materialIndex = materialIndex
+        self.variantMappings = variantMappings
         super.init(
             name: name,
             indexBuffer: indexBuffer,

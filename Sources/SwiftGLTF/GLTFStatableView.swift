@@ -43,6 +43,9 @@ public class GLTFStatableView: GLTFView {
     /// The index of the currently loaded animation
     private var currentAnimationIndex: Int?
 
+    /// The index of the currently selected variant
+    private var currentVariantIndex: Int?
+
     /// The URL of the currently loaded environment map
     private var currentEnvironmentURL: URL?
 
@@ -85,6 +88,15 @@ public class GLTFStatableView: GLTFView {
     public var animationIndex: Int? {
         didSet {
             if animationIndex != currentAnimationIndex {
+                reloadGLTFIfNeeded()
+            }
+        }
+    }
+
+    /// The index of the material variant to apply.
+    public var variantIndex: Int? {
+        didSet {
+            if variantIndex != currentVariantIndex {
                 reloadGLTFIfNeeded()
             }
         }
@@ -136,16 +148,26 @@ public class GLTFStatableView: GLTFView {
             currentGLTFURL = nil
             currentSceneIndex = nil
             currentAnimationIndex = nil
+            currentVariantIndex = nil
             return
         }
 
-        let needsReload = url != currentGLTFURL || sceneIndex != currentSceneIndex || animationIndex != currentAnimationIndex
+        let needsReload = url != currentGLTFURL
+            || sceneIndex != currentSceneIndex
+            || animationIndex != currentAnimationIndex
+            || variantIndex != currentVariantIndex
         guard needsReload else { return }
         currentGLTFURL = url
         currentSceneIndex = sceneIndex
         currentAnimationIndex = animationIndex
+        currentVariantIndex = variantIndex
 
-        super.load(gltf: url, sceneIndex: sceneIndex, animationIndex: animationIndex)
+        super.load(
+            gltf: url,
+            sceneIndex: sceneIndex,
+            animationIndex: animationIndex,
+            variantIndex: variantIndex
+        )
         os_log("GLTFStatableView: Reloaded GLTF due to asset change", type: .info)
     }
 
@@ -174,10 +196,16 @@ public class GLTFStatableView: GLTFView {
     /// - Parameters:
     ///   - url: The URL of the GLTF file to load
     ///   - sceneIndex: The index of the scene to display. If `nil`, the default scene is used.
-    public override func load(gltf url: URL, sceneIndex: Int?, animationIndex: Int?) {
+    public override func load(
+        gltf url: URL,
+        sceneIndex: Int? = nil,
+        animationIndex: Int? = nil,
+        variantIndex: Int? = nil
+    ) {
         currentGLTFURL = url
         currentSceneIndex = sceneIndex
         currentAnimationIndex = animationIndex
+        currentVariantIndex = variantIndex
         reloadGLTFIfNeeded()
     }
 

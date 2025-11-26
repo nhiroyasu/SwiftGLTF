@@ -33,6 +33,7 @@ public struct GLTF: Codable, Equatable {
     public let samplers: [Sampler]?
     public let extensionsUsed: [String]?
     public let extensionsRequired: [String]?
+    public let extensions: GLTFExtensions?
 
     enum CodingKeys: String, CodingKey {
         case asset
@@ -52,6 +53,7 @@ public struct GLTF: Codable, Equatable {
         case samplers
         case extensionsUsed
         case extensionsRequired
+        case extensions
     }
 
     public init(from decoder: Decoder) throws {
@@ -73,7 +75,24 @@ public struct GLTF: Codable, Equatable {
         self.samplers = try container.decodeIfPresent([Sampler].self, forKey: .samplers)
         self.extensionsUsed = try container.decodeIfPresent([String].self, forKey: .extensionsUsed)
         self.extensionsRequired = try container.decodeIfPresent([String].self, forKey: .extensionsRequired)
+        self.extensions = try container.decodeIfPresent(GLTFExtensions.self, forKey: .extensions)
     }
+}
+
+public struct GLTFExtensions: Codable, Equatable {
+    public let khrMaterialsVariants: KHRMaterialsVariantsRoot?
+
+    enum CodingKeys: String, CodingKey {
+        case khrMaterialsVariants = "KHR_materials_variants"
+    }
+}
+
+public struct KHRMaterialsVariantsRoot: Codable, Equatable {
+    public let variants: [KHRMaterialsVariant]
+}
+
+public struct KHRMaterialsVariant: Codable, Equatable {
+    public let name: String?
 }
 
 public struct Scene: Codable, Equatable {
@@ -154,6 +173,28 @@ public struct PBRMetallicRoughness: Codable, Equatable {
 }
 
 public struct TextureIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
+    public let value: Int
+
+    public init(_ value: Int) {
+        self.value = value
+    }
+
+    public init(integerLiteral value: Int) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        value = try container.decode(Int.self)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
+public struct VariantIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equatable {
     public let value: Int
 
     public init(_ value: Int) {
@@ -606,6 +647,7 @@ public struct Primitive: Codable, Equatable {
     /// Morph targets: Each element is a map from attribute name (e.g. "POSITION") to accessor index
     /// glTF: mesh.primitives[*].targets
     public let targets: [[String: Int]]?
+    public let extensions: PrimitiveExtensions?
 
     enum CodingKeys: String, CodingKey {
         case attributes
@@ -613,6 +655,7 @@ public struct Primitive: Codable, Equatable {
         case material
         case mode
         case targets
+        case extensions
     }
 
     public init(from decoder: Decoder) throws {
@@ -622,7 +665,25 @@ public struct Primitive: Codable, Equatable {
         self.material = try container.decodeIfPresent(Int.self, forKey: .material)
         self.mode = try container.decodeIfPresent(GLTFPrimitiveMode.self, forKey: .mode) ?? .triangles
         self.targets = try container.decodeIfPresent([[String: Int]].self, forKey: .targets)
+        self.extensions = try container.decodeIfPresent(PrimitiveExtensions.self, forKey: .extensions)
     }
+}
+
+public struct PrimitiveExtensions: Codable, Equatable {
+    public let khrMaterialsVariants: KHRMaterialsVariantsPrimitive?
+
+    enum CodingKeys: String, CodingKey {
+        case khrMaterialsVariants = "KHR_materials_variants"
+    }
+}
+
+public struct KHRMaterialsVariantsPrimitive: Codable, Equatable {
+    public let mappings: [KHRMaterialsVariantsMapping]
+}
+
+public struct KHRMaterialsVariantsMapping: Codable, Equatable {
+    public let material: Int
+    public let variants: [VariantIndex]
 }
 
 public struct Image: Codable, Equatable {

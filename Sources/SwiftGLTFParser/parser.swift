@@ -52,6 +52,15 @@ public func makeMDLAsset(
     materialsObject.name = GLTFAssetName.materials
     librariesObject.addChild(materialsObject)
 
+    let variantsInGLTF = gltf.extensions?.khrMaterialsVariants?.variants ?? []
+    let variantsObject = GLTFVariants(
+        variants: variantsInGLTF.enumerated().map { index, element in
+            GLTFVariant(index: index, name: element.name ?? "Variant_\(index)")
+        }
+    )
+    variantsObject.name = GLTFAssetName.variants
+    librariesObject.addChild(variantsObject)
+
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
     var mdlMeshMap: [MeshIndex: [MDLMesh]] = [:]
@@ -298,6 +307,13 @@ public func makeMDLMesh(
             }
         }
 
+        let variantMappings: [GLTFVariantMapping] = primitive.extensions?.khrMaterialsVariants?.mappings.map {
+            GLTFVariantMapping(
+                variants: $0.variants.map(\.value),
+                materialIndex: $0.material
+            )
+        } ?? []
+
         // Generate a submesh
         let submesh: MDLSubmesh
         submesh = GLTF_MDLSubmesh(
@@ -307,7 +323,8 @@ public func makeMDLMesh(
             indexType: indexInfo.type,
             geometryType: .triangles,
             material: mdlMaterial,
-            materialIndex: primitive.material ?? -1
+            materialIndex: primitive.material ?? -1,
+            variantMappings: variantMappings
         )
 
         // Add the mesh to the list

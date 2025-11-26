@@ -27,7 +27,8 @@ class PBRMeshLoader {
     func loadMeshes(
         from asset: MDLAsset,
         sceneIndex: Int? = nil,
-        animationIndex: Int? = nil
+        animationIndex: Int? = nil,
+        variantIndex: Int? = nil
     ) throws -> PBRMeshBundle {
         #if DEBUG
         let startTime = Date()
@@ -114,6 +115,10 @@ class PBRMeshLoader {
         let vertexMeshHeap = try makeVertexMeshHeap(from: asset, sceneIndex: sceneIndex)
         let meshVertexBufferMap = try extractMeshVertexBufferMap(from: asset, use: vertexMeshHeap)
 
+        let gltfMaterials = asset.objectSafe(atPath: GLTFAssetPath.materials) as? GLTFMaterials
+        let gltfVariants = asset.objectSafe(atPath: GLTFAssetPath.variants) as? GLTFVariants
+        let selectedVariantIndex = sanitizeVariantIndex(variantIndex, availableVariants: gltfVariants)
+
         var textureMap = try extractAllTextureMap(from: asset)
         let texturesHeap = try makeTexturesHeap(from: Array(textureMap.values))
         if let texturesHeap {
@@ -140,7 +145,9 @@ class PBRMeshLoader {
             vertexHeap: vertexMeshHeap,
             fragmentHeap: fragmentHeap,
             parentTransform: float4x4(1),
-            nodeLevelHierarchy: nodeLevelHierarchy
+            nodeLevelHierarchy: nodeLevelHierarchy,
+            gltfMaterials: gltfMaterials,
+            variantIndex: selectedVariantIndex
         )
 
         let boundingSpheresBuffer = try shaderConnection.computeBoundingSpheres(meshes: pbrMeshes)
@@ -185,7 +192,9 @@ class PBRMeshLoader {
         vertexHeap: MTLHeap,
         fragmentHeap: MTLHeap,
         parentTransform: float4x4,
-        nodeLevelHierarchy: NodeLevelHierarchy
+        nodeLevelHierarchy: NodeLevelHierarchy,
+        gltfMaterials: GLTFMaterials?,
+        variantIndex: Int?
     ) throws -> [PBRMesh] {
         var pbrMeshes: [PBRMesh] = []
 
@@ -211,7 +220,9 @@ class PBRMeshLoader {
                     textureMap: textureMap,
                     totalTransform: totalTransform,
                     skinDispatch: skinDispatch,
-                    nodeLevelHierarchy: nodeLevelHierarchy
+                    nodeLevelHierarchy: nodeLevelHierarchy,
+                    gltfMaterials: gltfMaterials,
+                    variantIndex: variantIndex
                 )
                 pbrMeshes.append(pbrMesh)
             }
@@ -228,7 +239,9 @@ class PBRMeshLoader {
                 vertexHeap: vertexHeap,
                 fragmentHeap: fragmentHeap,
                 parentTransform: totalTransform,
-                nodeLevelHierarchy: nodeLevelHierarchy
+                nodeLevelHierarchy: nodeLevelHierarchy,
+                gltfMaterials: gltfMaterials,
+                variantIndex: variantIndex
             )
             pbrMeshes.append(contentsOf: childMeshes)
         }
@@ -246,7 +259,9 @@ class PBRMeshLoader {
         textureMap: [MDLTexture: MTLTexture],
         totalTransform: float4x4,
         skinDispatch: SkinDispatch?,
-        nodeLevelHierarchy: NodeLevelHierarchy
+        nodeLevelHierarchy: NodeLevelHierarchy,
+        gltfMaterials: GLTFMaterials?,
+        variantIndex: Int?
     ) throws -> PBRMesh {
         let mtkMesh = try MTKMesh(mesh: mdlMesh, device: device)
 
@@ -303,10 +318,14 @@ class PBRMeshLoader {
 
         // Process submeshes
         var submeshes: [PBRMesh.Submesh] = []
+        var effectiveMaterials: [MDLMaterial?] = []
         for (mtkSubmesh, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
-            // Extract material factors to pass to shader
-            let material = mdlSubmesh.material
-      
+            let gltfSubmesh = mdlSubmesh as? GLTF_MDLSubmesh
+            let resolvedMaterialIndex = resolveMaterialIndex(from: gltfSubmesh, variantIndex: variantIndex)
+            let activeMaterial = material(from: gltfMaterials, at: resolvedMaterialIndex) ?? mdlSubmesh.material
+            let material = activeMaterial ?? mdlSubmesh.material
+            effectiveMaterials.append(material)
+
             // Alpha mode & cutoff
             let alphaModeStr = material?.propertyNamed(.alphaMode)?.stringValue?.uppercased() ?? "OPAQUE"
             let alphaModeEnum: SwiftGLTFShaderTypes.AlphaMode = {
@@ -325,7 +344,7 @@ class PBRMeshLoader {
             let centerModelSpace: SIMD3<Float> = material?.propertyNamed(.meshCenter)?.float3Value ?? SIMD3<Float>(0, 0, 0)
 
             // Material index
-            let materialIndex = (mdlSubmesh as? GLTF_MDLSubmesh)?.materialIndex ?? -1
+            let materialIndex = resolvedMaterialIndex
 
             let submeshData = PBRMesh.Submesh(
                 primitiveType: mtkSubmesh.primitiveType,
@@ -344,12 +363,14 @@ class PBRMeshLoader {
 
         // Check if any submesh has transmission
         var hasTransmission = false
-        for (_, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
-            let material = mdlSubmesh.material
+        for material in effectiveMaterials {
             // Transmission factor
             let transmissionFactor: Float = material?.propertyNamed(.transmissionFactor)?.floatValue ?? 0.0
             let (hasTransmissionTexture, _, _) = retrieveTexture(prop: material?.propertyNamed(.transmissionTexture), textureMap: textureMap)
-            hasTransmission = transmissionFactor > 0 || hasTransmissionTexture
+            if transmissionFactor > 0 || hasTransmissionTexture {
+                hasTransmission = true
+                break
+            }
         }
 
         // Decide rendering type based on submeshes
@@ -517,19 +538,19 @@ class PBRMeshLoader {
         var textureMap: [MDLTexture: MTLTexture] = [:]
         var needConvertionLinearSpace: [MDLTexture: MTLTexture] = [:]
 
-        for mesh in asset.gltfMeshes {
-            for submesh in mesh.submeshes ?? [] {
-                guard let mdlSubmesh = submesh as? MDLSubmesh, let material = mdlSubmesh.material else { continue }
+        if let gltfMaterials = asset.objectSafe(atPath: GLTFAssetPath.materials) as? GLTFMaterials {
+            for material in gltfMaterials.materials {
                 for propertyIndex in 0..<material.count {
-                    guard let property = material[propertyIndex], property.type == .texture,
+                    guard let property = material[propertyIndex],
+                          property.type == .texture,
                           let texture = property.textureSamplerValue?.texture else { continue }
                     let mtlTexture = try mdl2mtlTexture(texture)
                     textureMap[texture] = mtlTexture
 
-                    if property.name == MaterialPropertyName.emissiveTexture.rawValue ||
-                        property.name == MaterialPropertyName.baseColorTexture.rawValue ||
-                        property.name == MaterialPropertyName.specularColorTexture.rawValue ||
-                        property.name == MaterialPropertyName.sheenColorTexture.rawValue {
+                    if property.name == MaterialPropertyName.emissiveTexture.rawValue
+                        || property.name == MaterialPropertyName.baseColorTexture.rawValue
+                        || property.name == MaterialPropertyName.specularColorTexture.rawValue
+                        || property.name == MaterialPropertyName.sheenColorTexture.rawValue {
                         needConvertionLinearSpace[texture] = mtlTexture
                     }
                 }
@@ -751,6 +772,30 @@ class PBRMeshLoader {
             convertedMap[mdlTexture] = heapTexture
         }
         return convertedMap
+    }
+
+    private func sanitizeVariantIndex(_ variantIndex: Int?, availableVariants: GLTFVariants?) -> Int? {
+        guard let variantIndex else { return nil }
+        guard let variants = availableVariants?.variants else { return nil }
+        if variants.contains(where: { $0.index == variantIndex }) {
+            return variantIndex
+        }
+        return nil
+    }
+
+    private func resolveMaterialIndex(from submesh: GLTF_MDLSubmesh?, variantIndex: Int?) -> Int {
+        guard let submesh else { return -1 }
+        guard let variantIndex else { return submesh.materialIndex }
+        if let mapping = submesh.variantMappings.first(where: { $0.variants.contains(variantIndex) }) {
+            return mapping.materialIndex
+        }
+        return submesh.materialIndex
+    }
+
+    private func material(from gltfMaterials: GLTFMaterials?, at index: Int) -> MDLMaterial? {
+        guard index >= 0 else { return nil }
+        guard let materials = gltfMaterials?.materials, materials.indices.contains(index) else { return nil }
+        return materials[index]
     }
 
     // MARK: - Texture & Sampler Helpers

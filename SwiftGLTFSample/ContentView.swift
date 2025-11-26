@@ -6,6 +6,16 @@ struct ContentView: View {
 
     @StateObject private var viewModel = GLTFViewModel()
 
+    private var showDebugHUD: Bool {
+        #if os(iOS)
+        return false
+        #elseif os(macOS)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if let url = viewModel.url {
@@ -13,10 +23,11 @@ struct ContentView: View {
                     url: url,
                     sceneIndex: viewModel.sceneIndex,
                     animationIndex: viewModel.animationIndex,
+                    variantIndex: viewModel.variantIndex,
                     cameraIndex: viewModel.cameraIndex,
                     environmentUrl: Bundle.main.url(forResource: "env_map", withExtension: "exr")!,
                     modelBinding: $viewModel.gltf,
-                    showDebugHUD: true
+                    showDebugHUD: showDebugHUD
                 )
             }
         }
@@ -54,6 +65,19 @@ struct ContentView: View {
                     }
                 } label: {
                     Text(viewModel.animationMenuLabel)
+                }
+
+                Menu {
+                    Button("Variant: Default") {
+                        viewModel.selectedVariantIndex = nil
+                    }
+                    ForEach(0..<viewModel.variantCount, id: \.self) { index in
+                        Button("Variant: \(viewModel.variantName(at: index))") {
+                            viewModel.selectedVariantIndex = index
+                        }
+                    }
+                } label: {
+                    Text(viewModel.variantMenuLabel)
                 }
 
                 Menu {

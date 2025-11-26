@@ -15,6 +15,7 @@ class GLTFViewModel: ObservableObject, DropDelegate {
     @Published var selectedSceneIndex: Int? = nil
     @Published var selectedAnimationIndex: Int? = nil
     @Published var selectedCameraIndex: Int? = nil
+    @Published var selectedVariantIndex: Int? = nil
     @Published var gltf: GLTF?
 
     #if os(iOS)
@@ -136,5 +137,43 @@ class GLTFViewModel: ObservableObject, DropDelegate {
         } else {
             return "Camera: Free"
         }
+    }
+
+    var variantIndex: Int? {
+        if let variants = gltf?.extensions?.khrMaterialsVariants?.variants,
+           let selectedVariantIndex {
+            return min(max(selectedVariantIndex, 0), variants.count - 1)
+        } else {
+            return nil
+        }
+    }
+
+    var variantCount: Int {
+        gltf?.extensions?.khrMaterialsVariants?.variants.count ?? 0
+    }
+
+    var variantMenuLabel: String {
+        if variantCount == 0 {
+            return "Variant: None"
+        }
+        if let variantIndex,
+           let variant = gltf?.extensions?.khrMaterialsVariants?.variants[variantIndex],
+           let name = variant.name, !name.isEmpty {
+            return "Variant: \(name)"
+        } else if let variantIndex {
+            return "Variant: \(variantIndex)"
+        } else {
+            return "Variant: Default"
+        }
+    }
+
+    func variantName(at index: Int) -> String {
+        if let variants = gltf?.extensions?.khrMaterialsVariants?.variants,
+           variants.indices.contains(index),
+           let name = variants[index].name,
+           !name.isEmpty {
+            return name
+        }
+        return "\(index)"
     }
 }
