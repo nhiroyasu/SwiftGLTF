@@ -1,0 +1,88 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "SwiftGLTFTests"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [0]
+    }
+  ],
+  "nodes": [
+    { "name": "Root" },
+    { "name": "Head" }
+  ],
+  "extensionsUsed": ["VRMC_vrm"],
+  "extensions": {
+    "VRMC_vrm": {
+      "humanoid": {
+        "humanBones": {
+          "hips": {
+            "node": 0,
+            "useDefaultValues": false,
+            "min": [-0.1, -0.2, -0.3],
+            "max": [0.1, 0.2, 0.3],
+            "center": [0.0, 0.0, 0.0],
+            "axisLength": 0.5
+          },
+          "hips": { "node": 0 },
+          "spine": { "node": 1 },
+          "head": { "node": 2 },
+          "leftUpperLeg": { "node": 3 },
+          "leftLowerLeg": { "node": 4 },
+          "leftFoot": { "node": 5 },
+          "rightUpperLeg": { "node": 6 },
+          "rightLowerLeg": { "node": 7 },
+          "rightFoot": { "node": 8 },
+          "leftUpperArm": { "node": 9 },
+          "leftLowerArm": { "node": 10 },
+          "leftHand": { "node": 11 },
+          "rightUpperArm": { "node": 12 },
+          "rightLowerArm": { "node": 13 },
+          "rightHand": { "node": 14 },
+          "leftToes": { "node": 15 },
+          "rightToes": { "node": 16 },
+          "chest": { "node": 17 },
+          "upperChest": { "node": 18 },
+          "neck": { "node": 19 },
+          "leftShoulder": { "node": 20 },
+          "rightShoulder": { "node": 21 },
+          "leftThumbMetacarpal": { "node": 22 },
+          "leftThumbProximal": { "node": 23 },
+          "leftThumbDistal": { "node": 24 },
+          "leftIndexProximal": { "node": 25 },
+          "leftIndexIntermediate": { "node": 26 },
+          "leftIndexDistal": { "node": 27 },
+          "leftMiddleProximal": { "node": 28 },
+          "leftMiddleIntermediate": { "node": 29 },
+          "leftMiddleDistal": { "node": 30 },
+          "leftRingProximal": { "node": 31 },
+          "leftRingIntermediate": { "node": 32 },
+          "leftRingDistal": { "node": 33 },
+          "leftLittleProximal": { "node": 34 },
+          "leftLittleIntermediate": { "node": 35 },
+          "leftLittleDistal": { "node": 36 },
+          "rightThumbMetacarpal": { "node": 37 },
+          "rightThumbProximal": { "node": 38 },
+          "rightThumbDistal": { "node": 39 },
+          "rightIndexProximal": { "node": 40 },
+          "rightIndexIntermediate": { "node": 41 },
+          "rightIndexDistal": { "node": 42 },
+          "rightMiddleProximal": { "node": 43 },
+          "rightMiddleIntermediate": { "node": 44 },
+          "rightMiddleDistal": { "node": 45 },
+          "rightRingProximal": { "node": 46 },
+          "rightRingIntermediate": { "node": 47 },
+          "rightRingDistal": { "node": 48 },
+          "rightLittleProximal": { "node": 49 },
+          "rightLittleIntermediate": { "node": 50 },
+          "rightLittleDistal": { "node": 51 },
+          "leftEye": { "node": 52 },
+          "rightEye": { "node": 53 },
+          "jaw": { "node": 54 }
+        }
+      }
+    }
+  }
+}

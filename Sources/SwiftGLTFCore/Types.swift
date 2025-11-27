@@ -81,9 +81,11 @@ public struct GLTF: Codable, Equatable {
 
 public struct GLTFExtensions: Codable, Equatable {
     public let khrMaterialsVariants: KHRMaterialsVariantsRoot?
+    public let vrmcVrm: VRMCVRMExtension?
 
     enum CodingKeys: String, CodingKey {
         case khrMaterialsVariants = "KHR_materials_variants"
+        case vrmcVrm = "VRMC_vrm"
     }
 }
 

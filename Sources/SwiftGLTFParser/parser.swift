@@ -61,6 +61,15 @@ public func makeMDLAsset(
     variantsObject.name = GLTFAssetName.variants
     librariesObject.addChild(variantsObject)
 
+    let vrmObject = MDLObject()
+    vrmObject.name = GLTFAssetName.vrm
+    librariesObject.addChild(vrmObject)
+    if let humanoid = gltf.extensions?.vrmcVrm?.humanoid {
+        let humanoidObject = GLTFVRMHumanoid(humanoid: humanoid)
+        humanoidObject.name = GLTFAssetName.vrmHumanoid
+        vrmObject.addChild(humanoidObject)
+    }
+
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
     var mdlMeshMap: [MeshIndex: [MDLMesh]] = [:]
