@@ -1,7 +1,6 @@
 #include <metal_stdlib>
 #include "includes/helper.h"
 #include "includes/refract.h"
-#include "includes/env_arguments.h"
 #include "includes/screen_arguments.h"
 #include "includes/pbr_lighting.h"
 #include "includes/pbr_clearcoat.h"
@@ -10,6 +9,7 @@
 #include "includes/pbr_texture.h"
 #include "includes/default_arguments.h"
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
+#include "../../SwiftGLTFShaderTypes/includes/env_map_arguments.h"
 
 using namespace metal;
 

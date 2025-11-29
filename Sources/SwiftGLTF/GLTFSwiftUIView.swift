@@ -110,11 +110,12 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
     }
 
     public func makeNSView(context: Context) -> GLTFStatableView {
-        if let view = try? GLTFStatableView(frame: .zero, showDebugHUD: showDebugHUD) {
+        do {
+            let view = try GLTFStatableView(frame: .zero, showDebugHUD: showDebugHUD)
             view.translatesAutoresizingMaskIntoConstraints = false
             return view
-        } else {
-            fatalError("Failed to create GLTFView")
+        } catch {
+            fatalError("Failed to create GLTFView: \(error)")
         }
     }
 

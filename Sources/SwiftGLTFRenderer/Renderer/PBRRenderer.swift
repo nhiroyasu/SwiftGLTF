@@ -11,16 +11,11 @@ public class PBRRenderer {
     private var bundle: PBRMeshBundle? = nil
 
     private var skyboxMesh: SkyboxMesh
-    private var envMapArgBuffer: MTLBuffer
-    private var envMapHeap: MTLHeap
-    // Variables to prevent deallocation by ARC
-    private var _prefilterEnvMap: MTLTexture
-    private var _irradianceMap: MTLTexture
-    private var _brdfLUT: MTLTexture
-    private var _prefilterSheenMap: MTLTexture
+    private var envMapBundle: EnvMapBundle
 
     private let meshLoader: PBRMeshLoader
-    private let pipelineConnector: PBRPipelineConnector
+    private let pbrPipelineConnector: PBRPipelineConnector
+    private let skyboxPipelineConnector: SkyboxPipelineConnector
     private let envMapLoader: EnvironmentMapLoader
     private let shaderConnection: ShaderConnection
 
@@ -50,12 +45,22 @@ public class PBRRenderer {
     private var composeRPD: MTLRenderPassDescriptor? = nil
     private let composePipelineState: MTLRenderPipelineState
 
+    // Indirect Command
+    private var skyBoxIndirectCommandBuffer: MTLIndirectCommandBuffer?
+    private let indirectSceneUniformsBuffer: MTLBuffer
+    private let indirectCameraIndexBuffer: MTLBuffer
+    private let indirectFreeCameraUniformsBuffer: MTLBuffer
+    private let indirectModelMatrixBuffer: MTLBuffer
+    private let indirectEnvMapArgumentBuffer: MTLBuffer
+
     private var needsTransmissionPass: Bool {
         bundle?.transmissionMeshes.count ?? 0 > 0
     }
     private var needsAnimationPass: Bool {
         bundle?.animations.count ?? 0 > 0
     }
+
+    private var shouldUpdateIndirectEnvMapBuffer: Bool = true
 
     public init(
         commandQueue: MTLCommandQueue,
@@ -81,7 +86,7 @@ public class PBRRenderer {
             colorPixelFormat: .rgba16Float,
             depthPixelFormat: .depth32Float
         )
-        self.pipelineConnector = try PBRPipelineConnector(
+        self.pbrPipelineConnector = try PBRPipelineConnector(
             device: device,
             library: library,
             config: pipelineStateConfig,
@@ -90,7 +95,7 @@ public class PBRRenderer {
         self.meshLoader = PBRMeshLoader(
             device: device,
             shaderConnection: shaderConnection,
-            pipelineConnector: pipelineConnector
+            pipelineConnector: pbrPipelineConnector
         )
         self.envMapLoader = EnvironmentMapLoader(
             device: device,
@@ -101,31 +106,26 @@ public class PBRRenderer {
         self.defaultDSO = try makeLessEqualDepthStencilState(device: device)
         self.noWriteDSO = try makeLessEqualNoWriteDepthStencilState(device: device)
 
+        // setup skybox
         let skyboxConfig = SkyboxPipelineConfig(
             sampleCount: sampleCount,
             colorPixelFormat: .rgba16Float,
             depthPixelFormat: .depth32Float
         )
-        let skyboxLoader = try SkyboxMeshLoader(
+        self.skyboxPipelineConnector = try SkyboxPipelineConnector(
             device: device,
             library: library,
             config: skyboxConfig
         )
+        let skyboxLoader = try SkyboxMeshLoader(device: device)
         self.skyboxMesh = skyboxLoader.loadMesh()
 
-        (
-            self.envMapHeap,
-            self._prefilterEnvMap,
-            self._irradianceMap,
-            self._brdfLUT,
-            self._prefilterSheenMap
-        ) = try envMapLoader.makeEnvMapHeapAndTexture(from: CGColor(gray: 0.0, alpha: 1.0))
-        self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
-            prefilterEnvMap: _prefilterEnvMap,
-            irradianceMap: _irradianceMap,
-            brdfLUT: _brdfLUT,
-            prefilterSheenMap: _prefilterSheenMap
-        )
+        // setup default env map
+        self.envMapBundle = try envMapLoader.makeEnvMapBundle(from: CGColor(gray: 0.0, alpha: 1.0))
+        self.indirectEnvMapArgumentBuffer = device.makeBuffer(
+            length: MemoryLayout<PBREnvMapArguments>.size,
+            options: [.storageModePrivate]
+        )!
 
         // Scene color sampler
         let samplerDesc = MTLSamplerDescriptor()
@@ -151,8 +151,26 @@ public class PBRRenderer {
         composeDesc.rasterSampleCount = sampleCount
         self.composePipelineState = try device.makeRenderPipelineState(descriptor: composeDesc)
 
+        // ICB
+        self.indirectSceneUniformsBuffer = device.makeBuffer(
+            length: MemoryLayout<SceneUniforms>.size,
+            options: .storageModeShared
+        )!
+        self.indirectModelMatrixBuffer = device.makeBuffer(
+            length: MemoryLayout<simd_float4x4>.size,
+            options: .storageModeShared
+        )!
+        self.indirectCameraIndexBuffer = device.makeBuffer(
+            length: MemoryLayout<Int>.size,
+            options: .storageModeShared
+        )!
+        self.indirectFreeCameraUniformsBuffer = device.makeBuffer(
+            length: MemoryLayout<FreeCameraUniforms>.size,
+            options: .storageModeShared
+        )!
+
         // Dummy screen color arg buffer
-        notUsedScreenColorArgBuffer = pipelineConnector.makeScreenColorArgDummy()
+        notUsedScreenColorArgBuffer = pbrPipelineConnector.makeScreenColorArgDummy()
     }
 
     // MARK: - Rendering
@@ -261,6 +279,32 @@ public class PBRRenderer {
             return
         }
 
+        // Copy indirect buffers
+        guard let skyBoxIndirectCommandBuffer else {
+            os_log("Skybox indirect command buffer is not available", type: .error)
+            return
+        }
+        guard let blitEncoder = commandBuffer.makeBlitCommandEncoder() else {
+            os_log("Failed to create blit command encoder", type: .error)
+            return
+        }
+        if shouldUpdateIndirectEnvMapBuffer {
+            shouldUpdateIndirectEnvMapBuffer = false
+            ensureIndirectEnvMapBuffer(
+                blitEncoder: blitEncoder,
+                fromEnvMapBuffer: envMapBundle.argBuffer,
+                to: indirectEnvMapArgumentBuffer
+            )
+        }
+        ensureIndirectBuffer(
+            blitEncoder: blitEncoder,
+            fromSceneUniformsBuffer: fragmentParams,
+            fromModelMatrixBuffer: modelMatrixBuffer,
+            fromCameraIndexBuffer: cameraIndexBuffer,
+            fromFreeCameraUniformsBuffer: freeCameraUniformsBuffer
+        )
+        blitEncoder.endEncoding()
+
         // Ensure offscreen textures
         ensureOffscreenTargets(size: drawableSize)
         guard let screenColorTexture, let sceneTransmissionTexture, let screenColorRPD, let transmissionRPD, let screenPrefilterTexture else {
@@ -281,6 +325,7 @@ public class PBRRenderer {
             freeCameraUniformsBuffer: freeCameraUniformsBuffer,
             modelMatrixBuffer: modelMatrixBuffer,
             showsSkybox: showsSkybox,
+            skyBoxIndirectCommandBuffer: skyBoxIndirectCommandBuffer,
             waitFence: waitFence
         )
 
@@ -326,6 +371,7 @@ public class PBRRenderer {
         freeCameraUniformsBuffer: MTLBuffer,
         modelMatrixBuffer: MTLBuffer,
         showsSkybox: Bool,
+        skyBoxIndirectCommandBuffer: MTLIndirectCommandBuffer,
         waitFence: MTLFence?
     ) {
         if let waitFence { renderEncoder.waitForFence(waitFence, before: .vertex) }
@@ -333,23 +379,22 @@ public class PBRRenderer {
         if showsSkybox {
             drawSkybox(
                 renderEncoder: renderEncoder,
-                mesh: skyboxMesh,
-                worldTransformBuffer: bundle.worldTransformBuffer,
-                cameraIndexBuffer: cameraIndexBuffer,
-                freeCameraUniformsBuffer: freeCameraUniformsBuffer,
-                nodeCameraUniformsBuffer: bundle.nodeCameraUniformsBuffer,
-                specularCubeMapTexture: _prefilterEnvMap
+                icb: skyBoxIndirectCommandBuffer,
+                range: 0..<1,
+                pso: skyboxPipelineConnector.pso,
+                dso: skyboxPipelineConnector.dso,
+                fragmentHeaps: [envMapBundle.heap],
             )
         }
 
         drawPBRScreen(
             renderEncoder: renderEncoder,
-            opaquePSO: pipelineConnector.opaquePSO,
-            alphaBlendPSO: pipelineConnector.alphaBlendPSO,
+            opaquePSO: pbrPipelineConnector.opaquePSO,
+            alphaBlendPSO: pbrPipelineConnector.alphaBlendPSO,
             defaultDSO: defaultDSO,
             noWriteDSO: noWriteDSO,
             vertexHeaps: bundle.vertexHeaps,
-            fragmentHeaps: bundle.fragmentHeaps + [envMapHeap],
+            fragmentHeaps: bundle.fragmentHeaps + [envMapBundle.heap],
             opaqueMeshes: bundle.opaqueMeshes,
             maskedMeshes: bundle.maskedMeshes,
             blendedMeshes: bundle.blendedMeshes,
@@ -364,7 +409,7 @@ public class PBRRenderer {
             freeCameraUniformsBuffer: freeCameraUniformsBuffer,
             nodeCameraUniformsBuffer: bundle.nodeCameraUniformsBuffer,
             materialBuffer: bundle.materialBuffer,
-            envMapArgBuffer: envMapArgBuffer,
+            envMapArgBuffer: envMapBundle.argBuffer,
             fragmentParams: fragmentParams,
             modelMatrixBuffer: modelMatrixBuffer,
             screenColorArgsBuffer: notUsedScreenColorArgBuffer,
@@ -392,10 +437,10 @@ public class PBRRenderer {
 
         drawPBRTransmission(
             renderEncoder: renderEncoder,
-            alphaBlendPSO: pipelineConnector.alphaBlendPSO,
+            alphaBlendPSO: pbrPipelineConnector.alphaBlendPSO,
             defaultDSO: defaultDSO,
             vertexResources: bundle.vertexHeaps,
-            fragmentResources: bundle.fragmentHeaps + [envMapHeap],
+            fragmentResources: bundle.fragmentHeaps + [envMapBundle.heap],
             meshes: bundle.blendedMeshes + bundle.transmissionMeshes,
             worldTransformBuffer: bundle.worldTransformBuffer,
             boundingSpheresBuffer: bundle.boundingSpheresBuffer,
@@ -407,7 +452,7 @@ public class PBRRenderer {
             freeCameraUniformsBuffer: freeCameraUniformsBuffer,
             nodeCameraUniformsBuffer: bundle.nodeCameraUniformsBuffer,
             materialBuffer: bundle.materialBuffer,
-            envMapArgBuffer: envMapArgBuffer,
+            envMapArgBuffer: envMapBundle.argBuffer,
             fragmentParams: fragmentParams,
             modelMatrixBuffer: modelMatrixBuffer,
             screenColorArgsBuffer: screenColorArgBuffer,
@@ -504,13 +549,64 @@ public class PBRRenderer {
         prefilDesc.storageMode = .shared
         self.screenPrefilterTexture = device.makeTexture(descriptor: prefilDesc)
         if let screenPrefilterTexture = self.screenPrefilterTexture {
-            self.screenColorArgBuffer = pipelineConnector.makeScreenColorArgBuffer(
+            self.screenColorArgBuffer = pbrPipelineConnector.makeScreenColorArgBuffer(
                 sceneColor: screenPrefilterTexture,
                 sceneColorSampler: sceneColorSampler
             )
         } else {
             self.screenColorArgBuffer = nil
         }
+    }
+
+    private func ensureIndirectBuffer(
+        blitEncoder: MTLBlitCommandEncoder,
+        fromSceneUniformsBuffer: MTLBuffer,
+        fromModelMatrixBuffer: MTLBuffer,
+        fromCameraIndexBuffer: MTLBuffer,
+        fromFreeCameraUniformsBuffer: MTLBuffer
+    ) {
+        blitEncoder.copy(
+            from: fromSceneUniformsBuffer,
+            sourceOffset: 0,
+            to: indirectSceneUniformsBuffer,
+            destinationOffset: 0,
+            size: MemoryLayout<SceneUniforms>.size
+        )
+        blitEncoder.copy(
+            from: fromModelMatrixBuffer,
+            sourceOffset: 0,
+            to: indirectModelMatrixBuffer,
+            destinationOffset: 0,
+            size: MemoryLayout<simd_float4x4>.size
+        )
+        blitEncoder.copy(
+            from: fromCameraIndexBuffer,
+            sourceOffset: 0,
+            to: indirectCameraIndexBuffer,
+            destinationOffset: 0,
+            size: MemoryLayout<Int>.size
+        )
+        blitEncoder.copy(
+            from: fromFreeCameraUniformsBuffer,
+            sourceOffset: 0,
+            to: indirectFreeCameraUniformsBuffer,
+            destinationOffset: 0,
+            size: MemoryLayout<FreeCameraUniforms>.size
+        )
+    }
+
+    private func ensureIndirectEnvMapBuffer(
+        blitEncoder: MTLBlitCommandEncoder,
+        fromEnvMapBuffer: MTLBuffer,
+        to indirectEnvMapArgumentBuffer: MTLBuffer
+    ) {
+        blitEncoder.copy(
+            from: fromEnvMapBuffer,
+            sourceOffset: 0,
+            to: indirectEnvMapArgumentBuffer,
+            destinationOffset: 0,
+            size: MemoryLayout<PBREnvMapArguments>.size
+        )
     }
 
     // MARK: - Update states
@@ -522,45 +618,57 @@ public class PBRRenderer {
         animationIndex: Int? = nil,
         variantIndex: Int? = nil
     ) throws {
-        self.bundle = try meshLoader.loadMeshes(
+        let bundle = try meshLoader.loadMeshes(
             from: asset,
             sceneIndex: sceneIndex,
             animationIndex: animationIndex,
             variantIndex: variantIndex
         )
+        self.bundle = bundle
+        self.skyBoxIndirectCommandBuffer = buildSkyBoxIndirectCommandBuffer(
+            skyboxMesh: skyboxMesh,
+            bundle: bundle,
+            fragmentArgumentsBuffer: indirectEnvMapArgumentBuffer
+        )
     }
 
     /// Set environment from external URL (equirectangular .exr)
     public func setEnvironment(url: URL) throws {
-        (
-            self.envMapHeap,
-            self._prefilterEnvMap,
-            self._irradianceMap,
-            self._brdfLUT,
-            self._prefilterSheenMap
-        ) = try envMapLoader.makeEnvMapHeapAndTexture(url: url)
-        self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
-            prefilterEnvMap: _prefilterEnvMap,
-            irradianceMap: _irradianceMap,
-            brdfLUT: _brdfLUT,
-            prefilterSheenMap: _prefilterSheenMap
-        )
+        self.envMapBundle = try envMapLoader.makeEnvMapBundle(from: url)
+        self.shouldUpdateIndirectEnvMapBuffer = true
     }
 
-    /// Set environment from existing cube texture
-    public func setEnvironment(cubeTexture: MTLTexture) throws {
-        (
-            self.envMapHeap,
-            self._prefilterEnvMap,
-            self._irradianceMap,
-            self._brdfLUT,
-            self._prefilterSheenMap
-        ) = try envMapLoader.makeEnvMapHeapAndTexture(fromCube: cubeTexture)
-        self.envMapArgBuffer = try pipelineConnector.makeEnvMapArgBuffer(
-            prefilterEnvMap: _prefilterEnvMap,
-            irradianceMap: _irradianceMap,
-            brdfLUT: _brdfLUT,
-            prefilterSheenMap: _prefilterSheenMap
+    // MARK: - ICB
+
+    private func buildSkyBoxIndirectCommandBuffer(
+        skyboxMesh: SkyboxMesh,
+        bundle: PBRMeshBundle,
+        fragmentArgumentsBuffer: MTLBuffer
+    ) -> MTLIndirectCommandBuffer {
+        let icbDesc = MTLIndirectCommandBufferDescriptor()
+        icbDesc.commandTypes = .drawIndexed
+        icbDesc.inheritBuffers = false
+        icbDesc.maxVertexBufferBindCount = 5
+        icbDesc.maxFragmentBufferBindCount = 1
+        icbDesc.inheritPipelineState = true
+
+        let icb = device.makeIndirectCommandBuffer(
+            descriptor: icbDesc,
+            maxCommandCount: 1,
+            options: []
+        )!
+
+        icb.label = "[SwiftGLTF] Skybox Indirect Command Buffer"
+        let cmd = icb.indirectRenderCommandAt(0)
+        encodeDrawingSkybox(
+            cmd: cmd,
+            mesh: skyboxMesh,
+            worldTransformBuffer: bundle.worldTransformBuffer,
+            cameraIndexBuffer: indirectCameraIndexBuffer,
+            freeCameraUniformsBuffer: indirectFreeCameraUniformsBuffer,
+            nodeCameraUniformsBuffer: bundle.nodeCameraUniformsBuffer,
+            fragmentArgumentsBuffer: fragmentArgumentsBuffer
         )
+        return icb
     }
 }

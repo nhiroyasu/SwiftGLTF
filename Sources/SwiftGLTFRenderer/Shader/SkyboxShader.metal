@@ -1,6 +1,7 @@
 #include <metal_stdlib>
 #include "includes/helper.h"
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
+#include "../../SwiftGLTFShaderTypes/includes/env_map_arguments.h"
 
 using namespace metal;
 
@@ -45,6 +46,6 @@ vertex SkyboxOut skybox_vertex_shader(uint vertexID [[vertex_id]],
 }
 
 fragment float4 skybox_fragment_shader(SkyboxOut in [[stage_in]],
-                                       texturecube<float> cubeMap [[texture(0)]]) {
-    return cubeMap.sample(sampler(filter::linear), normalize(in.texcoord));
+                                       constant PBREnvMapArguments &args [[buffer(0)]]) {
+    return args.prefilterEnvMap.sample(sampler(filter::linear), normalize(in.texcoord));
 }

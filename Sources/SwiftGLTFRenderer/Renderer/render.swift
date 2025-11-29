@@ -3,22 +3,26 @@ import SwiftGLTFShaderTypes
 
 func drawSkybox(
     renderEncoder: MTLRenderCommandEncoder,
+    pso: MTLRenderPipelineState,
+    dso: MTLDepthStencilState,
     mesh: SkyboxMesh,
     worldTransformBuffer: MTLBuffer,
     cameraIndexBuffer: MTLBuffer,
     freeCameraUniformsBuffer: MTLBuffer,
     nodeCameraUniformsBuffer: MTLBuffer,
-    specularCubeMapTexture: MTLTexture
+    envMapArgBuffer: MTLBuffer,
+    fragmentHeaps: [MTLHeap]
 ) {
-    renderEncoder.setRenderPipelineState(mesh.pso)
-    renderEncoder.setDepthStencilState(mesh.dso)
+    renderEncoder.useHeaps(fragmentHeaps, stages: .fragment)
+    renderEncoder.setRenderPipelineState(pso)
+    renderEncoder.setDepthStencilState(dso)
     renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
     renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: 1)
     renderEncoder.setVertexBuffer(cameraIndexBuffer, offset: 0, index: 2)
     renderEncoder.setVertexBuffer(freeCameraUniformsBuffer, offset: 0, index: 3)
     renderEncoder.setVertexBuffer(nodeCameraUniformsBuffer, offset: 0, index: 4)
 
-    renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
+    renderEncoder.setFragmentBuffer(envMapArgBuffer, offset: 0, index: 0)
 
     renderEncoder.drawIndexedPrimitives(
         type: .triangle,
@@ -27,6 +31,20 @@ func drawSkybox(
         indexBuffer: mesh.indexBuffer,
         indexBufferOffset: 0
     )
+}
+
+func drawSkybox(
+    renderEncoder: MTLRenderCommandEncoder,
+    icb: MTLIndirectCommandBuffer,
+    range: Range<Int>,
+    pso: MTLRenderPipelineState,
+    dso: MTLDepthStencilState,
+    fragmentHeaps: [MTLHeap]
+) {
+    renderEncoder.useHeaps(fragmentHeaps, stages: .fragment)
+    renderEncoder.setRenderPipelineState(pso)
+    renderEncoder.setDepthStencilState(dso)
+    renderEncoder.executeCommandsInBuffer(icb, range: range)
 }
 
 func drawPBRScreen(

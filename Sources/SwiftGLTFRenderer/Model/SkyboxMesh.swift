@@ -5,6 +5,4 @@ struct SkyboxMesh {
     let indexBuffer: MTLBuffer
     let indexCount: Int
     let indexType: MTLIndexType
-    let pso: MTLRenderPipelineState
-    let dso: MTLDepthStencilState
 }

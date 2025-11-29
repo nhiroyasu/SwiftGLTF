@@ -20,40 +20,9 @@ public struct SkyboxPipelineConfig {
 /// Loader to create a SkyboxMesh with its pipeline and buffers.
 public class SkyboxMeshLoader {
     private let device: MTLDevice
-    private let pso: MTLRenderPipelineState
-    private let dso: MTLDepthStencilState
 
-    /// Initialize loader with device, shader library, pixel formats and sample count.
-    /// - Parameters:
-    ///   - device: MTLDevice to create buffers and pipeline state.
-    ///   - library: MTLLibrary containing skybox shaders.
-    ///   - colorPixelFormat: Pixel format of render target.
-    ///   - depthPixelFormat: Pixel format for depth attachment.
-    ///   - sampleCount: Multisample count (default 1).
-    /// Initialize loader with device, shader library and pipeline configuration.
-    /// - Parameters:
-    ///   - device: MTLDevice to create buffers and pipeline state.
-    ///   - library: MTLLibrary containing skybox shaders.
-    ///   - config: Pipeline configuration for skybox rendering.
-    public init(
-        device: MTLDevice,
-        library: MTLLibrary,
-        config: SkyboxPipelineConfig
-    ) throws {
+    public init(device: MTLDevice) throws {
         self.device = device
-        // Pipeline state
-        let desc = MTLRenderPipelineDescriptor()
-        desc.vertexFunction = library.makeFunction(name: "skybox_vertex_shader")
-        desc.fragmentFunction = library.makeFunction(name: "skybox_fragment_shader")
-        desc.colorAttachments[0].pixelFormat = config.colorPixelFormat
-        desc.depthAttachmentPixelFormat = config.depthPixelFormat
-        desc.rasterSampleCount = config.sampleCount
-        self.pso = try device.makeRenderPipelineState(descriptor: desc)
-        // Depth stencil state
-        let dsd = MTLDepthStencilDescriptor()
-        dsd.depthCompareFunction = .always
-        dsd.isDepthWriteEnabled = false
-        self.dso = device.makeDepthStencilState(descriptor: dsd)!
     }
 
     /// Create and return a SkyboxMesh with buffers and pipeline configured.
@@ -73,9 +42,7 @@ public class SkyboxMeshLoader {
             vertexBuffer: vbuf,
             indexBuffer: ibuf,
             indexCount: skyboxIndices.count,
-            indexType: .uint16,
-            pso: pso,
-            dso: dso
+            indexType: .uint16
         )
     }
 }

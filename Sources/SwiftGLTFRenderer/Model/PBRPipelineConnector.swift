@@ -337,23 +337,6 @@ class PBRPipelineConnector {
         return buffer
     }
 
-    func makeEnvMapArgBuffer(
-        prefilterEnvMap: MTLTexture,
-        irradianceMap: MTLTexture,
-        brdfLUT: MTLTexture,
-        prefilterSheenMap: MTLTexture
-    ) throws -> MTLBuffer {
-        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: PBRFragmentShaderEnvMapArgsBuffer.index)
-        let buffer = device.makeBuffer(length: encoder.encodedLength, options: .storageModeShared)!
-        encoder.setArgumentBuffer(buffer, offset: 0)
-        encoder.setTexture(prefilterEnvMap, index: 0)
-        encoder.setTexture(irradianceMap, index: 1)
-        encoder.setTexture(brdfLUT, index: 2)
-        encoder.setTexture(prefilterSheenMap, index: 3)
-
-        return buffer
-    }
-
     func makeScreenColorArgBuffer(
         sceneColor: MTLTexture,
         sceneColorSampler: MTLSamplerState

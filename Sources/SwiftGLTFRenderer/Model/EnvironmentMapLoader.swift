@@ -1,6 +1,15 @@
 import MetalKit
 import Img2Cubemap
 import SwiftGLTFCore
+import SwiftGLTFShaderTypes
+
+public struct EnvMapBundle {
+    public let heap: MTLHeap
+    public let argBuffer: MTLBuffer
+
+    // prevent deallocation of resources
+    let _resources: [MTLResource]
+}
 
 class EnvironmentMapLoader {
     private let device: MTLDevice
@@ -88,7 +97,7 @@ class EnvironmentMapLoader {
         guard cubeTexture.textureType == .typeCube else {
             throw SwiftGLTFError.makeRender(.cubeTextureExpected, context: .capture(stage: .render))
         }
-        
+
         let prefilterEnvMapTexture = shaderConnection.generatePrefilterEnvMapTexture(envMap: cubeTexture)
         let irradianceCubeMapTexture = shaderConnection.generateIrradianceTexture(
             envMap: cubeTexture,
@@ -206,6 +215,68 @@ class EnvironmentMapLoader {
             results[0],
             results[0],
             results[0]
+        )
+    }
+
+    func makeEnvMapBundle(from url: URL) throws -> EnvMapBundle {
+        let (
+            envMapHeap,
+            prefilterEnvMap,
+            irradianceMap,
+            brdfLUT,
+            prefilterSheenMap
+        ) = try makeEnvMapHeapAndTexture(url: url)
+
+        return makeEnvMapBundle(
+            heap: envMapHeap,
+            prefilterEnvMap: prefilterEnvMap,
+            irradianceMap: irradianceMap,
+            brdfLUT: brdfLUT,
+            prefilterSheenMap: prefilterSheenMap
+        )
+    }
+
+    func makeEnvMapBundle(from cgColor: CGColor) throws -> EnvMapBundle {
+        let (
+            envMapHeap,
+            prefilterEnvMap,
+            irradianceMap,
+            brdfLUT,
+            prefilterSheenMap
+        ) = try makeEnvMapHeapAndTexture(from: cgColor)
+
+        return makeEnvMapBundle(
+            heap: envMapHeap,
+            prefilterEnvMap: prefilterEnvMap,
+            irradianceMap: irradianceMap,
+            brdfLUT: brdfLUT,
+            prefilterSheenMap: prefilterSheenMap
+        )
+    }
+
+    // MARK: - Helper
+
+    private func makeEnvMapBundle(
+        heap: MTLHeap,
+        prefilterEnvMap: MTLTexture,
+        irradianceMap: MTLTexture,
+        brdfLUT: MTLTexture,
+        prefilterSheenMap: MTLTexture
+    ) -> EnvMapBundle {
+        let envMapArgBuffer = device.makeBuffer(
+            length: MemoryLayout<PBREnvMapArguments>.size,
+            options: [.storageModeShared]
+        )!
+        let envMapArg = envMapArgBuffer.contents().bindMemory(to: PBREnvMapArguments.self, capacity: 1)
+        envMapArg.pointee.prefilterEnvMap = prefilterEnvMap.gpuResourceID
+        envMapArg.pointee.irradianceMap = irradianceMap.gpuResourceID
+        envMapArg.pointee.brdfLUT = brdfLUT.gpuResourceID
+        envMapArg.pointee.prefilterSheenMap = prefilterSheenMap.gpuResourceID
+
+        return EnvMapBundle(
+            heap: heap,
+            argBuffer: envMapArgBuffer,
+            _resources: [prefilterEnvMap, irradianceMap, brdfLUT, prefilterSheenMap]
         )
     }
 }
