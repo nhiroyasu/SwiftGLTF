@@ -173,6 +173,35 @@ public class PBRRenderer {
         notUsedScreenColorArgBuffer = pbrPipelineConnector.makeScreenColorArgDummy()
     }
 
+    // MARK: - Loading
+
+    /// Load a gltf asset
+    public func load(
+        from asset: MDLAsset,
+        sceneIndex: Int? = nil,
+        animationIndex: Int? = nil,
+        variantIndex: Int? = nil
+    ) throws {
+        let bundle = try meshLoader.loadMeshes(
+            from: asset,
+            sceneIndex: sceneIndex,
+            animationIndex: animationIndex,
+            variantIndex: variantIndex
+        )
+        self.bundle = bundle
+        self.skyBoxIndirectCommandBuffer = buildSkyBoxIndirectCommandBuffer(
+            skyboxMesh: skyboxMesh,
+            bundle: bundle,
+            fragmentArgumentsBuffer: indirectEnvMapArgumentBuffer
+        )
+    }
+
+    /// Set environment from external URL (equirectangular .exr)
+    public func setEnvironment(url: URL) throws {
+        self.envMapBundle = try envMapLoader.makeEnvMapBundle(from: url)
+        self.shouldUpdateIndirectEnvMapBuffer = true
+    }
+
     // MARK: - Rendering
 
     public func animation(
@@ -607,35 +636,6 @@ public class PBRRenderer {
             destinationOffset: 0,
             size: MemoryLayout<PBREnvMapArguments>.size
         )
-    }
-
-    // MARK: - Update states
-
-    /// Load a gltf asset
-    public func load(
-        from asset: MDLAsset,
-        sceneIndex: Int? = nil,
-        animationIndex: Int? = nil,
-        variantIndex: Int? = nil
-    ) throws {
-        let bundle = try meshLoader.loadMeshes(
-            from: asset,
-            sceneIndex: sceneIndex,
-            animationIndex: animationIndex,
-            variantIndex: variantIndex
-        )
-        self.bundle = bundle
-        self.skyBoxIndirectCommandBuffer = buildSkyBoxIndirectCommandBuffer(
-            skyboxMesh: skyboxMesh,
-            bundle: bundle,
-            fragmentArgumentsBuffer: indirectEnvMapArgumentBuffer
-        )
-    }
-
-    /// Set environment from external URL (equirectangular .exr)
-    public func setEnvironment(url: URL) throws {
-        self.envMapBundle = try envMapLoader.makeEnvMapBundle(from: url)
-        self.shouldUpdateIndirectEnvMapBuffer = true
     }
 
     // MARK: - ICB
