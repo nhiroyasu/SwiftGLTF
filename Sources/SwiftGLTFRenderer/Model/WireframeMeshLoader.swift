@@ -28,6 +28,7 @@ class WireframeMeshLoader {
         let wireframeMeshes: [WireframeMesh] = try loadRecursiveMeshes(
             device: device,
             obj: nodes,
+            primitiveMeshes: asset.primitiveMeshes,
             nodeLevelHierarchy: nodeLevelHierarchy
         )
 
@@ -40,36 +41,40 @@ class WireframeMeshLoader {
     private func loadRecursiveMeshes(
         device: MTLDevice,
         obj: MDLObject,
+        primitiveMeshes: [GLTFPrimitiveMesh],
         nodeLevelHierarchy: NodeLevelHierarchy
     ) throws -> [WireframeMesh] {
         var wireframeMeshes: [WireframeMesh] = []
 
-        for mdlMesh in obj.component(ofType: GLTFMesh.self)?.primitives ?? [] {
-            let mtkMesh = try MTKMesh(mesh: mdlMesh, device: device)
+        if let meshRef = obj.component(ofType: GLTFMeshRef.self) {
+            for mdlMesh in primitiveMeshes[meshRef.index].meshes {
+                let mtkMesh = try MTKMesh(mesh: mdlMesh, device: device)
 
-            var submeshes: [WireframeMesh.Submesh] = []
-            for mtkSubmesh in mtkMesh.submeshes {
-                let submeshData = WireframeMesh.Submesh(
-                    primitiveType: mtkSubmesh.primitiveType,
-                    indexCount: mtkSubmesh.indexCount,
-                    indexType: mtkSubmesh.indexType,
-                    indexBuffer: mtkSubmesh.indexBuffer
+                var submeshes: [WireframeMesh.Submesh] = []
+                for mtkSubmesh in mtkMesh.submeshes {
+                    let submeshData = WireframeMesh.Submesh(
+                        primitiveType: mtkSubmesh.primitiveType,
+                        indexCount: mtkSubmesh.indexCount,
+                        indexType: mtkSubmesh.indexType,
+                        indexBuffer: mtkSubmesh.indexBuffer
+                    )
+                    submeshes.append(submeshData)
+                }
+
+                let wireframeMesh = WireframeMesh(
+                    vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
+                    transformIndex: nodeLevelHierarchy.objectToIndex[ObjectIdentifier(obj)]!,
+                    submeshes: submeshes,
                 )
-                submeshes.append(submeshData)
+                wireframeMeshes.append(wireframeMesh)
             }
-
-            let wireframeMesh = WireframeMesh(
-                vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
-                transformIndex: nodeLevelHierarchy.objectToIndex[ObjectIdentifier(obj)]!,
-                submeshes: submeshes,
-            )
-            wireframeMeshes.append(wireframeMesh)
         }
 
         for childObj in obj.children.objects {
             let childMeshes = try loadRecursiveMeshes(
                 device: device,
                 obj: childObj,
+                primitiveMeshes: primitiveMeshes,
                 nodeLevelHierarchy: nodeLevelHierarchy
             )
             wireframeMeshes.append(contentsOf: childMeshes)

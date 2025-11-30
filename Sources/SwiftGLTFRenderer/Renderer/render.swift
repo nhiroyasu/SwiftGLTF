@@ -33,20 +33,6 @@ func drawSkybox(
     )
 }
 
-func drawSkybox(
-    renderEncoder: MTLRenderCommandEncoder,
-    icb: MTLIndirectCommandBuffer,
-    range: Range<Int>,
-    pso: MTLRenderPipelineState,
-    dso: MTLDepthStencilState,
-    fragmentHeaps: [MTLHeap]
-) {
-    renderEncoder.useHeaps(fragmentHeaps, stages: .fragment)
-    renderEncoder.setRenderPipelineState(pso)
-    renderEncoder.setDepthStencilState(dso)
-    renderEncoder.executeCommandsInBuffer(icb, range: range)
-}
-
 func drawPBRScreen(
     renderEncoder: MTLRenderCommandEncoder,
     opaquePSO: MTLRenderPipelineState,
@@ -165,8 +151,8 @@ func _drawPrimitives(renderEncoder: MTLRenderCommandEncoder, meshes: [PBRMesh]) 
                 type: submesh.primitiveType,
                 indexCount: submesh.indexCount,
                 indexType: submesh.indexType,
-                indexBuffer: submesh.indexBuffer.buffer,
-                indexBufferOffset: submesh.indexBuffer.offset
+                indexBuffer: submesh.indexBuffer,
+                indexBufferOffset: submesh.indexBufferOffset
             )
         }
     }
@@ -204,8 +190,8 @@ func _drawPrimitivesWithSort(
                     type: submesh.primitiveType,
                     indexCount: submesh.indexCount,
                     indexType: submesh.indexType,
-                    indexBuffer: submesh.indexBuffer.buffer,
-                    indexBufferOffset: submesh.indexBuffer.offset
+                    indexBuffer: submesh.indexBuffer,
+                    indexBufferOffset: submesh.indexBufferOffset
                 )
             }
             renderEncoder.setCullMode(submesh.doubleSided ? .none : .back)
@@ -213,8 +199,8 @@ func _drawPrimitivesWithSort(
                 type: submesh.primitiveType,
                 indexCount: submesh.indexCount,
                 indexType: submesh.indexType,
-                indexBuffer: submesh.indexBuffer.buffer,
-                indexBufferOffset: submesh.indexBuffer.offset
+                indexBuffer: submesh.indexBuffer,
+                indexBufferOffset: submesh.indexBufferOffset
             )
         }
     }
@@ -372,6 +358,27 @@ func drawWireframe(
                 indexBuffer: submesh.indexBuffer.buffer,
                 indexBufferOffset: submesh.indexBuffer.offset
             )
+        }
+    }
+}
+
+
+// MARK: - Indirect Command Buffer
+
+func drawWithContext(
+    renderEncoder: MTLRenderCommandEncoder,
+    icb: MTLIndirectCommandBuffer,
+    context: RenderPassContext
+) {
+    renderEncoder.setFrontFacing(.counterClockwise)
+
+    for pass in context.passList {
+        switch pass {
+        case .drawIndex(let range, let cullMode, let pso, let dso):
+            renderEncoder.setCullMode(cullMode)
+            renderEncoder.setRenderPipelineState(pso)
+            renderEncoder.setDepthStencilState(dso)
+            renderEncoder.executeCommandsInBuffer(icb, range: range)
         }
     }
 }

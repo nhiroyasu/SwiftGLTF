@@ -2,13 +2,31 @@ import ModelIO
 import SwiftGLTFParser
 
 extension MDLAsset {
-    var gltfMeshes: [MDLMesh] {
+    var primitiveMeshes: [GLTFPrimitiveMesh] {
+        var meshes: [GLTFPrimitiveMesh] = []
+        for obj in object(atPath: GLTFAssetPath.meshes).children.objects {
+            if let primitiveMesh = obj as? GLTFPrimitiveMesh {
+                meshes.append(primitiveMesh)
+            } else {
+                assertionFailure("Expected GLTFPrimitiveMesh at path \(GLTFAssetPath.meshes), found \(type(of: obj))")
+            }
+        }
+        return meshes
+    }
+
+    var mdlMeshes: [MDLMesh] {
         var meshes: [MDLMesh] = []
         for obj in object(atPath: GLTFAssetPath.meshes).children.objects {
-            if let mesh = obj as? MDLMesh {
-                meshes.append(mesh)
+            if let primitiveMesh = obj as? GLTFPrimitiveMesh {
+                for mesh in primitiveMesh.children.objects {
+                    if let mesh = mesh as? MDLMesh {
+                        meshes.append(mesh)
+                    } else {
+                        assertionFailure("Expected MDLMesh at path \(GLTFAssetPath.meshes)/Primitive_{N}, found \(type(of: obj))")
+                    }
+                }
             } else {
-                assertionFailure("Expected MDLMesh at path \(GLTFAssetPath.meshes), found \(type(of: obj))")
+                assertionFailure("Expected GLTFPrimitiveMesh at path \(GLTFAssetPath.meshes), found \(type(of: obj))")
             }
         }
         return meshes
@@ -24,6 +42,10 @@ extension MDLAsset {
             }
         }
         return skins
+    }
+
+    var gltfMaterials: GLTFMaterials? {
+        objectSafe(atPath: GLTFAssetPath.materials) as? GLTFMaterials
     }
 
     func objectSafe(atPath: String) -> MDLObject? {

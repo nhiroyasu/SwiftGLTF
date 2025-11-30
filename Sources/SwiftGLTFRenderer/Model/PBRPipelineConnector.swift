@@ -37,6 +37,7 @@ class PBRPipelineConnector {
         opaqueDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
         opaqueDescriptor.rasterSampleCount = config.sampleCount
         opaqueDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()
+        opaqueDescriptor.supportIndirectCommandBuffers = true
         self.opaquePSO = try device.makeRenderPipelineState(descriptor: opaqueDescriptor)
 
         // Transparent (premultiplied alpha blending)

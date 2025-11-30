@@ -111,7 +111,9 @@ struct ContentView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        #if os(iOS)
         .ignoresSafeArea(.all)
+        #endif
         .fileImporter(
             isPresented: $viewModel.showFileImporter,
             allowedContentTypes: viewModel.allowedContentTypes,

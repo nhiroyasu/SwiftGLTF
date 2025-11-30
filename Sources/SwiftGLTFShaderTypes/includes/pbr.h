@@ -165,6 +165,8 @@ typedef enum: int {
     PBRVertexShaderFreeCameraUniformsBuffer,
     PBRVertexShaderNodeCameraUniformsBuffer,
     PBRVertexShaderModelMatrixBuffer,
+
+    PBRVertexShaderBufferCount // keep last
 } PBRVertexShaderBufferIndex;
 
 typedef enum: int {
@@ -180,6 +182,8 @@ typedef enum: int {
     PBRFragmentShaderNodeCameraUniformsBuffer,
     // Material
     PBRFragmentShaderScreenColorBuffer,
+
+    PBRFragmentShaderBufferCount // keep last
 } PBRFragmentShaderBufferIndex;
 
 typedef enum: uint32_t {

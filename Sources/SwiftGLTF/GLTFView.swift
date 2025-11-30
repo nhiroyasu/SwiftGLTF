@@ -24,6 +24,7 @@ public class GLTFView: MTKView {
     private let cameraIndexBuffer: FrameInFlightBuffer
     private let freeCameraUniformsBuffer: FrameInFlightBuffer
     private var loadedGLTF: GLTF?
+    private var preCommandBuffer: MTLCommandBuffer?
 
     // MARK: - Display State
     private var displayType: DisplayType = .loading {
@@ -297,6 +298,7 @@ public class GLTFView: MTKView {
               let commandBuffer = commandQueue.makeCommandBuffer() else {
             return
         }
+        preCommandBuffer = commandBuffer
 
         let renderViewport = makeRenderViewport(for: drawableSize)
 

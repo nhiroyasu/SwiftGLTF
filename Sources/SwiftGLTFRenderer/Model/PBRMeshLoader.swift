@@ -113,7 +113,7 @@ class PBRMeshLoader {
         )
 
         let vertexMeshHeap = try makeVertexMeshHeap(from: asset, sceneIndex: sceneIndex)
-        let meshVertexBufferMap = try extractMeshVertexBufferMap(from: asset, use: vertexMeshHeap)
+        let meshBufferMap = try makeMeshBufferMap(from: asset, use: vertexMeshHeap)
 
         let gltfMaterials = asset.objectSafe(atPath: GLTFAssetPath.materials) as? GLTFMaterials
         let gltfVariants = asset.objectSafe(atPath: GLTFAssetPath.variants) as? GLTFVariants
@@ -138,7 +138,8 @@ class PBRMeshLoader {
         let pbrMeshes = try loadRecursiveMeshes(
             device: device,
             obj: nodes,
-            meshVertexBufferMap: meshVertexBufferMap,
+            primitiveMeshes: asset.primitiveMeshes,
+            meshBufferMap: meshBufferMap,
             textureMap: textureMap,
             skinDispatchMap: skinDispatchMap,
             morphDispatchMap: morphDispatchMap,
@@ -158,6 +159,8 @@ class PBRMeshLoader {
             cameraIndices: nodeLevelHierarchy.cameraIndices
         )
 
+        checkRemainingHeapSize([vertexMeshHeap, texturesHeap, fragmentHeap].compactMap({ $0 }))
+
         return PBRMeshBundle(
             meshes: pbrMeshes,
             opaqueMeshes: pbrMeshes.filter { $0.renderingType == .opaque },
@@ -170,13 +173,13 @@ class PBRMeshLoader {
             morphWeightsBuffer: morphWeightsBuffer,
             morphDispatchesBuffer: morphDispatchesBuffer,
             boundingSpheresBuffer: boundingSpheresBuffer,
+            nodeCameraUniformsBuffer: cameraUniformsBuffer,
             materialBuffer: materialBuffer,
             materialResources: materialResources,
             animations: pbrAnimations,
             nodeLevelHierarchy: nodeLevelHierarchy,
             originMorphWeights: morphWeights,
             morphDispatches: morphDispatches,
-            nodeCameraUniformsBuffer: cameraUniformsBuffer,
             vertexHeaps: [vertexMeshHeap].compactMap({ $0 }),
             fragmentHeaps: [texturesHeap, fragmentHeap].compactMap({ $0 }),
         )
@@ -185,7 +188,8 @@ class PBRMeshLoader {
     private func loadRecursiveMeshes(
         device: MTLDevice,
         obj: MDLObject,
-        meshVertexBufferMap: [MDLMesh: MTLBuffer],
+        primitiveMeshes: [GLTFPrimitiveMesh],
+        meshBufferMap: [MDLMesh: MTKMeshBufferHeapData],
         textureMap: [MDLTexture: MTLTexture],
         skinDispatchMap: [GLTFSkin: SkinDispatch],
         morphDispatchMap: [MDLObject: MorphDispatch],
@@ -208,15 +212,15 @@ class PBRMeshLoader {
             skinDispatch = SkinDispatch(offset: -1, length: 0)
         }
 
-        if let gltfMesh = obj.component(ofType: GLTFMesh.self) {
-            for mdlMesh in gltfMesh.primitives {
+        if let meshRef = obj.component(ofType: GLTFMeshRef.self) {
+            for mdlMesh in primitiveMeshes[meshRef.index].meshes {
                 let pbrMesh = try makePBRMesh(
                     device: device,
                     obj: obj,
                     mdlMesh: mdlMesh,
                     vertexHeap: vertexHeap,
                     fragmentHeap: fragmentHeap,
-                    meshVertexBufferMap: meshVertexBufferMap,
+                    meshBufferMap: meshBufferMap,
                     textureMap: textureMap,
                     totalTransform: totalTransform,
                     skinDispatch: skinDispatch,
@@ -232,7 +236,8 @@ class PBRMeshLoader {
             let childMeshes = try loadRecursiveMeshes(
                 device: device,
                 obj: childObj,
-                meshVertexBufferMap: meshVertexBufferMap,
+                primitiveMeshes: primitiveMeshes,
+                meshBufferMap: meshBufferMap,
                 textureMap: textureMap,
                 skinDispatchMap: skinDispatchMap,
                 morphDispatchMap: morphDispatchMap,
@@ -255,7 +260,7 @@ class PBRMeshLoader {
         mdlMesh: MDLMesh,
         vertexHeap: MTLHeap,
         fragmentHeap: MTLHeap,
-        meshVertexBufferMap: [MDLMesh: MTLBuffer],
+        meshBufferMap: [MDLMesh: MTKMeshBufferHeapData],
         textureMap: [MDLTexture: MTLTexture],
         totalTransform: float4x4,
         skinDispatch: SkinDispatch?,
@@ -263,9 +268,7 @@ class PBRMeshLoader {
         gltfMaterials: GLTFMaterials?,
         variantIndex: Int?
     ) throws -> PBRMesh {
-        let mtkMesh = try MTKMesh(mesh: mdlMesh, device: device)
-
-        guard let vertexBuffer = meshVertexBufferMap[mdlMesh] else {
+        guard let meshData = meshBufferMap[mdlMesh] else {
             throw SwiftGLTFError.render(
                 .meshCreationFailed,
                 context: .capture(stage: .render),
@@ -293,8 +296,8 @@ class PBRMeshLoader {
 
             // Convert target MDLMesh -> MTLBuffer (vertex buffer 0)
             for targetMDL in morphComp.targetMeshes.prefix(8) { // Limit to max 8
-                if let vb = meshVertexBufferMap[targetMDL] {
-                    morphTargetBuffers.append(vb)
+                if let vb = meshBufferMap[targetMDL] {
+                    morphTargetBuffers.append(vb.vertexBuffer)
                 } else {
                     os_log("⚠️ Warning: Morph target mesh not found in vertex map.", log: .default, type: .error)
                 }
@@ -305,7 +308,7 @@ class PBRMeshLoader {
         let morphDispatchIndex: Int = transformIndex
 
         // Create vertex argument buffer
-        let vertexArgumentBuffer = try pipelineConnector.makeVertexArgumentsBuffer(
+        let sourceVertexArgumentBuffer = try pipelineConnector.makeVertexArgumentsBuffer(
             modelBuffer: modelBuffer,
             inverseModelBuffer: inverseModelBuffer,
             morphTargetCount: morphCount,
@@ -315,11 +318,19 @@ class PBRMeshLoader {
             skinDispatch: skinDispatch,
             morphDispatchIndex: morphDispatchIndex
         )
+        let vertexArgumentBuffer = try shaderConnection.moveBufferToHeap(
+            from: sourceVertexArgumentBuffer,
+            use: vertexHeap
+        )
 
         // Process submeshes
         var submeshes: [PBRMesh.Submesh] = []
         var effectiveMaterials: [MDLMaterial?] = []
-        for (mtkSubmesh, mdlSubmesh) in zip(mtkMesh.submeshes, mdlMesh.submeshes as! [MDLSubmesh]) {
+        for (submeshIndex, mdlSubmesh) in (mdlMesh.submeshes as! [MDLSubmesh]).enumerated() {
+            // Index Buffer
+            let indexBuffer = meshData.indexBuffers[submeshIndex]
+
+            // Material index
             let gltfSubmesh = mdlSubmesh as? GLTF_MDLSubmesh
             let resolvedMaterialIndex = resolveMaterialIndex(from: gltfSubmesh, variantIndex: variantIndex)
             let activeMaterial = material(from: gltfMaterials, at: resolvedMaterialIndex) ?? mdlSubmesh.material
@@ -345,13 +356,25 @@ class PBRMeshLoader {
 
             // Material index
             let materialIndex = resolvedMaterialIndex
+            let tmpmaterialIndexBuffer = device.makeBuffer(
+                bytes: [materialIndex],
+                length: MemoryLayout<Int>.size,
+                options: .storageModeShared
+            )!
+            let materialIndexBuffer = try shaderConnection.moveBufferToHeap(
+                from: tmpmaterialIndexBuffer,
+                use: fragmentHeap
+            )
 
+            let mtkSubmesh = meshData.raw.submeshes[submeshIndex]
             let submeshData = PBRMesh.Submesh(
                 primitiveType: mtkSubmesh.primitiveType,
                 indexCount: mtkSubmesh.indexCount,
                 indexType: mtkSubmesh.indexType,
-                indexBuffer: mtkSubmesh.indexBuffer,
+                indexBuffer: indexBuffer,
+                indexBufferOffset: mtkSubmesh.indexBuffer.offset,
                 materialIndex: materialIndex,
+                materialIndexBuffer: materialIndexBuffer,
                 alphaMode: alphaModeEnum,
                 alphaCutoff: alphaCutoff,
                 centerModelSpace: centerModelSpace,
@@ -395,12 +418,12 @@ class PBRMeshLoader {
         let positionStride = (mdlVD.layouts[positionBufferIndex] as? MDLVertexBufferLayout)?.stride ?? 0
 
         let pbrMesh = PBRMesh(
-            vertexBuffer: vertexBuffer,
+            vertexBuffer: meshData.vertexBuffer,
             vertexArgumentBuffer: vertexArgumentBuffer,
             submeshes: submeshes,
             modelMatrix: model,
             transformIndex: transformIndex,
-            vertexCount: mtkMesh.vertexCount,
+            vertexCount: meshData.raw.vertexCount,
             positionStride: positionStride,
             positionOffset: positionOffset,
             renderingType: renderingType,
@@ -508,25 +531,55 @@ class PBRMeshLoader {
         return skinDispatchMap
     }
 
-    func extractMeshVertexBufferMap(from asset: MDLAsset, use vertexMeshHeap: MTLHeap) throws -> [MDLMesh: MTLBuffer] {
-        var meshVertexBufferMap: [MDLMesh: MTLBuffer] = [:]
+    struct MTKMeshBufferHeapData {
+        let raw: MTKMesh
+        let vertexBuffer: MTLBuffer
+        let indexBuffers: [MTLBuffer]
+    }
 
-        for mesh in asset.gltfMeshes {
+    func makeMeshBufferMap(from asset: MDLAsset, use vertexMeshHeap: MTLHeap) throws -> [MDLMesh: MTKMeshBufferHeapData] {
+        var meshVertexBufferMap: [MDLMesh: MTKMeshBufferHeapData] = [:]
+
+        for mesh in asset.mdlMeshes {
             let mtkMesh = try MTKMesh(mesh: mesh, device: device)
             let vertexBuffer = try shaderConnection.moveBufferToHeap(
                 from: mtkMesh.vertexBuffers[0].buffer,
                 use: vertexMeshHeap
             )
-            meshVertexBufferMap[mesh] = vertexBuffer
+            var indexBuffers: [MTLBuffer] = []
+            for mtkSubmesh in mtkMesh.submeshes {
+                let heapBuf = try shaderConnection.moveBufferToHeap(
+                    from: mtkSubmesh.indexBuffer.buffer,
+                    use: vertexMeshHeap
+                )
+                indexBuffers.append(heapBuf)
+            }
+            meshVertexBufferMap[mesh] = MTKMeshBufferHeapData(
+                raw: mtkMesh,
+                vertexBuffer: vertexBuffer,
+                indexBuffers: indexBuffers
+            )
 
             if let morph = mesh.componentConforming(to: GLTFMorphTargets.self) as? GLTFMorphTargets {
                 for targetMDL in morph.targetMeshes {
                     let mtkTarget = try MTKMesh(mesh: targetMDL, device: device)
-                    let heapBuf = try shaderConnection.moveBufferToHeap(
+                    let targetVertexBuffer = try shaderConnection.moveBufferToHeap(
                         from: mtkTarget.vertexBuffers[0].buffer,
                         use: vertexMeshHeap
                     )
-                    meshVertexBufferMap[targetMDL] = heapBuf
+                    var indexBuffers: [MTLBuffer] = []
+                    for mtkSubmesh in mtkTarget.submeshes {
+                        let heapBuf = try shaderConnection.moveBufferToHeap(
+                            from: mtkSubmesh.indexBuffer.buffer,
+                            use: vertexMeshHeap
+                        )
+                        indexBuffers.append(heapBuf)
+                    }
+                    meshVertexBufferMap[targetMDL] = MTKMeshBufferHeapData(
+                        raw: mtkTarget,
+                        vertexBuffer: targetVertexBuffer,
+                        indexBuffers: indexBuffers
+                    )
                 }
             }
         }
@@ -596,8 +649,8 @@ class PBRMeshLoader {
         var drawingCount = 0
 
         func traverse(object: MDLObject) {
-            if let gltfMesh = object.component(ofType: GLTFMesh.self) {
-                for mesh in gltfMesh.primitives {
+            if let meshRef = object.component(ofType: GLTFMeshRef.self) {
+                for mesh in asset.primitiveMeshes[meshRef.index].meshes {
                     drawingCount += mesh.submeshes?.count ?? 0
                 }
             }
@@ -613,12 +666,12 @@ class PBRMeshLoader {
         return drawingCount
     }
 
-    func extractDrawingMeshCount(from asset: MDLAsset, sceneIndex: Int) -> Int {
+    func extractNodeCount(from asset: MDLAsset, sceneIndex: Int) -> Int {
         var count = 0
 
         func traverse(object: MDLObject) {
-            if let gltfMesh = object.component(ofType: GLTFMesh.self) {
-                count += gltfMesh.primitives.count
+            if let meshRef = object.component(ofType: GLTFMeshRef.self) {
+                count += asset.primitiveMeshes[meshRef.index].meshes.count
             }
 
             for child in object.children.objects {
@@ -635,8 +688,18 @@ class PBRMeshLoader {
     func extractAllMeshVertexBuffer(from asset: MDLAsset) -> [MDLMeshBuffer] {
         var buffers: [MDLMeshBuffer] = []
 
-        for mesh in asset.gltfMeshes {
+        for mesh in asset.mdlMeshes {
             buffers.append(contentsOf: mesh.vertexBuffers)
+        }
+
+        return buffers
+    }
+
+    func extractAllIndexBuffer(from asset: MDLAsset) -> [MDLMeshBuffer] {
+        var buffers: [MDLMeshBuffer] = []
+
+        for submesh in asset.mdlMeshes.flatMap({ $0.submeshes as? [MDLSubmesh] ?? [] }) {
+            buffers.append(submesh.indexBuffer)
         }
 
         return buffers
@@ -645,7 +708,7 @@ class PBRMeshLoader {
     func extractAllMorphVertexBuffer(from asset: MDLAsset) -> [MDLMeshBuffer] {
         var buffers: [MDLMeshBuffer] = []
 
-        for mesh in asset.gltfMeshes {
+        for mesh in asset.mdlMeshes {
             if let morph = mesh.componentConforming(to: GLTFMorphTargets.self) as? GLTFMorphTargets {
                 for target in morph.targetMeshes {
                     if let buf = target.vertexBuffers.first { buffers.append(buf) }
@@ -660,8 +723,8 @@ class PBRMeshLoader {
         var count = 0
 
         func traverse(object: MDLObject) {
-            if let gltfMesh = object.component(ofType: GLTFMesh.self) {
-                for mesh in gltfMesh.primitives {
+            if let meshRef = object.component(ofType: GLTFMeshRef.self) {
+                for mesh in asset.primitiveMeshes[meshRef.index].meshes {
                     if let morph = mesh.component(ofType: GLTFMorphTargets.self) {
                         count += morph.targetCount
                     }
@@ -698,11 +761,17 @@ class PBRMeshLoader {
     }
 
     func makeFragmentHeap(from asset: MDLAsset, sceneIndex: Int) throws -> MTLHeap {
-        let drawingCount = extractDrawingCount(from: asset, sceneIndex: sceneIndex)
-        let size = device.heapBufferSizeAndAlign(length: MemoryLayout<PBRMaterialUniforms>.size).alignedSize
-
         let heapDescriptor = MTLHeapDescriptor()
-        heapDescriptor.size = size * drawingCount
+        heapDescriptor.size = {
+            let drawingCount = extractDrawingCount(from: asset, sceneIndex: sceneIndex)
+            let materialIndexSize = device.heapBufferSizeAndAlign(length: MemoryLayout<Int>.size).alignedSize
+            let totalMaterialIndexSize = materialIndexSize * drawingCount
+
+            let materialUniformSize = device.heapBufferSizeAndAlign(length: MemoryLayout<PBRMaterialUniforms>.size).alignedSize
+            let totalMaterialUniformSize = materialUniformSize * (asset.gltfMaterials?.materials.count ?? 0)
+
+            return totalMaterialIndexSize + totalMaterialUniformSize
+        }()
         heapDescriptor.storageMode = .private
 
         guard heapDescriptor.size > 0 else {
@@ -735,11 +804,12 @@ class PBRMeshLoader {
 
     func makeVertexMeshHeap(from asset: MDLAsset, sceneIndex: Int) throws -> MTLHeap {
         let vertexBuffers = extractAllMeshVertexBuffer(from: asset)
+        let indexBuffers = extractAllIndexBuffer(from: asset)
         let morphVertexBuffers = extractAllMorphVertexBuffer(from: asset)
 
         var bufferSize: Int = 0
-        for vertexBuffer in vertexBuffers + morphVertexBuffers {
-            let size = device.heapBufferSizeAndAlign(length: vertexBuffer.length).alignedSize
+        for mdlMeshBuffer in vertexBuffers + indexBuffers + morphVertexBuffers {
+            let size = device.heapBufferSizeAndAlign(length: mdlMeshBuffer.length).alignedSize
             bufferSize += size
         }
 
@@ -748,8 +818,12 @@ class PBRMeshLoader {
         bufferSize += device.heapBufferSizeAndAlign(length: MemoryLayout<Float>.size).alignedSize * morphWeightsCount
 
         // model matrix and inverse model matrix buffers
-        let drawingMeshCount = extractDrawingMeshCount(from: asset, sceneIndex: sceneIndex)
+        let drawingMeshCount = extractNodeCount(from: asset, sceneIndex: sceneIndex)
         bufferSize += device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * drawingMeshCount * 2
+
+        // vertex argument buffer
+        let argBufSize = pipelineConnector.getVertexArgumentsSize()
+        bufferSize += device.heapBufferSizeAndAlign(length: argBufSize).alignedSize * drawingMeshCount
 
         let heapDescriptor = MTLHeapDescriptor()
         heapDescriptor.size = bufferSize
@@ -1285,6 +1359,19 @@ class PBRMeshLoader {
             return cameraUniformsBuffer
         } else {
             return NodeCameraUniforms.makeDummyBuffer(device: device)
+        }
+    }
+
+    // MARK: - Debug
+
+    private func checkRemainingHeapSize(_ heaps: [MTLHeap]) {
+        for heap in heaps {
+            let used = heap.usedSize
+            let size = heap.size
+            let remaining = size - used
+            if remaining > 0 {
+                os_log("[SwiftGLTF] Heap '%{public}s' has %{public}d bytes remaining (%{public}d / %{public}d used)", type: .debug, heap.label ?? "Unnamed", remaining, used, size)
+            }
         }
     }
 }

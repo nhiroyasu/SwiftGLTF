@@ -81,15 +81,20 @@ public func makeMDLAsset(
     }
 
     // Add all meshes to libraries for reference
-    let meshes = mdlMeshMap
+    let meshesObject = MDLObject()
+    meshesObject.name = GLTFAssetName.meshes
+    let primitiveMeshes: [[MDLMesh]] = mdlMeshMap
         .sorted(by: { $0.key.value < $1.key.value })
-        .flatMap { $0.value }
-    let meshObject = MDLObject()
-    meshObject.name = GLTFAssetName.meshes
-    for mesh in meshes {
-        meshObject.addChild(mesh)
+        .map { $0.value }
+    for (i, meshes) in primitiveMeshes.enumerated() {
+        let primitiveMeshObject = GLTFPrimitiveMesh()
+        meshesObject.addChild(primitiveMeshObject)
+        primitiveMeshObject.name = GLTFAssetName.primitive(i)
+        for mesh in meshes {
+            primitiveMeshObject.addChild(mesh)
+        }
     }
-    librariesObject.addChild(meshObject)
+    librariesObject.addChild(meshesObject)
 
     // 全ての skins を先に変換して保持
     // en: Convert all skins first and keep them for reuse
@@ -389,8 +394,8 @@ func buildNodeTree(
     object.setComponent(GLTFNodeIndex(index: nodeIndex), for: GLTFNodeIndexProtocol.self)
 
     // Add mesh if available
-    if let meshIndex = node.mesh, let meshes = meshMap[meshIndex] {
-        object.setComponent(GLTFMeshImpl(primitives: meshes), for: GLTFMesh.self)
+    if let meshIndex = node.mesh {
+        object.setComponent(GLTFMeshRefImpl(index: meshIndex.value), for: GLTFMeshRef.self)
     }
 
     // Add skin ref if available
