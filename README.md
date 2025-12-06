@@ -30,9 +30,16 @@ Despite the extremely high node and material count, SwiftGLTF is capable of:
 
 - **Maintaining a stable 60 FPS during rendering** on supported Apple platforms
 
-A demonstration video will be provided here:
+**MacBookPro (M1 Pro)**
 
-> *Video showcasing real‑time rendering performance will be added.*
+https://github.com/user-attachments/assets/07112f37-ad10-40d4-b14a-dbed75b3cd17
+
+**iPhone16 (A18)**
+
+https://github.com/user-attachments/assets/0cba90bc-c30a-467b-bbeb-3e26714e4960
+
+
+
 
 ## Usage
 ### Platform
