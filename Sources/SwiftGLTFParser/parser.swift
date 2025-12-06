@@ -63,22 +63,13 @@ public func makeMDLAsset(
 
     // 全ての mesh を先に変換して保持（再利用のため）
     // en: Convert all meshes first and keep them for reuse
-    var mdlMeshMap: [MeshIndex: [MDLMesh]] = [:]
-    if let meshes = gltf.meshes, !meshes.isEmpty {
-        for index in 0..<meshes.count {
-            let mesh = meshes[index]
-            let meshes = try makeMDLMesh(
-                from: mesh,
-                name: mesh.name ?? "Mesh_\(index)",
-                using: gltf,
-                allocator: allocator,
-                binaryLoader: binaryLoader,
-                mdlMaterials: mdlMaterials,
-                options: options
-            )
-            mdlMeshMap[MeshIndex(index)] = meshes
-        }
-    }
+    let mdlMeshMap = try makeMDLMeshMap(
+        gltf: gltf,
+        allocator: allocator,
+        binaryLoader: binaryLoader,
+        mdlMaterials: mdlMaterials,
+        options: options
+    )
 
     // Add all meshes to libraries for reference
     let meshesObject = MDLObject()
@@ -203,8 +194,6 @@ public func makeMDLMesh(
     mdlMaterials: [MDLMaterial],
     options: GLTFDecodeOptions = .default
 ) throws -> [MDLMesh] {
-    let allocator = MTKMeshBufferAllocator(device: MTLCreateSystemDefaultDevice()!) // TODO: Metal device should be passed from outside
-
     var output: [MDLMesh] = []
     for (index, primitive) in mesh.primitives.enumerated() {
         let accessors = gltf.accessors ?? []
@@ -1126,17 +1115,97 @@ private func makeVertexData(
     return vertexData
 }
 
+private func makeMDLMeshMap(
+    gltf: GLTF,
+    allocator: MTKMeshBufferAllocator,
+    binaryLoader: GLTFBinaryLoader,
+    mdlMaterials: [MDLMaterial],
+    options: GLTFDecodeOptions
+) throws -> [MeshIndex: [MDLMesh]] {
+    var mdlMeshMap: [MeshIndex: [MDLMesh]] = [:]
+
+    guard let meshes = gltf.meshes, !meshes.isEmpty else {
+        return mdlMeshMap
+    }
+
+    let meshCount = meshes.count
+    var results = Array<[MDLMesh]?>(repeating: nil, count: meshCount)
+
+    var firstError: Error?
+    let errorLock = NSLock()
+
+    DispatchQueue.concurrentPerform(iterations: meshCount) { index in
+        if firstError != nil { return }
+
+        do {
+            let mesh = meshes[index]
+            let mdlMeshes = try makeMDLMesh(
+                from: mesh,
+                name: mesh.name ?? "Mesh_\(index)",
+                using: gltf,
+                allocator: allocator,
+                binaryLoader: binaryLoader,
+                mdlMaterials: mdlMaterials,
+                options: options
+            )
+            results[index] = mdlMeshes
+        } catch {
+            errorLock.lock()
+            if firstError == nil {
+                firstError = error
+            }
+            errorLock.unlock()
+        }
+    }
+
+    if let error = firstError {
+        throw error
+    }
+
+    for index in 0..<meshCount {
+        if let meshes = results[index] {
+            mdlMeshMap[MeshIndex(index)] = meshes
+        }
+    }
+
+    return mdlMeshMap
+}
+
 private func makeMDLMaterials(
     _ gltf: GLTF,
     _ binaryLoader: GLTFBinaryLoader
 ) throws -> [MDLMaterial] {
-    var materialsArray: [MDLMaterial] = []
-    for (index, material) in (gltf.materials ?? []).enumerated() {
-        let name = material.name ?? "Material \(index)"
-        let mdlMaterial = try _makeMDLMaterial(name: name, gltfMaterial: material, gltf, binaryLoader)
-        materialsArray.append(mdlMaterial)
+    guard let materials = gltf.materials, !materials.isEmpty else { return [] }
+
+    let count = materials.count
+    var results = Array<MDLMaterial?>(repeating: nil, count: count)
+
+    var firstError: Error?
+    let errorLock = NSLock()
+
+    DispatchQueue.concurrentPerform(iterations: count) { index in
+        if firstError != nil { return }
+
+        do {
+            let material = materials[index]
+            let name = material.name ?? "Material \(index)"
+            let mdlMaterial = try _makeMDLMaterial(
+                name: name,
+                gltfMaterial: material,
+                gltf,
+                binaryLoader
+            )
+            // index 固有のスロットなのでロック不要
+            results[index] = mdlMaterial
+        } catch {
+            errorLock.lock()
+            if firstError == nil { firstError = error }
+            errorLock.unlock()
+        }
     }
-    return materialsArray
+    if let error = firstError { throw error }
+
+    return results as! [MDLMaterial]
 }
 
 private func _makeMDLMaterial(

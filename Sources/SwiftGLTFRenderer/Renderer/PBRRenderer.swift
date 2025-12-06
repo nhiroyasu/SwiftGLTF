@@ -10,7 +10,7 @@ import SwiftGLTFShaderTypes
 public class PBRRenderer {
     private var bundle: PBRMeshBundle? = nil
 
-    private var skyboxMesh: SkyboxMesh
+    private let skyboxMesh: SkyboxMesh
     private var envMapBundle: EnvMapBundle
 
     private let meshLoader: PBRMeshLoader
