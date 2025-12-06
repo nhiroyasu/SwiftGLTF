@@ -67,6 +67,7 @@ public class PBRRenderer {
     }
 
     private var shouldUpdateIndirectEnvMapBuffer: Bool = true
+    private let stateBlockSemaphore = DispatchSemaphore(value: 1)
 
     public init(
         commandQueue: MTLCommandQueue,
@@ -207,6 +208,9 @@ public class PBRRenderer {
         animationIndex: Int? = nil,
         variantIndex: Int? = nil
     ) throws {
+        stateBlockSemaphore.wait()
+        defer { stateBlockSemaphore.signal() }
+
         let bundle = try meshLoader.loadMeshes(
             from: asset,
             sceneIndex: sceneIndex,
@@ -225,6 +229,9 @@ public class PBRRenderer {
 
     /// Set environment from external URL (equirectangular .exr)
     public func setEnvironment(url: URL) throws {
+        stateBlockSemaphore.wait()
+        defer { stateBlockSemaphore.signal() }
+
         self.envMapBundle = try envMapLoader.makeEnvMapBundle(from: url)
         self.shouldUpdateIndirectEnvMapBuffer = true
     }
@@ -235,6 +242,9 @@ public class PBRRenderer {
         commandBuffer cb: MTLCommandBuffer,
         animationState state: RendererAnimationState
     ) -> MTLFence? {
+        stateBlockSemaphore.wait()
+        defer { stateBlockSemaphore.signal() }
+
         guard let bundle else {
             os_log("No mesh loaded", type: .error)
             return nil
@@ -330,6 +340,9 @@ public class PBRRenderer {
         showsSkybox: Bool = true,
         waitFence: MTLFence? = nil
     ) {
+        stateBlockSemaphore.wait()
+        defer { stateBlockSemaphore.signal() }
+
         guard let bundle else {
             os_log("No mesh loaded", type: .error)
             return

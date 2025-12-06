@@ -690,36 +690,80 @@ class PBRMeshLoader {
     }
 
     func extractAllTextureMap(commandBuffer: MTLCommandBuffer, from asset: MDLAsset) throws -> [MDLTexture: MTLTexture] {
-        var textureMap: [MDLTexture: MTLTexture] = [:]
-        var needConvertionLinearSpace: [MDLTexture: MTLTexture] = [:]
+        // 1. Collect unique textures and whether they need linear-space conversion (sRGB -> Linear)
+        var textureUsage: [MDLTexture: Bool] = [:] // value == true => needs linear conversion
 
         if let gltfMaterials = asset.objectSafe(atPath: GLTFAssetPath.materials) as? GLTFMaterials {
             for material in gltfMaterials.materials {
                 for propertyIndex in 0..<material.count {
                     guard let property = material[propertyIndex],
                           property.type == .texture,
-                          let texture = property.textureSamplerValue?.texture else { continue }
+                          let texture = property.textureSamplerValue?.texture else {
+                        continue
+                    }
 
-                    let mtlTexture = try mdl2mtlTexture(texture)
-                    textureMap[texture] = mtlTexture
+                    let needsLinearConversion =
+                        property.name == MaterialPropertyName.emissiveTexture.rawValue ||
+                        property.name == MaterialPropertyName.baseColorTexture.rawValue ||
+                        property.name == MaterialPropertyName.specularColorTexture.rawValue ||
+                        property.name == MaterialPropertyName.sheenColorTexture.rawValue
 
-                    if property.name == MaterialPropertyName.emissiveTexture.rawValue
-                        || property.name == MaterialPropertyName.baseColorTexture.rawValue
-                        || property.name == MaterialPropertyName.specularColorTexture.rawValue
-                        || property.name == MaterialPropertyName.sheenColorTexture.rawValue {
-                        needConvertionLinearSpace[texture] = mtlTexture
+                    if let current = textureUsage[texture] {
+                        textureUsage[texture] = current || needsLinearConversion
+                    } else {
+                        textureUsage[texture] = needsLinearConversion
                     }
                 }
             }
         }
 
-        // Convert textures that need linear space conversion
-        let convertedTextures = try shaderConnection.encodeConvertSrgb2Linear(
-            commandBuffer,
-            textures: Array(needConvertionLinearSpace.values)
-        )
-        for (index, dict) in needConvertionLinearSpace.enumerated() {
-            textureMap[dict.key] = convertedTextures[index]
+        // No textures at all
+        if textureUsage.isEmpty {
+            return [:]
+        }
+
+        // 2. Load all unique textures in parallel
+        let textures = Array(textureUsage.keys)
+        var textureMap: [MDLTexture: MTLTexture] = [:]
+        textureMap.reserveCapacity(textures.count)
+
+        var firstError: Error?
+        let lock = NSLock()
+
+        DispatchQueue.concurrentPerform(iterations: textures.count) { index in
+            if firstError != nil { return }
+
+            let mdlTexture = textures[index]
+            do {
+                let mtlTexture = try self.mdl2mtlTexture(mdlTexture)
+                lock.lock()
+                textureMap[mdlTexture] = mtlTexture
+                lock.unlock()
+            } catch {
+                lock.lock()
+                if firstError == nil {
+                    firstError = error
+                }
+                lock.unlock()
+            }
+        }
+        if let error = firstError { throw error }
+
+        // 3. Convert textures that need linear space conversion
+        let texturesNeedingLinear: [MDLTexture] = textureUsage.compactMap { (key, value) in
+            value ? key : nil
+        }
+
+        if !texturesNeedingLinear.isEmpty {
+            let mtlTexturesToConvert: [MTLTexture] = texturesNeedingLinear.compactMap { textureMap[$0] }
+            let convertedTextures = try shaderConnection.encodeConvertSrgb2Linear(
+                commandBuffer,
+                textures: mtlTexturesToConvert
+            )
+
+            for (index, mdlTexture) in texturesNeedingLinear.enumerated() {
+                textureMap[mdlTexture] = convertedTextures[index]
+            }
         }
 
         return textureMap
@@ -1006,7 +1050,9 @@ class PBRMeshLoader {
     }
 
     private func mdl2mtlTexture(_ mdlTexture: MDLTexture) throws -> MTLTexture {
-        return try textureLoader.newTexture(
+        // Create a fresh loader per call to avoid any potential internal state issues when used from multiple threads.
+        let loader = MTKTextureLoader(device: device)
+        return try loader.newTexture(
             texture: mdlTexture,
             options: [
                 .origin: MTKTextureLoader.Origin.topLeft,
@@ -1085,7 +1131,6 @@ class PBRMeshLoader {
         )
 
         for (index, mdlMaterial) in (gltfMaterials.materials).enumerated() {
-
             let resource = try _setMaterialBuffer(
                 commandBuffer: commandBuffer,
                 encoder: encoder,
