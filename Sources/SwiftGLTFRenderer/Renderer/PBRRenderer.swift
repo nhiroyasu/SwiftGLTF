@@ -19,7 +19,7 @@ public class PBRRenderer {
     private let envMapLoader: EnvironmentMapLoader
     private let shaderConnection: ShaderConnection
 
-    private let defaultDSO: MTLDepthStencilState
+    private let writeDSO: MTLDepthStencilState
     private let noWriteDSO: MTLDepthStencilState
 
     private let device: MTLDevice
@@ -109,7 +109,7 @@ public class PBRRenderer {
             shaderConnection: shaderConnection
         )
 
-        self.defaultDSO = try makeLessEqualDepthStencilState(device: device)
+        self.writeDSO = try makeLessEqualDepthStencilState(device: device)
         self.noWriteDSO = try makeLessEqualNoWriteDepthStencilState(device: device)
 
         // setup skybox
@@ -729,8 +729,7 @@ public class PBRRenderer {
             meshes: bundle.meshes,
             opaquePSO: pbrPipelineConnector.opaquePSO,
             alphaBlendPSO: pbrPipelineConnector.alphaBlendPSO,
-            defaultDSO: defaultDSO,
-            noWriteDSO: noWriteDSO,
+            writeDSO: writeDSO,
             worldTransformBuffer: bundle.worldTransformBuffer,
             boundingSpheresBuffer: bundle.boundingSpheresBuffer,
             jointsBuffer: bundle.jointsBuffer,
@@ -769,7 +768,7 @@ public class PBRRenderer {
             icb: icb,
             meshes: bundle.meshes,
             alphaBlendPSO: pbrPipelineConnector.alphaBlendPSO,
-            defaultDSO: defaultDSO,
+            writeDSO: writeDSO,
             worldTransformBuffer: bundle.worldTransformBuffer,
             boundingSpheresBuffer: bundle.boundingSpheresBuffer,
             jointsBuffer: bundle.jointsBuffer,

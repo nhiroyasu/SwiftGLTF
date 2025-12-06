@@ -73,8 +73,7 @@ func encodeDrawingPBRScreen(
     meshes: [PBRMesh],
     opaquePSO: MTLRenderPipelineState,
     alphaBlendPSO: MTLRenderPipelineState,
-    defaultDSO: MTLDepthStencilState,
-    noWriteDSO: MTLDepthStencilState,
+    writeDSO: MTLDepthStencilState,
     worldTransformBuffer: MTLBuffer,
     boundingSpheresBuffer: MTLBuffer,
     jointsBuffer: MTLBuffer,
@@ -258,7 +257,7 @@ func encodeDrawingPBRScreen(
             range: commandIndex..<(commandIndex + opaqueMeshDoubleSide.count),
             cullMode: .none,
             pso: opaquePSO,
-            dso: defaultDSO
+            dso: writeDSO
         ))
         for meshData in opaqueMeshDoubleSide {
             defer { commandIndex += 1 }
@@ -277,7 +276,7 @@ func encodeDrawingPBRScreen(
             range: commandIndex..<(commandIndex + opaqueMeshSingleSide.count),
             cullMode: .back,
             pso: opaquePSO,
-            dso: defaultDSO
+            dso: writeDSO
         ))
         for meshData in opaqueMeshSingleSide {
             defer { commandIndex += 1 }
@@ -296,7 +295,7 @@ func encodeDrawingPBRScreen(
             range: commandIndex..<(commandIndex + maskedMeshDoubleSide.count),
             cullMode: .none,
             pso: opaquePSO,
-            dso: defaultDSO
+            dso: writeDSO
         ))
         for meshData in maskedMeshDoubleSide {
             defer { commandIndex += 1 }
@@ -315,7 +314,7 @@ func encodeDrawingPBRScreen(
             range: commandIndex..<(commandIndex + maskedMeshSingleSide.count),
             cullMode: .back,
             pso: opaquePSO,
-            dso: defaultDSO
+            dso: writeDSO
         ))
         for meshData in maskedMeshSingleSide {
             defer { commandIndex += 1 }
@@ -334,7 +333,7 @@ func encodeDrawingPBRScreen(
             range: commandIndex..<(commandIndex + blendedMeshDoubleSide.count),
             cullMode: .front,
             pso: alphaBlendPSO,
-            dso: noWriteDSO
+            dso: writeDSO
         ))
         for meshData in blendedMeshDoubleSide {
             defer { commandIndex += 1 }
@@ -353,7 +352,7 @@ func encodeDrawingPBRScreen(
             range: commandIndex..<(commandIndex + blendedMeshDoubleSide.count),
             cullMode: .none,
             pso: alphaBlendPSO,
-            dso: noWriteDSO
+            dso: writeDSO
         ))
         for meshData in blendedMeshDoubleSide {
             defer { commandIndex += 1 }
@@ -373,7 +372,7 @@ func encodeDrawingPBRScreen(
             range: commandIndex..<(commandIndex + blendedMeshSingleSide.count),
             cullMode: .back,
             pso: alphaBlendPSO,
-            dso: noWriteDSO
+            dso: writeDSO
         ))
         for meshData in blendedMeshSingleSide {
             defer { commandIndex += 1 }
@@ -410,7 +409,7 @@ func encodeDrawingTransmission(
     icb: MTLIndirectCommandBuffer,
     meshes: [PBRMesh],
     alphaBlendPSO: MTLRenderPipelineState,
-    defaultDSO: MTLDepthStencilState,
+    writeDSO: MTLDepthStencilState,
     worldTransformBuffer: MTLBuffer,
     boundingSpheresBuffer: MTLBuffer,
     jointsBuffer: MTLBuffer,
@@ -574,7 +573,7 @@ func encodeDrawingTransmission(
             range: commandIndex..<(commandIndex + transmissionMeshDoubleSide.count),
             cullMode: .front,
             pso: alphaBlendPSO,
-            dso: defaultDSO
+            dso: writeDSO
         ))
         for meshData in transmissionMeshDoubleSide {
             defer { commandIndex += 1 }
@@ -593,7 +592,7 @@ func encodeDrawingTransmission(
             range: commandIndex..<(commandIndex + transmissionMeshDoubleSide.count),
             cullMode: .none,
             pso: alphaBlendPSO,
-            dso: defaultDSO
+            dso: writeDSO
         ))
         for meshData in transmissionMeshDoubleSide {
             defer { commandIndex += 1 }
@@ -613,7 +612,7 @@ func encodeDrawingTransmission(
             range: commandIndex..<(commandIndex + transmissionMeshSingleSide.count),
             cullMode: .back,
             pso: alphaBlendPSO,
-            dso: defaultDSO
+            dso: writeDSO
         ))
         for meshData in transmissionMeshSingleSide {
             defer { commandIndex += 1 }
