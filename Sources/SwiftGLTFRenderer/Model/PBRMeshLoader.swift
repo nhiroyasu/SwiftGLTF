@@ -44,7 +44,11 @@ class PBRMeshLoader {
             throw SwiftGLTFError.render(.sceneNotFound, context: .capture(stage: .render), underlying: nil)
         }
         let nodeLevelHierarchy = makeNodeLevelHierarchy(root: scene)
-        let worldTransformsBuffer = try shaderConnection.computeWorldMatrices(nodeLevelHierarchy: nodeLevelHierarchy)
+
+        // Create command buffer for batching all operations
+        let batchCommandBuffer = shaderConnection.commandQueue.makeCommandBuffer()!
+
+        let worldTransformsBuffer = try shaderConnection.encodeComputeWorldMatrices(batchCommandBuffer, nodeLevelHierarchy: nodeLevelHierarchy)
 
         let skinJoints: [NodeHierarchyOffset] = makeSkinJoints(from: asset, with: nodeLevelHierarchy)
         let jointsBuffer: MTLBuffer
@@ -126,7 +130,7 @@ class PBRMeshLoader {
         #if DEBUG
         let meshBufferStart = Date()
         #endif
-        let meshBufferMap = try makeMeshBufferMap(from: asset, use: vertexMeshHeap)
+        let meshBufferMap = try makeMeshBufferMap(commandBuffer: batchCommandBuffer, from: asset, use: vertexMeshHeap)
         #if DEBUG
         os_log("📊 Mesh buffer mapping: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(meshBufferStart))
         #endif
@@ -139,10 +143,10 @@ class PBRMeshLoader {
         #if DEBUG
         let textureStart = Date()
         #endif
-        var textureMap = try extractAllTextureMap(from: asset)
+        var textureMap = try extractAllTextureMap(commandBuffer: batchCommandBuffer, from: asset)
         let texturesHeap = try makeTexturesHeap(from: Array(textureMap.values))
         if let texturesHeap {
-            textureMap = try convertHeapTexture(from: textureMap, use: texturesHeap)
+            textureMap = try convertHeapTexture(commandBuffer: batchCommandBuffer, from: textureMap, use: texturesHeap)
         }
         #if DEBUG
         os_log("📊 Texture processing: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(textureStart))
@@ -162,6 +166,7 @@ class PBRMeshLoader {
         let materialStart = Date()
         #endif
         let (materialBuffer, materialResources) = try makeMaterialBuffers(
+            commandBuffer: batchCommandBuffer,
             from: asset,
             textureMap: textureMap,
             pipelineConnector: pipelineConnector,
@@ -178,6 +183,7 @@ class PBRMeshLoader {
         let nodes = asset.object(atPath: GLTFAssetPath.nodes(atScene: sceneIndex))
         let pbrMeshes = try loadRecursiveMeshes(
             device: device,
+            commandBuffer: batchCommandBuffer,
             obj: nodes,
             primitiveMeshes: asset.primitiveMeshes,
             meshBufferMap: meshBufferMap,
@@ -199,7 +205,7 @@ class PBRMeshLoader {
         #if DEBUG
         let boundingSpheresStart = Date()
         #endif
-        let boundingSpheresBuffer = try shaderConnection.computeBoundingSpheres(meshes: pbrMeshes)
+        let boundingSpheresBuffer = try shaderConnection.encodeComputeBoundingSpheres(batchCommandBuffer, meshes: pbrMeshes)
         #if DEBUG
         os_log("📊 Bounding spheres computation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(boundingSpheresStart))
         #endif
@@ -218,6 +224,10 @@ class PBRMeshLoader {
         #endif
 
         checkRemainingHeapSize([vertexMeshHeap, texturesHeap, fragmentHeap].compactMap({ $0 }))
+
+        // Commit all batched operations once at the end
+        batchCommandBuffer.commit()
+        batchCommandBuffer.waitUntilCompleted()
 
         return PBRMeshBundle(
             meshes: pbrMeshes,
@@ -245,6 +255,7 @@ class PBRMeshLoader {
 
     private func loadRecursiveMeshes(
         device: MTLDevice,
+        commandBuffer: MTLCommandBuffer,
         obj: MDLObject,
         primitiveMeshes: [GLTFPrimitiveMesh],
         meshBufferMap: [MDLMesh: MTKMeshBufferHeapData],
@@ -274,6 +285,7 @@ class PBRMeshLoader {
             for mdlMesh in primitiveMeshes[meshRef.index].meshes {
                 let pbrMesh = try makePBRMesh(
                     device: device,
+                    commandBuffer: commandBuffer,
                     obj: obj,
                     mdlMesh: mdlMesh,
                     vertexHeap: vertexHeap,
@@ -293,6 +305,7 @@ class PBRMeshLoader {
         for childObj in obj.children.objects {
             let childMeshes = try loadRecursiveMeshes(
                 device: device,
+                commandBuffer: commandBuffer,
                 obj: childObj,
                 primitiveMeshes: primitiveMeshes,
                 meshBufferMap: meshBufferMap,
@@ -314,6 +327,7 @@ class PBRMeshLoader {
 
     private func makePBRMesh(
         device: MTLDevice,
+        commandBuffer: MTLCommandBuffer,
         obj: MDLObject,
         mdlMesh: MDLMesh,
         vertexHeap: MTLHeap,
@@ -339,8 +353,16 @@ class PBRMeshLoader {
         var inverseModel = model.inverse
         let tmpModelBuffer = device.makeBuffer(bytes: &model, length: MemoryLayout<float4x4>.size)!
         let tmpInverseModelBuffer = device.makeBuffer(bytes: &inverseModel, length: MemoryLayout<float4x4>.size)!
-        let modelBuffer = try shaderConnection.moveBufferToHeap(from: tmpModelBuffer, use: vertexHeap)
-        let inverseModelBuffer = try shaderConnection.moveBufferToHeap(from: tmpInverseModelBuffer, use: vertexHeap)
+        let modelBuffer = try shaderConnection.encodeTransportToHeap(
+            commandBuffer,
+            from: tmpModelBuffer,
+            use: vertexHeap
+        )
+        let inverseModelBuffer = try shaderConnection.encodeTransportToHeap(
+            commandBuffer,
+            from: tmpInverseModelBuffer,
+            use: vertexHeap
+        )
 
         // Morph data detection on this mesh
         var morphCount: UInt32 = 0
@@ -350,7 +372,11 @@ class PBRMeshLoader {
             morphCount = UInt32(morphComp.targetCount)
             let tmpMorphWeightsBuffer = device.makeBuffer(length: MemoryLayout<Float>.size * morphComp.targetCount)!
             tmpMorphWeightsBuffer.contents().copyMemory(from: morphComp.defaultWeights, byteCount: MemoryLayout<Float>.size * morphComp.targetCount)
-            morphWeightsBuffer = try shaderConnection.moveBufferToHeap(from: tmpMorphWeightsBuffer, use: vertexHeap)
+            morphWeightsBuffer = try shaderConnection.encodeTransportToHeap(
+                commandBuffer,
+                from: tmpMorphWeightsBuffer,
+                use: vertexHeap
+            )
 
             // Convert target MDLMesh -> MTLBuffer (vertex buffer 0)
             for (i, targetMDL) in morphComp.targetMeshes.prefix(8).enumerated() { // Limit to max 8
@@ -388,7 +414,8 @@ class PBRMeshLoader {
             length: MemoryLayout<PBRVertexArguments>.size,
             options: .storageModeShared
         )!
-        let vertexArgumentBuffer = try shaderConnection.moveBufferToHeap(
+        let vertexArgumentBuffer = try shaderConnection.encodeTransportToHeap(
+            commandBuffer,
             from: sourceVertexArgumentBuffer,
             use: vertexHeap
         )
@@ -431,7 +458,8 @@ class PBRMeshLoader {
                 length: MemoryLayout<Int>.size,
                 options: .storageModeShared
             )!
-            let materialIndexBuffer = try shaderConnection.moveBufferToHeap(
+            let materialIndexBuffer = try shaderConnection.encodeTransportToHeap(
+                commandBuffer,
                 from: tmpmaterialIndexBuffer,
                 use: fragmentHeap
             )
@@ -607,18 +635,20 @@ class PBRMeshLoader {
         let indexBuffers: [MTLBuffer]
     }
 
-    func makeMeshBufferMap(from asset: MDLAsset, use vertexMeshHeap: MTLHeap) throws -> [MDLMesh: MTKMeshBufferHeapData] {
+    func makeMeshBufferMap(commandBuffer: MTLCommandBuffer, from asset: MDLAsset, use vertexMeshHeap: MTLHeap) throws -> [MDLMesh: MTKMeshBufferHeapData] {
         var meshVertexBufferMap: [MDLMesh: MTKMeshBufferHeapData] = [:]
 
         for mesh in asset.mdlMeshes {
             let mtkMesh = try MTKMesh(mesh: mesh, device: device)
-            let vertexBuffer = try shaderConnection.moveBufferToHeap(
+            let vertexBuffer = try shaderConnection.encodeMoveBufferToHeap(
+                commandBuffer,
                 from: mtkMesh.vertexBuffers[0].buffer,
                 use: vertexMeshHeap
             )
             var indexBuffers: [MTLBuffer] = []
             for mtkSubmesh in mtkMesh.submeshes {
-                let heapBuf = try shaderConnection.moveBufferToHeap(
+                let heapBuf = try shaderConnection.encodeMoveBufferToHeap(
+                    commandBuffer,
                     from: mtkSubmesh.indexBuffer.buffer,
                     use: vertexMeshHeap
                 )
@@ -633,13 +663,15 @@ class PBRMeshLoader {
             if let morph = mesh.componentConforming(to: GLTFMorphTargets.self) as? GLTFMorphTargets {
                 for targetMDL in morph.targetMeshes {
                     let mtkTarget = try MTKMesh(mesh: targetMDL, device: device)
-                    let targetVertexBuffer = try shaderConnection.moveBufferToHeap(
+                    let targetVertexBuffer = try shaderConnection.encodeMoveBufferToHeap(
+                        commandBuffer,
                         from: mtkTarget.vertexBuffers[0].buffer,
                         use: vertexMeshHeap
                     )
                     var indexBuffers: [MTLBuffer] = []
                     for mtkSubmesh in mtkTarget.submeshes {
-                        let heapBuf = try shaderConnection.moveBufferToHeap(
+                        let heapBuf = try shaderConnection.encodeMoveBufferToHeap(
+                            commandBuffer,
                             from: mtkSubmesh.indexBuffer.buffer,
                             use: vertexMeshHeap
                         )
@@ -657,12 +689,12 @@ class PBRMeshLoader {
         return meshVertexBufferMap
     }
 
-    func extractAllTextureMap(from asset: MDLAsset) throws -> [MDLTexture: MTLTexture] {
+    func extractAllTextureMap(commandBuffer: MTLCommandBuffer, from asset: MDLAsset) throws -> [MDLTexture: MTLTexture] {
         var textureMap: [MDLTexture: MTLTexture] = [:]
         var needConvertionLinearSpace: [MDLTexture: MTLTexture] = [:]
 
         if let gltfMaterials = asset.objectSafe(atPath: GLTFAssetPath.materials) as? GLTFMaterials {
-            for (materialIndex, material) in gltfMaterials.materials.enumerated() {
+            for material in gltfMaterials.materials {
                 for propertyIndex in 0..<material.count {
                     guard let property = material[propertyIndex],
                           property.type == .texture,
@@ -682,7 +714,8 @@ class PBRMeshLoader {
         }
 
         // Convert textures that need linear space conversion
-        let convertedTextures = try shaderConnection.convertSrgb2Linear(
+        let convertedTextures = try shaderConnection.encodeConvertSrgb2Linear(
+            commandBuffer,
             textures: Array(needConvertionLinearSpace.values)
         )
         for (index, dict) in needConvertionLinearSpace.enumerated() {
@@ -929,11 +962,13 @@ class PBRMeshLoader {
         return vertexModelHeap
     }
 
-    func convertHeapTexture(from textureMap: [MDLTexture: MTLTexture], use heap: MTLHeap) throws -> [MDLTexture: MTLTexture] {
+    func convertHeapTexture(commandBuffer: MTLCommandBuffer, from textureMap: [MDLTexture: MTLTexture], use heap: MTLHeap) throws -> [MDLTexture: MTLTexture] {
         var convertedMap: [MDLTexture: MTLTexture] = [:]
-        for (mdlTexture, mtlTexture) in textureMap {
-            let heapTexture = try shaderConnection.moveResourceToHeap(from: mtlTexture, use: heap)
-            convertedMap[mdlTexture] = heapTexture
+        let textures = Array(textureMap.values)
+        let heapTextures = try shaderConnection.encodeMoveResourcesToHeap(commandBuffer, from: textures, use: heap)
+
+        for (index, (mdlTexture, _)) in textureMap.enumerated() {
+            convertedMap[mdlTexture] = heapTextures[index]
         }
         return convertedMap
     }
@@ -1045,6 +1080,7 @@ class PBRMeshLoader {
     }
 
     func makeMaterialBuffers(
+        commandBuffer: MTLCommandBuffer,
         from asset: MDLAsset,
         textureMap: [MDLTexture: MTLTexture],
         pipelineConnector: PBRPipelineConnector,
@@ -1068,6 +1104,7 @@ class PBRMeshLoader {
         for (index, mdlMaterial) in (gltfMaterials.materials).enumerated() {
 
             let resource = try _setMaterialBuffer(
+                commandBuffer: commandBuffer,
                 encoder: encoder,
                 buffer: buffer,
                 index: index,
@@ -1083,6 +1120,7 @@ class PBRMeshLoader {
     }
 
     private func _setMaterialBuffer(
+        commandBuffer: MTLCommandBuffer,
         encoder: MTLArgumentEncoder,
         buffer: MTLBuffer,
         index: Int,
@@ -1258,7 +1296,8 @@ class PBRMeshLoader {
             bytes: &materialUniforms,
             length: MemoryLayout<PBRMaterialUniforms>.size
         )!
-        let materialUniformsBuffer = try shaderConnection.moveBufferToHeap(
+        let materialUniformsBuffer = try shaderConnection.encodeMoveBufferToHeap(
+            commandBuffer,
             from: tmpMaterialUniformsBuffer,
             use: fragmentHeap
         )
