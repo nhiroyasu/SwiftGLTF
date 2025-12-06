@@ -910,20 +910,9 @@ class PBRMeshLoader {
     }
 
     func makeVertexMeshHeap(from asset: MDLAsset, sceneIndex: Int) throws -> MTLHeap {
-        var startTime = CFAbsoluteTimeGetCurrent()
         let vertexBuffers = extractAllMeshVertexBuffer(from: asset)
-        var endTime = CFAbsoluteTimeGetCurrent()
-        os_log("[SwiftGLTF] extractAllMeshVertexBuffer took %.3f ms", log: OSLog.default, type: .info, (endTime - startTime) * 1000)
-
-        startTime = CFAbsoluteTimeGetCurrent()
         let indexBuffers = extractAllIndexBuffer(from: asset)
-        endTime = CFAbsoluteTimeGetCurrent()
-        os_log("[SwiftGLTF] extractAllIndexBuffer took %.3f ms", log: OSLog.default, type: .info, (endTime - startTime) * 1000)
-
-        startTime = CFAbsoluteTimeGetCurrent()
         let morphVertexBuffers = extractAllMorphVertexBuffer(from: asset)
-        endTime = CFAbsoluteTimeGetCurrent()
-        os_log("[SwiftGLTF] extractAllMorphVertexBuffer took %.3f ms", log: OSLog.default, type: .info, (endTime - startTime) * 1000)
 
         var bufferSize: Int = 0
         for mdlMeshBuffer in vertexBuffers + indexBuffers + morphVertexBuffers {
@@ -932,17 +921,11 @@ class PBRMeshLoader {
         }
 
         // morph weights buffer size
-        startTime = CFAbsoluteTimeGetCurrent()
         let morphWeightsCount = extractMorphWeightsCount(from: asset, sceneIndex: sceneIndex)
-        endTime = CFAbsoluteTimeGetCurrent()
-        os_log("[SwiftGLTF] extractMorphWeightsCount took %.3f ms", log: OSLog.default, type: .info, (endTime - startTime) * 1000)
         bufferSize += device.heapBufferSizeAndAlign(length: MemoryLayout<Float>.size).alignedSize * morphWeightsCount
 
         // model matrix and inverse model matrix buffers
-        startTime = CFAbsoluteTimeGetCurrent()
         let drawingMeshCount = extractNodeCount(from: asset, sceneIndex: sceneIndex)
-        endTime = CFAbsoluteTimeGetCurrent()
-        os_log("[SwiftGLTF] extractNodeCount took %.3f ms", log: OSLog.default, type: .info, (endTime - startTime) * 1000)
         bufferSize += device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * drawingMeshCount * 2
 
         // vertex argument buffer
