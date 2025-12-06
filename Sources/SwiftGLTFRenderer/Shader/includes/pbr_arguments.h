@@ -5,27 +5,6 @@
 #include <metal_stdlib>
 using namespace metal;
 
-struct PBRVertexArguments {
-    constant float4x4 &model                [[id(PBRVertexArgIdModel)]];
-    constant float4x4 &inverseModel         [[id(PBRVertexArgIdInverseModel)]];
-
-    // Morph targets (optional)
-    uint morphTargetCount                   [[id(PBRVertexArgIdMorphTargetCount)]];
-    constant float *morphDefaultWeights     [[id(PBRVertexArgIdMorphDefaultWeights)]];
-    constant float *morphInterleaved0       [[id(PBRVertexArgIdMorphInterleaved0)]];
-    constant float *morphInterleaved1       [[id(PBRVertexArgIdMorphInterleaved1)]];
-    constant float *morphInterleaved2       [[id(PBRVertexArgIdMorphInterleaved2)]];
-    constant float *morphInterleaved3       [[id(PBRVertexArgIdMorphInterleaved3)]];
-    constant float *morphInterleaved4       [[id(PBRVertexArgIdMorphInterleaved4)]];
-    constant float *morphInterleaved5       [[id(PBRVertexArgIdMorphInterleaved5)]];
-    constant float *morphInterleaved6       [[id(PBRVertexArgIdMorphInterleaved6)]];
-    constant float *morphInterleaved7       [[id(PBRVertexArgIdMorphInterleaved7)]];
-
-    int64_t transformIndex                  [[id(PBRVertexArgIdTransformIndex)]];
-    int64_t morphDispatchIndex              [[id(PBRVertexArgIdMorphDispatchIndex)]]; // equal to `transformIndex`
-    SkinDispatch skinDispatch               [[id(PBRVertexArgIdSkinDispatch)]];
-};
-
 struct PBRFragmentArguments {
     constant PBRMaterialUniforms &material [[id(0)]];
     // BaseColor: Texture -> Sampler -> TexCoord

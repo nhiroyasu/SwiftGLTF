@@ -2,6 +2,7 @@
 #define pbr_morph_h
 
 #include "pbr_arguments.h"
+#include "../../../SwiftGLTFShaderTypes/includes/pbr_vertex_argument_buffer.h"
 
 struct MorphApplyResult {
     float3 pos;
