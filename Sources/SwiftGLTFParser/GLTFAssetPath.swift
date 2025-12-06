@@ -28,6 +28,9 @@ public enum GLTFAssetPath {
     public static var meshes: String {
         "/\(GLTFAssetName.libraries)/\(GLTFAssetName.meshes)"
     }
+    public static func primitiveMesh(_ i: Int) -> String {
+        "/\(GLTFAssetName.libraries)/\(GLTFAssetName.meshes)/\(GLTFAssetName.primitive(i))"
+    }
 }
 
 public enum GLTFAssetName {
@@ -40,4 +43,5 @@ public enum GLTFAssetName {
     public static let skins = "Skins"
     public static let meshes = "Meshes"
     public static let cameras = "Cameras"
+    public static func primitive(_ i: Int) -> String { "Primitive_\(i)" }
 }

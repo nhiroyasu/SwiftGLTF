@@ -11,13 +11,39 @@ A project that enables using glTF files in Swift.
 
 ## Features
 
-SwiftGLTF provides a **high-performance, Metal-powered rendering system** specialized for glTF.  
-It’s **independent of SceneKit**, supports **a wide range of glTF features**, and is designed as a **lightweight, easy-to-integrate Swift package** for your app.  
-By leveraging Metal’s low-level GPU capabilities, SwiftGLTF delivers **fast, efficient, and visually accurate rendering** of glTF models on Apple platforms.
+SwiftGLTF offers:
+
+- **High-performance rendering** fully powered by Metal
+- **Lightweight and modular design**, easy to integrate into any Swift project
+- **Wide glTF specification support**, covering materials, animations, cameras, and more
+- **Optimized GPU resource management**, enabling fast and efficient rendering on Apple platforms
+
+## Performance
+
+SwiftGLTF has been tested using the official **NodePerformanceTest** model from the glTF Sample Assets, demonstrating the following performance results: This model contains:
+
+- **10,000 nodes**
+- **10,000 meshes / primitives / materials**
+- **100 textures** with randomized usage
+
+Despite the extremely high node and material count, SwiftGLTF is capable of:
+
+- **Maintaining a stable 60 FPS during rendering** on supported Apple platforms
+
+**MacBookPro (M1 Pro)**
+
+https://github.com/user-attachments/assets/07112f37-ad10-40d4-b14a-dbed75b3cd17
+
+**iPhone16 (A18)**
+
+https://github.com/user-attachments/assets/0cba90bc-c30a-467b-bbeb-3e26714e4960
+
+
+
 
 ## Usage
 ### Platform
-- iOS 15.0+
+- iOS 16.0+
 - macOS 13.0+
 - Metal 3 & 4
 

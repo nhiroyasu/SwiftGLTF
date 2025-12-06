@@ -1,8 +1,6 @@
 #include <metal_stdlib>
 #include "includes/helper.h"
 #include "includes/refract.h"
-#include "includes/env_arguments.h"
-#include "includes/screen_arguments.h"
 #include "includes/pbr_lighting.h"
 #include "includes/pbr_clearcoat.h"
 #include "includes/pbr_vertex.h"
@@ -10,11 +8,13 @@
 #include "includes/pbr_texture.h"
 #include "includes/default_arguments.h"
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
+#include "../../SwiftGLTFShaderTypes/includes/env_map_arguments.h"
+#include "../../SwiftGLTFShaderTypes/includes/screen_arguments.h"
 
 using namespace metal;
 
 fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
-                                    constant int &fragArgsPtrIndex [[buffer(PBRFragmentShaderArgsPtrIndexBuffer)]],
+                                    constant int64_t &fragArgsPtrIndex [[buffer(PBRFragmentShaderArgsPtrIndexBuffer)]],
                                     constant PBRFragmentArguments* fragArgsPtr [[buffer(PBRFragmentShaderArgsPtrBuffer)]],
                                     constant PBREnvMapArguments &envMapArgs [[buffer(PBRFragmentShaderEnvMapArgsBuffer)]],
                                     constant SceneUniforms &scene [[buffer(PBRFragmentShaderSceneUniformsBuffer)]],

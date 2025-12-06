@@ -56,6 +56,45 @@ class ShaderConnection {
         return outBuffer
     }
 
+    func encodeComputeBoundingSpheres(_ commandBuffer: MTLCommandBuffer, meshes: [PBRMesh]) throws -> MTLBuffer {
+        let count = meshes.count
+        let outBuffer = device.makeBuffer(
+            length: MemoryLayout<SIMD4<Float>>.stride * max(count, 1),
+            options: .storageModeShared
+        )!
+
+        guard count > 0 else { return outBuffer }
+
+        guard let function = library.makeFunction(name: "computeBoundingSphereForMesh") else {
+            throw SwiftGLTFError.makeRender(.convertShaderCreationFailed, context: .capture(stage: .render))
+        }
+        let pso = try device.makeComputePipelineState(function: function)
+
+        let encoder = commandBuffer.makeComputeCommandEncoder()!
+        encoder.setComputePipelineState(pso)
+
+        let threadsPerThreadgroup = MTLSize(width: 256, height: 1, depth: 1)
+        for (i, mesh) in meshes.enumerated() {
+            var vtxCount = UInt32(mesh.vertexCount)
+            var stride = UInt32(mesh.positionStride)
+            var offset = UInt32(mesh.positionOffset)
+            var outIndex = UInt32(i)
+
+            encoder.setBuffer(mesh.vertexBuffer, offset: 0, index: 0)
+            encoder.setBytes(&vtxCount, length: MemoryLayout<UInt32>.size, index: 1)
+            encoder.setBytes(&stride, length: MemoryLayout<UInt32>.size, index: 2)
+            encoder.setBytes(&offset, length: MemoryLayout<UInt32>.size, index: 3)
+            encoder.setBuffer(outBuffer, offset: 0, index: 4)
+            encoder.setBytes(&outIndex, length: MemoryLayout<UInt32>.size, index: 5)
+
+            let groups = MTLSize(width: 1, height: 1, depth: 1)
+            encoder.dispatchThreadgroups(groups, threadsPerThreadgroup: threadsPerThreadgroup)
+        }
+
+        encoder.endEncoding()
+        return outBuffer
+    }
+
     func convertSrgb2Linear(textures: [MTLTexture]) throws -> [MTLTexture] {
         let commandBuffer = commandQueue.makeCommandBuffer()!
         guard let convertShader = library.makeFunction(name: "texture_srgb_2_linear_shader") else {
@@ -118,6 +157,67 @@ class ShaderConnection {
 
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
+        return output
+    }
+
+    func encodeConvertSrgb2Linear(_ commandBuffer: MTLCommandBuffer, textures: [MTLTexture]) throws -> [MTLTexture] {
+        guard let convertShader = library.makeFunction(name: "texture_srgb_2_linear_shader") else {
+            throw SwiftGLTFError.makeRender(.convertShaderCreationFailed, context: .capture(stage: .render))
+        }
+        let pso = try device.makeComputePipelineState(function: convertShader)
+
+        var output: [MTLTexture] = []
+        for texture in textures {
+            let outputTextureDescriptor = MTLTextureDescriptor()
+            outputTextureDescriptor.pixelFormat = .rgba32Float
+            outputTextureDescriptor.width = texture.width
+            outputTextureDescriptor.height = texture.height
+            outputTextureDescriptor.mipmapLevelCount = texture.mipmapLevelCount
+            outputTextureDescriptor.textureType = texture.textureType
+            outputTextureDescriptor.arrayLength = texture.arrayLength
+            outputTextureDescriptor.usage = [.shaderRead, .shaderWrite]
+            guard let outputTexture = texture.device.makeTexture(descriptor: outputTextureDescriptor) else {
+                throw SwiftGLTFError.makeRender(.outputTextureCreateFailed, context: .capture(stage: .render))
+            }
+
+            let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
+            computeEncoder.setComputePipelineState(pso)
+
+            // 各mipmapレベルに対して変換処理を実行
+            for mipLevel in 0..<texture.mipmapLevelCount {
+                let mipWidth = max(texture.width >> mipLevel, 1)
+                let mipHeight = max(texture.height >> mipLevel, 1)
+
+                // テクスチャビューを作成して特定のmipmapレベルを指定
+                let inputTextureView = texture.makeTextureView(
+                    pixelFormat: texture.pixelFormat,
+                    textureType: texture.textureType,
+                    levels: mipLevel..<(mipLevel + 1),
+                    slices: 0..<texture.arrayLength
+                )!
+
+                let outputTextureView = outputTexture.makeTextureView(
+                    pixelFormat: outputTexture.pixelFormat,
+                    textureType: outputTexture.textureType,
+                    levels: mipLevel..<(mipLevel + 1),
+                    slices: 0..<outputTexture.arrayLength
+                )!
+
+                computeEncoder.setTexture(inputTextureView, index: 0)
+                computeEncoder.setTexture(outputTextureView, index: 1)
+
+                let threadsPerThreadgroup = MTLSize(width: 16, height: 16, depth: 1)
+                let threadgroups = MTLSize(
+                    width: (mipWidth + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
+                    height: (mipHeight + threadsPerThreadgroup.height - 1) / threadsPerThreadgroup.height,
+                    depth: 1
+                )
+                computeEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
+            }
+
+            computeEncoder.endEncoding()
+            output.append(outputTexture)
+        }
         return output
     }
 
@@ -184,6 +284,77 @@ class ShaderConnection {
         return output
     }
 
+    func encodeMoveResourcesToHeap(
+        _ commandBuffer: MTLCommandBuffer,
+        from textures: [MTLTexture],
+        use heap: MTLHeap
+    ) throws -> [MTLTexture] {
+        guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
+            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+        }
+
+        var output: [MTLTexture] = []
+        for texture in textures {
+            let textureDescriptor: MTLTextureDescriptor = newDescriptorFromTexture(texture, storageMode: .private)
+            let heapTexture = heap.makeTexture(descriptor: textureDescriptor)!
+            var region = MTLRegionMake2D(0, 0, texture.width, texture.height)
+            for level in 0..<texture.mipmapLevelCount {
+                let sliceCount = switch texture.textureType {
+                case .type1DArray, .type2DArray, .typeCubeArray, .type2DMultisampleArray:
+                    texture.arrayLength
+                case .typeCube:
+                    6 // Each cube face is treated as a slice
+                default:
+                    1 // For 2D textures, there's only one slice
+                }
+                for slice in 0..<sliceCount {
+                    encoder.copy(
+                        from: texture,
+                        sourceSlice: slice,
+                        sourceLevel: level,
+                        sourceOrigin: region.origin,
+                        sourceSize: region.size,
+                        to: heapTexture,
+                        destinationSlice: slice,
+                        destinationLevel: level,
+                        destinationOrigin: region.origin
+                    )
+                }
+                region.size.width /= 2
+                region.size.height /= 2
+                if region.size.width == 0 { region.size.width = 1 }
+                if region.size.height == 0 { region.size.height = 1 }
+            }
+            output.append(heapTexture)
+        }
+
+        encoder.endEncoding()
+        return output
+    }
+
+    func encodeTransportToHeap(
+        _ commandBuffer: MTLCommandBuffer,
+        from buffer: MTLBuffer,
+        use heap: MTLHeap
+    ) throws -> MTLBuffer {
+        guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
+            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+        }
+
+        let heapBuffer = heap.makeBuffer(
+            length: buffer.length,
+            options: [.storageModePrivate]
+        )
+        guard let heapBuffer else {
+            throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+        }
+
+        encoder.copy(from: buffer, sourceOffset: 0, to: heapBuffer, destinationOffset: 0, size: buffer.length)
+
+        encoder.endEncoding()
+        return heapBuffer
+    }
+
     func moveBuffersToHeap(
         from buffers: [MTLBuffer],
         use heap: MTLHeap
@@ -220,6 +391,38 @@ class ShaderConnection {
         return heapBuffers
     }
 
+    func encodeMoveBuffersToHeap(
+        _ commandBuffer: MTLCommandBuffer,
+        from buffers: [MTLBuffer],
+        use heap: MTLHeap
+    ) throws -> [MTLBuffer] {
+        guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
+            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+        }
+
+        var heapBuffers: [MTLBuffer] = []
+
+        for sourceBuffer in buffers {
+            guard let heapBuffer = heap.makeBuffer(
+                length: sourceBuffer.length,
+                options: [.storageModePrivate]
+            ) else {
+                throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+            }
+            encoder.copy(
+                from: sourceBuffer,
+                sourceOffset: 0,
+                to: heapBuffer,
+                destinationOffset: 0,
+                size: sourceBuffer.length
+            )
+            heapBuffers.append(heapBuffer)
+        }
+
+        encoder.endEncoding()
+        return heapBuffers
+    }
+
     func moveBufferToHeap(
         from buffer: MTLBuffer,
         use heap: MTLHeap
@@ -244,6 +447,29 @@ class ShaderConnection {
         encoder.endEncoding()
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
+        return heapBuffer
+    }
+
+    func encodeMoveBufferToHeap(
+        _ commandBuffer: MTLCommandBuffer,
+        from buffer: MTLBuffer,
+        use heap: MTLHeap
+    ) throws -> MTLBuffer {
+        guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
+            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+        }
+
+        let heapBuffer = heap.makeBuffer(
+            length: buffer.length,
+            options: [.storageModePrivate]
+        )
+        guard let heapBuffer else {
+            throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+        }
+
+        encoder.copy(from: buffer, sourceOffset: 0, to: heapBuffer, destinationOffset: 0, size: buffer.length)
+
+        encoder.endEncoding()
         return heapBuffer
     }
 
@@ -508,6 +734,25 @@ class ShaderConnection {
         )
         cb.commit()
         cb.waitUntilCompleted()
+        return worldTransformBuf
+    }
+
+    func encodeComputeWorldMatrices(
+        _ commandBuffer: MTLCommandBuffer,
+        nodeLevelHierarchy nlh: NodeLevelHierarchy
+    ) throws -> MTLBuffer {
+        let en = commandBuffer.makeComputeCommandEncoder()!
+
+        let worldTransformBuf = device.makeBuffer(
+            length: MemoryLayout<simd_float4x4>.stride * nlh.localTransforms.count,
+            options: .storageModeShared
+        )!
+
+        try computeWorldMatrices(
+            nodeLevelHierarchy: nlh,
+            out: worldTransformBuf,
+            commandEncoder: en
+        )
         return worldTransformBuf
     }
 

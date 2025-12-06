@@ -1,40 +1,37 @@
 import MetalKit
+import SwiftGLTFCore
+import SwiftGLTFShaderTypes
 
-public class SkyboxPipelineStateLoader {
+public class SkyboxPipelineConnector {
     private let device: MTLDevice
-    private let library: MTLLibrary
-    private let config: PipelineStateLoaderConfig
+    private let vertexFunction: MTLFunction
+    private let fragmentFunction: MTLFunction
+    let pso: MTLRenderPipelineState
+    let dso: MTLDepthStencilState
 
-    private var cachedPipelineState: MTLRenderPipelineState?
-
-    public init(
+    init(
         device: MTLDevice,
         library: MTLLibrary,
-        config: PipelineStateLoaderConfig = PipelineStateLoaderConfig()
-    ) {
+        config: SkyboxPipelineConfig
+    ) throws {
         self.device = device
-        self.library = library
-        self.config = config
-    }
+        self.vertexFunction = library.makeFunction(name: "skybox_vertex_shader")!
+        self.fragmentFunction = library.makeFunction(name: "skybox_fragment_shader")!
 
-    func load(
-        for vertexDescriptor: MDLVertexDescriptor,
-        useCache: Bool = true
-    ) throws -> MTLRenderPipelineState {
-        if useCache, let cached = cachedPipelineState {
-            return cached
-        }
-
+        // Pipeline state
         let desc = MTLRenderPipelineDescriptor()
-        desc.label = "Skybox Pipeline"
-        desc.vertexFunction = library.makeFunction(name: "skybox_vertex_shader")
-        desc.fragmentFunction = library.makeFunction(name: "skybox_fragment_shader")
+        desc.vertexFunction = self.vertexFunction
+        desc.fragmentFunction = self.fragmentFunction
         desc.colorAttachments[0].pixelFormat = config.colorPixelFormat
         desc.depthAttachmentPixelFormat = config.depthPixelFormat
         desc.rasterSampleCount = config.sampleCount
+        desc.supportIndirectCommandBuffers = true
+        self.pso = try device.makeRenderPipelineState(descriptor: desc)
 
-        let pso = try device.makeRenderPipelineState(descriptor: desc)
-        cachedPipelineState = pso
-        return pso
+        // Depth stencil state
+        let dsd = MTLDepthStencilDescriptor()
+        dsd.depthCompareFunction = .always
+        dsd.isDepthWriteEnabled = false
+        self.dso = device.makeDepthStencilState(descriptor: dsd)!
     }
 }

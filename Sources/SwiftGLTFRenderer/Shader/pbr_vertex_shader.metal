@@ -5,6 +5,7 @@
 #include "includes/pbr_morph.h"
 #include "includes/pbr_skin.h"
 #include "../../SwiftGLTFShaderTypes/includes/pbr.h"
+#include "../../SwiftGLTFShaderTypes/includes/pbr_vertex_argument_buffer.h"
 
 using namespace metal;
 

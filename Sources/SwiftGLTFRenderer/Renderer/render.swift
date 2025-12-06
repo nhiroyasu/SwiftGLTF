@@ -3,22 +3,26 @@ import SwiftGLTFShaderTypes
 
 func drawSkybox(
     renderEncoder: MTLRenderCommandEncoder,
+    pso: MTLRenderPipelineState,
+    dso: MTLDepthStencilState,
     mesh: SkyboxMesh,
     worldTransformBuffer: MTLBuffer,
     cameraIndexBuffer: MTLBuffer,
     freeCameraUniformsBuffer: MTLBuffer,
     nodeCameraUniformsBuffer: MTLBuffer,
-    specularCubeMapTexture: MTLTexture
+    envMapArgBuffer: MTLBuffer,
+    fragmentHeaps: [MTLHeap]
 ) {
-    renderEncoder.setRenderPipelineState(mesh.pso)
-    renderEncoder.setDepthStencilState(mesh.dso)
+    renderEncoder.useHeaps(fragmentHeaps, stages: .fragment)
+    renderEncoder.setRenderPipelineState(pso)
+    renderEncoder.setDepthStencilState(dso)
     renderEncoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: 0)
     renderEncoder.setVertexBuffer(worldTransformBuffer, offset: 0, index: 1)
     renderEncoder.setVertexBuffer(cameraIndexBuffer, offset: 0, index: 2)
     renderEncoder.setVertexBuffer(freeCameraUniformsBuffer, offset: 0, index: 3)
     renderEncoder.setVertexBuffer(nodeCameraUniformsBuffer, offset: 0, index: 4)
 
-    renderEncoder.setFragmentTexture(specularCubeMapTexture, index: 0)
+    renderEncoder.setFragmentBuffer(envMapArgBuffer, offset: 0, index: 0)
 
     renderEncoder.drawIndexedPrimitives(
         type: .triangle,
@@ -147,8 +151,8 @@ func _drawPrimitives(renderEncoder: MTLRenderCommandEncoder, meshes: [PBRMesh]) 
                 type: submesh.primitiveType,
                 indexCount: submesh.indexCount,
                 indexType: submesh.indexType,
-                indexBuffer: submesh.indexBuffer.buffer,
-                indexBufferOffset: submesh.indexBuffer.offset
+                indexBuffer: submesh.indexBuffer,
+                indexBufferOffset: submesh.indexBufferOffset
             )
         }
     }
@@ -186,8 +190,8 @@ func _drawPrimitivesWithSort(
                     type: submesh.primitiveType,
                     indexCount: submesh.indexCount,
                     indexType: submesh.indexType,
-                    indexBuffer: submesh.indexBuffer.buffer,
-                    indexBufferOffset: submesh.indexBuffer.offset
+                    indexBuffer: submesh.indexBuffer,
+                    indexBufferOffset: submesh.indexBufferOffset
                 )
             }
             renderEncoder.setCullMode(submesh.doubleSided ? .none : .back)
@@ -195,8 +199,8 @@ func _drawPrimitivesWithSort(
                 type: submesh.primitiveType,
                 indexCount: submesh.indexCount,
                 indexType: submesh.indexType,
-                indexBuffer: submesh.indexBuffer.buffer,
-                indexBufferOffset: submesh.indexBuffer.offset
+                indexBuffer: submesh.indexBuffer,
+                indexBufferOffset: submesh.indexBufferOffset
             )
         }
     }
@@ -354,6 +358,27 @@ func drawWireframe(
                 indexBuffer: submesh.indexBuffer.buffer,
                 indexBufferOffset: submesh.indexBuffer.offset
             )
+        }
+    }
+}
+
+
+// MARK: - Indirect Command Buffer
+
+func drawWithContext(
+    renderEncoder: MTLRenderCommandEncoder,
+    icb: MTLIndirectCommandBuffer,
+    context: RenderPassContext
+) {
+    renderEncoder.setFrontFacing(.counterClockwise)
+
+    for pass in context.passList {
+        switch pass {
+        case .drawIndex(let range, let cullMode, let pso, let dso):
+            renderEncoder.setCullMode(cullMode)
+            renderEncoder.setRenderPipelineState(pso)
+            renderEncoder.setDepthStencilState(dso)
+            renderEncoder.executeCommandsInBuffer(icb, range: range)
         }
     }
 }

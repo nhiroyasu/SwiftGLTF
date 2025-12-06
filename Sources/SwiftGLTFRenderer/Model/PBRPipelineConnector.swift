@@ -37,6 +37,7 @@ class PBRPipelineConnector {
         opaqueDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
         opaqueDescriptor.rasterSampleCount = config.sampleCount
         opaqueDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()
+        opaqueDescriptor.supportIndirectCommandBuffers = true
         self.opaquePSO = try device.makeRenderPipelineState(descriptor: opaqueDescriptor)
 
         // Transparent (premultiplied alpha blending)
@@ -337,23 +338,6 @@ class PBRPipelineConnector {
         return buffer
     }
 
-    func makeEnvMapArgBuffer(
-        prefilterEnvMap: MTLTexture,
-        irradianceMap: MTLTexture,
-        brdfLUT: MTLTexture,
-        prefilterSheenMap: MTLTexture
-    ) throws -> MTLBuffer {
-        let encoder = fragmentFunction.makeArgumentEncoder(bufferIndex: PBRFragmentShaderEnvMapArgsBuffer.index)
-        let buffer = device.makeBuffer(length: encoder.encodedLength, options: .storageModeShared)!
-        encoder.setArgumentBuffer(buffer, offset: 0)
-        encoder.setTexture(prefilterEnvMap, index: 0)
-        encoder.setTexture(irradianceMap, index: 1)
-        encoder.setTexture(brdfLUT, index: 2)
-        encoder.setTexture(prefilterSheenMap, index: 3)
-
-        return buffer
-    }
-
     func makeScreenColorArgBuffer(
         sceneColor: MTLTexture,
         sceneColorSampler: MTLSamplerState
@@ -377,55 +361,6 @@ class PBRPipelineConnector {
         let flagAddr = encoder.constantData(at: 2)
         var useSceneColor: Bool = false
         flagAddr.copyMemory(from: &useSceneColor, byteCount: MemoryLayout<Bool>.size)
-        return buffer
-    }
-
-    func getVertexArgumentsSize() -> Int {
-        let encoder = vertexFunction.makeArgumentEncoder(bufferIndex: 1)
-        return encoder.encodedLength
-    }
-
-    func makeVertexArgumentsBuffer(
-        modelBuffer: MTLBuffer,
-        inverseModelBuffer: MTLBuffer,
-        // Morph (optional, up to 8 targets)
-        morphTargetCount: UInt32 = 0,
-        morphWeightsBuffer: MTLBuffer? = nil,
-        morphInterleavedBuffers: [MTLBuffer] = [],
-        transformIndex: Int,
-        skinDispatch: SkinDispatch?,
-        morphDispatchIndex: Int
-    ) throws -> MTLBuffer {
-        let encoder = vertexFunction.makeArgumentEncoder(bufferIndex: 1)
-        guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
-            throw SwiftGLTFError.makeRender(.argumentBufferCreateFailed, context: .capture(stage: .render))
-        }
-        encoder.setArgumentBuffer(buffer, offset: 0)
-
-        encoder.setBuffer(modelBuffer, offset: 0, index: PBRVertexArgIdModel.index)
-        encoder.setBuffer(inverseModelBuffer, offset: 0, index: PBRVertexArgIdInverseModel.index)
-
-        // Morph
-        var targetCountVar = morphTargetCount
-        let targetCountAddr = encoder.constantData(at: PBRVertexArgIdMorphTargetCount.index)
-        targetCountAddr.copyMemory(from: &targetCountVar, byteCount: MemoryLayout<UInt32>.size)
-        encoder.setBuffer(morphWeightsBuffer, offset: 0, index: PBRVertexArgIdMorphDefaultWeights.index)
-        // Up to 8 targets
-        let maxTargets = 8
-        for i in 0..<min(maxTargets, morphInterleavedBuffers.count) {
-            encoder.setBuffer(morphInterleavedBuffers[i], offset: 0, index: PBRVertexArgIdMorphInterleaved0.index + i)
-        }
-
-        var transformIndex = transformIndex
-        let transformIndexAddr = encoder.constantData(at: PBRVertexArgIdTransformIndex.index)
-        transformIndexAddr.copyMemory(from: &transformIndex, byteCount: MemoryLayout<Int>.size)
-        var skinDispatch = skinDispatch
-        let skinDispatchAddr = encoder.constantData(at: PBRVertexArgIdSkinDispatch.index)
-        skinDispatchAddr.copyMemory(from: &skinDispatch, byteCount: MemoryLayout<SkinDispatch>.size)
-        var morphDispatchIndex = morphDispatchIndex
-        let morphDispatchIndexAddr = encoder.constantData(at: PBRVertexArgIdMorphDispatchIndex.index)
-        morphDispatchIndexAddr.copyMemory(from: &morphDispatchIndex, byteCount: MemoryLayout<Int>.size)
-
         return buffer
     }
 }

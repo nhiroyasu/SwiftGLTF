@@ -243,7 +243,7 @@ struct CubeTests {
     }
 
     private func targetMesh(from asset: MDLAsset) -> MDLMesh {
-        let mesh = asset.object(atPath: GLTFAssetPath.meshes).children[0] as! MDLMesh
+        let mesh = asset.object(atPath: GLTFAssetPath.primitiveMesh(0)).children[0] as! MDLMesh
         return mesh
     }
 }

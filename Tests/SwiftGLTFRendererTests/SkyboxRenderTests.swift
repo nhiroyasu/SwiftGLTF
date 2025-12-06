@@ -12,6 +12,7 @@ final class SkyboxRenderTests {
     let library: MTLLibrary
     let commandQueue: MTLCommandQueue
     let shaderConnection: ShaderConnection
+    let envMapLoader: EnvironmentMapLoader
 
     let TEX_SIZE = 256
 
@@ -24,6 +25,11 @@ final class SkyboxRenderTests {
             device: device,
             library: library,
             commandQueue: commandQueue
+        )
+        self.envMapLoader = EnvironmentMapLoader(
+            device: device,
+            library: library,
+            shaderConnection: shaderConnection
         )
     }
 
@@ -40,18 +46,11 @@ final class SkyboxRenderTests {
 
     // Core rendering for skybox
     func renderSkybox(to output: MTLTexture) async throws {
-        let vfn = library.makeFunction(name: "skybox_vertex_shader")!
-        let ffn = library.makeFunction(name: "skybox_fragment_shader")!
-        let psoDesc = MTLRenderPipelineDescriptor()
-        psoDesc.vertexFunction = vfn
-        psoDesc.fragmentFunction = ffn
-        psoDesc.colorAttachments[0].pixelFormat = output.pixelFormat
-        let pso = try await device.makeRenderPipelineState(descriptor: psoDesc)
-        let dsd = MTLDepthStencilDescriptor()
-        dsd.depthCompareFunction = .always
-        dsd.isDepthWriteEnabled = false
-        let dso = device.makeDepthStencilState(descriptor: dsd)!
-
+        let pipelineConnection = try! SkyboxPipelineConnector(
+            device: device,
+            library: library,
+            config: SkyboxPipelineConfig(colorPixelFormat: output.pixelFormat)
+        )
         // Create vertex and index buffers for a cube
         let vbuf = device.makeBuffer(
             bytes: skyboxVertices,
@@ -67,10 +66,7 @@ final class SkyboxRenderTests {
         let aspect: Float = 1.0
         let vMatrix = lookAt(eye: SIMD3<Float>(0, 0, 0), target: skyboxTarget, up: SIMD3<Float>(0, 1, 0))
         let pMatrix = perspectiveMatrix(fov: .pi / 3, aspect: aspect, near: 0.1, far: 100.0)
-        let envMap = try generateCubeTexture(
-            device: device,
-            exr: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
-        )
+        let envMapBundle = try envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
         var cameraIndex = -1
         let cameraIndexBuffer = device.makeBuffer(
             bytes: &cameraIndex,
@@ -104,18 +100,19 @@ final class SkyboxRenderTests {
             vertexBuffer: vbuf,
             indexBuffer: ibuf,
             indexCount: ibuf.length / MemoryLayout<UInt16>.size,
-            indexType: .uint16,
-            pso: pso,
-            dso: dso
+            indexType: .uint16
         )
         drawSkybox(
             renderEncoder: encoder,
+            pso: pipelineConnection.pso,
+            dso: pipelineConnection.dso,
             mesh: skyboxMesh,
             worldTransformBuffer: worldTransformDummyBuffer(device: device),
             cameraIndexBuffer: cameraIndexBuffer,
             freeCameraUniformsBuffer: freeCameraUniformsBuffer,
             nodeCameraUniformsBuffer: NodeCameraUniforms.makeDummyBuffer(device: device),
-            specularCubeMapTexture: envMap
+            envMapArgBuffer: envMapBundle.argBuffer,
+            fragmentHeaps: [envMapBundle.heap]
         )
         encoder.endEncoding()
         cmdBuf.commit()

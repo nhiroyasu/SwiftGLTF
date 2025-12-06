@@ -8,7 +8,7 @@ struct AnimatedMorphCubeTests {
     func testMorphTargetsParsedFromAnimatedMorphCube() async throws {
         let (_, asset) = try await loadGLTFAndAsset()
 
-        let mesh = asset.object(atPath: GLTFAssetPath.meshes).children[0] as! MDLMesh
+        let mesh = asset.object(atPath: GLTFAssetPath.primitiveMesh(0)).children[0] as! MDLMesh
 
         // Verify the Morph component
         let compAny = mesh.componentConforming(to: GLTFMorphTargets.self)

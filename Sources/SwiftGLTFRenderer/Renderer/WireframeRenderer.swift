@@ -13,6 +13,7 @@ public class WireframeRenderer {
 
     private let meshLoader: WireframeMeshLoader
     private let pipelineConnector: WireframePipelineConnector
+    private let skyboxPipelineConnector: SkyboxPipelineConnector
     private let envMapLoader: EnvironmentMapLoader
     private let shaderConnection: ShaderConnection
 
@@ -62,6 +63,15 @@ public class WireframeRenderer {
             config: pipelineStateConfig,
             shaderConnection: shaderConnection
         )
+        self.skyboxPipelineConnector = try SkyboxPipelineConnector(
+            device: device,
+            library: library,
+            config: SkyboxPipelineConfig(
+                sampleCount: sampleCount,
+                colorPixelFormat: .rgba16Float,
+                depthPixelFormat: .depth32Float
+            )
+        )
         self.meshLoader = WireframeMeshLoader(
             device: device,
             pipelineConnector: pipelineConnector,
@@ -88,7 +98,7 @@ public class WireframeRenderer {
             os_log("Mesh not loaded", log: .default, type: .error)
             return
         }
-        guard let skyboxMesh, let _specularCubeMapTexture else {
+        guard let skyboxMesh, let envMapArgBuffer, let envMapHeap else {
             os_log("Skybox or textures not loaded", log: .default, type: .error)
             return
         }
@@ -107,12 +117,15 @@ public class WireframeRenderer {
         )!
         drawSkybox(
             renderEncoder: renderEncoder,
+            pso: skyboxPipelineConnector.pso,
+            dso: skyboxPipelineConnector.dso,
             mesh: skyboxMesh,
             worldTransformBuffer: worldTransformBuffer,
             cameraIndexBuffer: cameraIndexBuffer,
             freeCameraUniformsBuffer: freeCameraUniformsBuffer,
             nodeCameraUniformsBuffer: NodeCameraUniforms.makeDummyBuffer(device: device),
-            specularCubeMapTexture: _specularCubeMapTexture
+            envMapArgBuffer: envMapArgBuffer,
+            fragmentHeaps: [envMapHeap]
         )
 
         drawWireframe(
@@ -148,16 +161,7 @@ public class WireframeRenderer {
             return
         }
         // Create skybox mesh via loader
-        let skyboxConfig = SkyboxPipelineConfig(
-            sampleCount: sampleCount,
-            colorPixelFormat: colorPixelFormat,
-            depthPixelFormat: depthPixelFormat
-        )
-        let skyboxLoader = try SkyboxMeshLoader(
-            device: device,
-            library: library,
-            config: skyboxConfig
-        )
+        let skyboxLoader = try SkyboxMeshLoader(device: device)
         self.skyboxMesh = skyboxLoader.loadMesh()
     }
 
@@ -183,5 +187,12 @@ public class WireframeRenderer {
         self._irradianceCubeMapTexture = irradianceMap
         self._brdfLUT = brdfLUT
         self._prefilterSheenTexture = prefilterSheenTexture
+
+        let envMapArgBuffer = device.makeBuffer(length: MemoryLayout<PBREnvMapArguments>.size)!
+        let envMapArg = envMapArgBuffer.contents().bindMemory(to: PBREnvMapArguments.self, capacity: 1)
+        envMapArg.pointee.prefilterEnvMap = prefilterEnvMap.gpuResourceID
+        envMapArg.pointee.irradianceMap = irradianceMap.gpuResourceID
+        envMapArg.pointee.brdfLUT = brdfLUT.gpuResourceID
+        envMapArg.pointee.prefilterSheenMap = prefilterSheenTexture.gpuResourceID
     }
 }

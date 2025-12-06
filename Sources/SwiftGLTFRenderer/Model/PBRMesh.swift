@@ -10,17 +10,29 @@ struct PBRMeshBundle {
     let blendedMeshes: [PBRMesh]
     let transmissionMeshes: [PBRMesh]
 
-    // Buffers
+    // Relation table buffers
     let worldTransformBuffer: MTLBuffer
     let jointsBuffer: MTLBuffer
     let inverseBindMatricesBuffer: MTLBuffer
     let morphWeightsBuffer: MTLBuffer
     let morphDispatchesBuffer: MTLBuffer
     let boundingSpheresBuffer: MTLBuffer
-
-    // Materials
+    let nodeCameraUniformsBuffer: MTLBuffer
     let materialBuffer: MTLBuffer
     let materialResources: [Any?]
+
+    var relationTableResources: [MTLResource] {
+        [
+            worldTransformBuffer,
+            jointsBuffer,
+            inverseBindMatricesBuffer,
+            morphWeightsBuffer,
+            morphDispatchesBuffer,
+            boundingSpheresBuffer,
+            nodeCameraUniformsBuffer,
+            materialBuffer
+        ]
+    }
 
     // Animation
     let animations: [PBRMeshAnimation]
@@ -30,12 +42,13 @@ struct PBRMeshBundle {
     let originMorphWeights: [Float]
     let morphDispatches: [MorphDispatch]
 
-    // Cameras
-    let nodeCameraUniformsBuffer: MTLBuffer
-
     // Resources
     let vertexHeaps: [MTLHeap]
     let fragmentHeaps: [MTLHeap]
+
+    var heaps: [MTLHeap] {
+        vertexHeaps + fragmentHeaps
+    }
 }
 
 struct PBRMeshAnimation {
@@ -62,8 +75,10 @@ struct PBRMesh {
         let primitiveType: MTLPrimitiveType
         let indexCount: Int
         let indexType: MTLIndexType
-        let indexBuffer: MTKMeshBuffer
+        let indexBuffer: MTLBuffer
+        let indexBufferOffset: Int
         let materialIndex: Int
+        let materialIndexBuffer: MTLBuffer
         let alphaMode: SwiftGLTFShaderTypes.AlphaMode
         let alphaCutoff: Float
         // Center of the mesh primitive in model space

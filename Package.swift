@@ -6,8 +6,8 @@ import PackageDescription
 let package = Package(
     name: "SwiftGLTF",
     platforms: [
-        .macOS(.v12),
-        .iOS(.v15),
+        .macOS(.v13),
+        .iOS(.v16),
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
