@@ -24,8 +24,13 @@ SwiftGLTFはglTFサンプルアセットの公式モデル**NodePerformanceTest*
 
 - 対応Appleプラットフォーム上で**レンダリング中も安定した60 FPSを維持**
 
-デモ動画はこちらで公開予定です：
-> *リアルタイムレンダリング性能を紹介する動画を追加予定*
+**MacBookPro (M1 Pro)**
+
+https://github.com/user-attachments/assets/07112f37-ad10-40d4-b14a-dbed75b3cd17
+
+**iPhone16 (A18)**
+
+https://github.com/user-attachments/assets/0cba90bc-c30a-467b-bbeb-3e26714e4960
 
 ## Usage
 ### Platform
