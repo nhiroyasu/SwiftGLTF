@@ -2,14 +2,17 @@ import MetalKit
 import SwiftGLTFShaderTypes
 import SwiftGLTFCore
 
-class ShaderConnection {
+public class ShaderConnection {
     let device: MTLDevice
     let library: MTLLibrary
     let commandQueue: MTLCommandQueue
 
-    init(device: MTLDevice, library: MTLLibrary, commandQueue: MTLCommandQueue) {
+    public init(
+        device: MTLDevice,
+        commandQueue: MTLCommandQueue
+    ) throws {
         self.device = device
-        self.library = library
+        self.library = try device.makePackageLibrary()
         self.commandQueue = commandQueue
     }
 

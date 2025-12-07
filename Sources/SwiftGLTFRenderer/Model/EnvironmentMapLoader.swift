@@ -3,7 +3,8 @@ import Img2Cubemap
 import SwiftGLTFCore
 import SwiftGLTFShaderTypes
 
-public struct EnvMapBundle {
+public struct EnvMapBundle: Identifiable {
+    public let id: UUID = UUID()
     public let heap: MTLHeap
     public let argBuffer: MTLBuffer
 
@@ -11,20 +12,20 @@ public struct EnvMapBundle {
     let _resources: [MTLResource]
 }
 
-class EnvironmentMapLoader {
+public class EnvironmentMapLoader {
     private let device: MTLDevice
     private let library: MTLLibrary
     private let shaderConnection: ShaderConnection
 
     private let IRRADIANCE_SIZE = 32
 
-    init(
+    public init(
         device: MTLDevice,
-        library: MTLLibrary,
+        library: MTLLibrary? = nil,
         shaderConnection: ShaderConnection
     ) {
         self.device = device
-        self.library = library
+        self.library = library ?? (try! device.makePackageLibrary())
         self.shaderConnection = shaderConnection
     }
 
@@ -218,7 +219,7 @@ class EnvironmentMapLoader {
         )
     }
 
-    func makeEnvMapBundle(from url: URL) throws -> EnvMapBundle {
+    public func makeEnvMapBundle(from url: URL) throws -> EnvMapBundle {
         let (
             envMapHeap,
             prefilterEnvMap,

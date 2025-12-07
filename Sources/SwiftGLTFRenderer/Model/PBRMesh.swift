@@ -3,7 +3,8 @@ import SwiftGLTFCore
 import SwiftGLTFParser
 import SwiftGLTFShaderTypes
 
-struct PBRMeshBundle {
+public struct PBRMeshBundle: Identifiable {
+    public let id: UUID = UUID()
     let meshes: [PBRMesh]
     let opaqueMeshes: [PBRMesh]
     let maskedMeshes: [PBRMesh]
@@ -48,6 +49,13 @@ struct PBRMeshBundle {
 
     var heaps: [MTLHeap] {
         vertexHeaps + fragmentHeaps
+    }
+
+    var needsTransmissionPass: Bool {
+        transmissionMeshes.count > 0
+    }
+    var needsAnimationPass: Bool {
+        animations.count > 0
     }
 }
 

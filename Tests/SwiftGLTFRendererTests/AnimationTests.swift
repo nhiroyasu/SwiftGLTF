@@ -11,13 +11,18 @@ final class AnimationTests {
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
     let renderer: PBRRenderer
+    let meshLoader: PBRMeshLoader
+    let envMapLoader: EnvironmentMapLoader
 
     let TEX_SIZE = 256
 
     init() throws {
         self.device = MTLCreateSystemDefaultDevice()!
         self.commandQueue = device.makeCommandQueue()!
-        self.renderer = try PBRRenderer(commandQueue: commandQueue)
+        (self.renderer, self.meshLoader, self.envMapLoader) = makeRenderTestInstance(
+            device: device,
+            commandQueue: commandQueue
+        )
     }
 
     // Helper to create a render target texture
@@ -46,49 +51,8 @@ final class AnimationTests {
             znear: 0,
             zfar: 1
         )
-        // Create view-projection matrix buffer
-        let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
         let aspect: Float = Float(viewport.width / max(viewport.height, 1))
         let fovY = Float.pi / 3.0
-        let fovX = 2 * atan(tan(fovY / 2) * aspect)
-        let projection = perspectiveMatrix(fov: fovY, aspect: aspect, near: 0.1, far: 100.0)
-        var modelMatrix = simd_float4x4(1)
-        let modelMatrixBuffer = device.makeBuffer(
-            bytes: &modelMatrix,
-            length: MemoryLayout<simd_float4x4>.size,
-            options: .storageModeShared
-        )!
-        let cameraIndexBuffer = device.makeBuffer(
-            bytes: [Int(-1)],
-            length: MemoryLayout<Int>.size,
-            options: .storageModeShared
-        )!
-        var freeCameraUniforms = FreeCameraUniforms(
-            viewMatrix: view,
-            projectionMatrix: projection,
-            position: eye,
-            fov: SIMD2<Float>(fovX, fovY),
-            camRight: SIMD3<Float>(1, 0, 0),
-            camUp: SIMD3<Float>(0, 1, 0),
-            aspectRatio: aspect
-        )
-        let freeCameraUniformsBuffer = device.makeBuffer(
-            bytes: &freeCameraUniforms,
-            length: MemoryLayout<FreeCameraUniforms>.size,
-            options: .storageModeShared
-        )!
-
-        // Create a pbr scene uniforms buffer
-        var pbrSceneUniforms = SceneUniforms(
-            lightPosition: SIMD3<Float>(0, 5, -5),
-            ambientLightColor: SIMD3<Float>(5, 5, 5),
-            viewportSize: SIMD2<Float>(Float(viewport.width), Float(viewport.height))
-        )
-        let fragmentParams = device.makeBuffer(
-            bytes: &pbrSceneUniforms,
-            length: MemoryLayout<SceneUniforms>.size,
-            options: .storageModeShared
-        )!
 
         let depthTextureDesc = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .depth32Float,
@@ -113,27 +77,32 @@ final class AnimationTests {
 
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL, options: .init(autoScale: false))
-        try renderer.load(from: asset, animationIndex: animationIndex)
-        try renderer.setEnvironment(url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
+        let context = RenderingContextBuilder
+            .new()
+            .mesh(bundle: try meshLoader.loadMeshes(from: asset, animationIndex: animationIndex))
+            .envMap(bundle: try envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!))
+            .skybox(false)
+            .animation(animationState)
+            .lightPosition(SIMD3<Float>(0, 5, -5))
+            .ambientLightColor(SIMD3<Float>(5, 5, 5))
+            .freeCameraUniforms(.build(
+                eye: eye,
+                aspect: aspect,
+                fovY: fovY
+            ))
+            .render(
+                renderPassDescriptor: passDesc,
+                drawableSize: CGSize(width: output.width, height: output.height),
+                viewport: viewport
+            )
+            .finalize()
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
-
-        let fence = renderer.animation(commandBuffer: cmdBuf, animationState: animationState)
         renderer.render(
             commandBuffer: cmdBuf,
-            renderPassDescriptor: passDesc,
-            drawableSize: CGSize(width: output.width, height: output.height),
-            viewport: viewport,
-            fragmentParams: fragmentParams,
-            viewPos: eye,
-            cameraIndexBuffer: cameraIndexBuffer,
-            freeCameraUniformsBuffer: freeCameraUniformsBuffer,
-            modelMatrixBuffer: modelMatrixBuffer,
-            showsSkybox: false,
-            waitFence: fence
+            context: context
         )
-
         cmdBuf.commit()
         cmdBuf.waitUntilCompleted()
     }

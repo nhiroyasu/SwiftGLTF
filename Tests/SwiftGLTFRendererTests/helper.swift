@@ -3,6 +3,7 @@ import MetalKit
 import UniformTypeIdentifiers
 import Testing
 import SwiftGLTFShaderTypes
+@testable import SwiftGLTFRenderer
 
 // If you want to export golden images, manually set this flag to true and run the test.
 let EXPORT_GOLDEN_IMAGES_FLAG = false
@@ -136,4 +137,36 @@ func worldTransformDummyBuffer(device: MTLDevice) -> MTLBuffer {
         options: .storageModeShared
     )!
     return worldTransformBuffer
+}
+
+func makeRenderTestInstance(
+    device: MTLDevice,
+    commandQueue: MTLCommandQueue
+) -> (PBRRenderer, PBRMeshLoader, EnvironmentMapLoader) {
+    let sampleCount = 4
+    let shaderConnection = try! ShaderConnection(
+        device: device,
+        commandQueue: commandQueue
+    )
+    let pbrPipelineConnector = try! PBRPipelineConnector(
+        device: device,
+        shaderConnection: shaderConnection
+    )
+    let renderer = try! PBRRenderer(
+        commandQueue: commandQueue,
+        sampleCount: sampleCount,
+        shaderConnection: shaderConnection,
+        pbrPipelineConnector: pbrPipelineConnector
+    )
+    let meshLoader = PBRMeshLoader(
+        device: device,
+        shaderConnection: shaderConnection,
+        pipelineConnector: pbrPipelineConnector
+    )
+    let envMapLoader = EnvironmentMapLoader(
+        device: device,
+        shaderConnection: shaderConnection
+    )
+
+    return (renderer, meshLoader, envMapLoader)
 }

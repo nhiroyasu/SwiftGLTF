@@ -19,12 +19,12 @@ public protocol GLTFViewDelegate: AnyObject {
 public class GLTFView: MTKView {
     private let commandQueue: MTLCommandQueue
     private let renderer: PBRRenderer
-    private let sceneUniformsBuffer: FrameInFlightBuffer
-    private let modelMatrixBuffer: FrameInFlightBuffer
-    private let cameraIndexBuffer: FrameInFlightBuffer
-    private let freeCameraUniformsBuffer: FrameInFlightBuffer
+    private let meshLoader: PBRMeshLoader
+    private let envMapLoader: EnvironmentMapLoader
+
     private var loadedGLTF: GLTF?
-    private var preCommandBuffer: MTLCommandBuffer?
+    private var loadedMeshBundle: PBRMeshBundle?
+    private var loadedEnvMapBundle: EnvMapBundle?
 
     // MARK: - Display State
     private var displayType: DisplayType = .loading {
@@ -60,7 +60,6 @@ public class GLTFView: MTKView {
 
     // MARK: - Frame Management
     private let maxFramesInFlight = 2
-    private var currentBuffer = 0
     private let frameSemaphores: DispatchSemaphore
 
     // MARK: - Animation state
@@ -95,39 +94,34 @@ public class GLTFView: MTKView {
         self.ambientLightColor = defaultAmbientLightColor
         self.lightPosition = defaultLightPosition
 
+        let shaderConnection = try ShaderConnection(
+            device: device,
+            commandQueue: commandQueue
+        )
+        let pbrPipelineConnector = try PBRPipelineConnector(
+            device: device,
+            shaderConnection: shaderConnection
+        )
         self.renderer = try PBRRenderer(
             commandQueue: commandQueue,
             sampleCount: sampleCount,
             colorPixelFormat: colorPixelFormat,
-            depthPixelFormat: depthPixelFormat
+            depthPixelFormat: depthPixelFormat,
+            shaderConnection: shaderConnection,
+            pbrPipelineConnector: pbrPipelineConnector,
+            maxFramesInFlight: maxFramesInFlight
+        )
+        self.meshLoader = PBRMeshLoader(
+            device: device,
+            shaderConnection: shaderConnection,
+            pipelineConnector: pbrPipelineConnector
+        )
+        self.envMapLoader = EnvironmentMapLoader(
+            device: device,
+            shaderConnection: shaderConnection
         )
 
         self.frameSemaphores = DispatchSemaphore(value: maxFramesInFlight)
-
-        self.sceneUniformsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
-            device.makeBuffer(
-                length: MemoryLayout<SceneUniforms>.size,
-                options: []
-            )!
-        }
-        self.modelMatrixBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
-            device.makeBuffer(
-                length: MemoryLayout<float4x4>.size,
-                options: .storageModeShared
-            )!
-        }
-        self.cameraIndexBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
-            device.makeBuffer(
-                length: MemoryLayout<Int>.size,
-                options: .storageModeShared
-            )!
-        }
-        self.freeCameraUniformsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
-            device.makeBuffer(
-                length: MemoryLayout<FreeCameraUniforms>.size,
-                options: .storageModeShared
-            )!
-        }
 
         super.init(frame: frame, device: device)
 
@@ -170,12 +164,13 @@ public class GLTFView: MTKView {
             let data = try Data(contentsOf: url)
             let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
             let asset = try makeMDLAsset(from: gltfBundle)
-            try renderer.load(
+            loadedMeshBundle = try meshLoader.loadMeshes(
                 from: asset,
                 sceneIndex: sceneIndex,
                 animationIndex: animationIndex,
                 variantIndex: variantIndex
             )
+
             loadedGLTF = gltfBundle.gltf
             gltfLoadHandler?(.success(gltfBundle.gltf))
         } catch {
@@ -197,7 +192,7 @@ public class GLTFView: MTKView {
         do {
             displayType = .loading
             defer { displayType = .drawable }
-            try renderer.setEnvironment(url: url)
+            loadedEnvMapBundle = try envMapLoader.makeEnvMapBundle(from: url)
         } catch {
             os_log("Failed to load environment map from URL: %@", type: .error, error.localizedDescription)
         }
@@ -222,74 +217,6 @@ public class GLTFView: MTKView {
         updateCameraHUD()
     }
 
-    // MARK: - Buffer Management
-
-    private func updateSceneBuffer(
-        toModelMatrix: MTLBuffer,
-        toFragmentParams: MTLBuffer,
-        toCameraIndex: MTLBuffer,
-        toFreeCameraUniforms: MTLBuffer,
-        eye: SIMD3<Float>,
-        target: SIMD3<Float>,
-        lightPosition: SIMD3<Float>,
-        ambientLightColor: SIMD3<Float>,
-        upSign: Float32,
-        renderViewport: MTLViewport
-    ) {
-        let viewportWidth = max(renderViewport.width, 1)
-        let viewportHeight = max(renderViewport.height, 1)
-        let view = lookAt(
-            eye: eye,
-            target: target,
-            up: simd_float3(0, upSign, 0)
-        )
-
-        let aspect = Float(viewportWidth / viewportHeight)
-        let fovY = Float.pi / 3.0
-        let fovX = 2 * atan(tan(fovY / 2) * aspect)
-        let projection = perspectiveMatrix(
-            fov: fovY,
-            aspect: aspect,
-            near: 0.1,
-            far: 1000.0
-        )
-        var modelMatrix = matrix_identity_float4x4
-        toModelMatrix.contents().copyMemory(
-            from: &modelMatrix,
-            byteCount: MemoryLayout<float4x4>.size
-        )
-
-        var pbrSceneUniforms = SceneUniforms(
-            lightPosition: lightPosition,
-            ambientLightColor: ambientLightColor,
-            viewportSize: SIMD2<Float>(Float(viewportWidth), Float(viewportHeight)),
-        )
-        toFragmentParams.contents().copyMemory(
-            from: &pbrSceneUniforms,
-            byteCount: MemoryLayout<SceneUniforms>.size
-        )
-
-        var bCameraIndex = cameraIndex ?? -1
-        toCameraIndex.contents().copyMemory(
-            from: &bCameraIndex,
-            byteCount: MemoryLayout<Int>.size
-        )
-
-        var freeCameraUniforms = FreeCameraUniforms(
-            viewMatrix: view,
-            projectionMatrix: projection,
-            position: eye,
-            fov: SIMD2<Float>(fovX, fovY),
-            camRight: SIMD3<Float>(1, 0, 0),
-            camUp: SIMD3<Float>(0, 1, 0),
-            aspectRatio: aspect
-        )
-        toFreeCameraUniforms.contents().copyMemory(
-            from: &freeCameraUniforms,
-            byteCount: MemoryLayout<FreeCameraUniforms>.size
-        )
-    }
-
     // MARK: - Rendering
 
     public override func draw(_ rect: CGRect) {
@@ -298,57 +225,51 @@ public class GLTFView: MTKView {
               let commandBuffer = commandQueue.makeCommandBuffer() else {
             return
         }
-        preCommandBuffer = commandBuffer
 
         let renderViewport = makeRenderViewport(for: drawableSize)
 
         // Update frame buffer index
         frameSemaphores.wait()
-        currentBuffer = (currentBuffer + 1) % maxFramesInFlight
 
-        // Update buffers
-        updateSceneBuffer(
-            toModelMatrix: modelMatrixBuffer.buffer(currentBuffer),
-            toFragmentParams: sceneUniformsBuffer.buffer(currentBuffer),
-            toCameraIndex: cameraIndexBuffer.buffer(currentBuffer),
-            toFreeCameraUniforms: freeCameraUniformsBuffer.buffer(currentBuffer),
-            eye: eye,
-            target: freeCameraTarget,
-            lightPosition: lightPosition,
-            ambientLightColor: ambientLightColor,
-            upSign: freeCameraUpSign,
-            renderViewport: renderViewport
-        )
-
-        // Advance animation and apply to the asset if available
-        var animationFence: MTLFence?
+        // Update animation time
         if let lastTime = lastFrameTime, enabledAnimation {
             let now = CACurrentMediaTime()
             let dt = now - lastTime
             lastFrameTime = now
             animationState.time += Float(dt) * animationState.speed
-
-            animationFence = renderer.animation(
-                commandBuffer: commandBuffer,
-                animationState: animationState
-            )
         } else {
             lastFrameTime = CACurrentMediaTime()
         }
 
-        // Rendering
-        renderer.render(
-            commandBuffer: commandBuffer,
-            renderPassDescriptor: descriptor,
-            drawableSize: drawableSize,
-            viewport: renderViewport,
-            fragmentParams: sceneUniformsBuffer.buffer(currentBuffer),
-            viewPos: eye,
-            cameraIndexBuffer: cameraIndexBuffer.buffer(currentBuffer),
-            freeCameraUniformsBuffer: freeCameraUniformsBuffer.buffer(currentBuffer),
-            modelMatrixBuffer: modelMatrixBuffer.buffer(currentBuffer),
-            waitFence: animationFence
-        )
+        // Make rendering context
+        let context = RenderingContextBuilder
+            .new()
+            .mesh(bundle: loadedMeshBundle)
+            .envMap(bundle: loadedEnvMapBundle)
+            .skybox(true)
+            .animation(animationState)
+            .modelMatrix(matrix_identity_float4x4)
+            .lightPosition(lightPosition)
+            .ambientLightColor(ambientLightColor)
+            .cameraIndex(cameraIndex ?? -1)
+            .freeCameraUniforms(.build(
+                eye: eye,
+                target: freeCameraTarget,
+                upSign: freeCameraUpSign,
+                aspect: Float(renderViewport.width / renderViewport.height),
+                fovY: .pi / 3
+            ))
+            .render(
+                renderPassDescriptor: descriptor,
+                drawableSize: drawableSize,
+                viewport: renderViewport
+            )
+            .finalize()
+
+        // Render
+        renderer.render(commandBuffer: commandBuffer, context: context)
+
+        // Present
         commandBuffer.present(drawable)
         commandBuffer.addCompletedHandler { [weak frameSemaphores] _ in
             frameSemaphores?.signal()

@@ -46,9 +46,8 @@ public class WireframeRenderer {
         self.sampleCount = sampleCount
         self.colorPixelFormat = colorPixelFormat
         self.depthPixelFormat = depthPixelFormat
-        self.shaderConnection = ShaderConnection(
+        self.shaderConnection = try ShaderConnection(
             device: device,
-            library: library,
             commandQueue: commandQueue
         )
 
