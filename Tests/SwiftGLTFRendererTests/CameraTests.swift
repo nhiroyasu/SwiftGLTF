@@ -76,7 +76,7 @@ final class CameraTests {
 
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL, options: .init(autoScale: false))
-        let context = RenderingContextBuilder
+        let context = await RenderingContextBuilder
             .new()
             .mesh(bundle: try meshLoader.loadMeshes(from: asset))
             .envMap(bundle: try envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!))

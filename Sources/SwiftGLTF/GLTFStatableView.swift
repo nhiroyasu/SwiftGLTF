@@ -60,7 +60,7 @@ public class GLTFStatableView: GLTFView {
     public var gltfURL: URL? {
         didSet {
             if gltfURL != currentGLTFURL {
-                reloadGLTFIfNeeded()
+                _reloadGLTFIfNeeded()
             }
         }
     }
@@ -74,7 +74,7 @@ public class GLTFStatableView: GLTFView {
     public var sceneIndex: Int? {
         didSet {
             if sceneIndex != currentSceneIndex {
-                reloadGLTFIfNeeded()
+                _reloadGLTFIfNeeded()
             }
         }
     }
@@ -88,7 +88,7 @@ public class GLTFStatableView: GLTFView {
     public var animationIndex: Int? {
         didSet {
             if animationIndex != currentAnimationIndex {
-                reloadGLTFIfNeeded()
+                _reloadGLTFIfNeeded()
             }
         }
     }
@@ -97,7 +97,7 @@ public class GLTFStatableView: GLTFView {
     public var variantIndex: Int? {
         didSet {
             if variantIndex != currentVariantIndex {
-                reloadGLTFIfNeeded()
+                _reloadGLTFIfNeeded()
             }
         }
     }
@@ -111,7 +111,7 @@ public class GLTFStatableView: GLTFView {
     public var environmentURL: URL? {
         didSet {
             if environmentURL != currentEnvironmentURL {
-                reloadEnvironmentIfNeeded()
+                _reloadEnvironmentIfNeeded()
             }
         }
     }
@@ -143,7 +143,7 @@ public class GLTFStatableView: GLTFView {
     ///
     /// Reloads when the URL or scene index changes.
     /// Compares the contents of the GLTF file and reloads only if there is an actual change.
-    private func reloadGLTFIfNeeded() {
+    private func reloadGLTFIfNeeded() async {
         guard let url = gltfURL else {
             currentGLTFURL = nil
             currentSceneIndex = nil
@@ -162,7 +162,7 @@ public class GLTFStatableView: GLTFView {
         currentAnimationIndex = animationIndex
         currentVariantIndex = variantIndex
 
-        super.load(
+        await super.load(
             gltf: url,
             sceneIndex: sceneIndex,
             animationIndex: animationIndex,
@@ -174,7 +174,7 @@ public class GLTFStatableView: GLTFView {
     /// Checks if reloading the environment map is necessary and performs it if needed.
     ///
     /// Reloads when the environment map URL changes.
-    private func reloadEnvironmentIfNeeded() {
+    private func reloadEnvironmentIfNeeded() async {
         guard let url = environmentURL else {
             currentEnvironmentURL = nil
             return
@@ -182,8 +182,22 @@ public class GLTFStatableView: GLTFView {
 
         if url != currentEnvironmentURL {
             currentEnvironmentURL = url
-            super.load(environment: url)
+            await super.load(environment: url)
             os_log("GLTFStatableView: Reloaded environment map", type: .info)
+        }
+    }
+
+    /// Helper method to call reloadGLTFIfNeeded in a Task
+    private func _reloadGLTFIfNeeded() {
+        Task { @MainActor in
+            await reloadGLTFIfNeeded()
+        }
+    }
+
+    /// Helper method to call reloadEnvironmentIfNeeded in a Task
+    private func _reloadEnvironmentIfNeeded() {
+        Task { @MainActor in
+            await reloadEnvironmentIfNeeded()
         }
     }
 
@@ -201,12 +215,12 @@ public class GLTFStatableView: GLTFView {
         sceneIndex: Int? = nil,
         animationIndex: Int? = nil,
         variantIndex: Int? = nil
-    ) {
+    ) async {
         currentGLTFURL = url
         currentSceneIndex = sceneIndex
         currentAnimationIndex = animationIndex
         currentVariantIndex = variantIndex
-        reloadGLTFIfNeeded()
+        await reloadGLTFIfNeeded()
     }
 
     /// Loads an environment map directly
@@ -214,8 +228,8 @@ public class GLTFStatableView: GLTFView {
     /// This method updates the internal state before calling the superclass load method.
     ///
     /// - Parameter url: The URL of the environment map to load
-    public override func load(environment url: URL) {
+    public override func load(environment url: URL) async {
         currentEnvironmentURL = url
-        reloadEnvironmentIfNeeded()
+        await reloadEnvironmentIfNeeded()
     }
 }

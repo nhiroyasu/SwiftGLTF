@@ -77,8 +77,7 @@ public class WireframeRenderer {
             shaderConnection: shaderConnection
         )
         self.envMapLoader = EnvironmentMapLoader(
-            device: device,
-            library: library,
+            commandQueue: commandQueue,
             shaderConnection: shaderConnection
         )
 
@@ -180,7 +179,7 @@ public class WireframeRenderer {
             irradianceMap,
             brdfLUT,
             prefilterSheenTexture
-        ) = try envMapLoader.makeEnvMapHeapAndTexture(url: envMapUrl)
+        ) = try await envMapLoader.makeEnvMapHeapAndTexture(url: envMapUrl)
         self.envMapHeap = envMapHeap
         self._specularCubeMapTexture = prefilterEnvMap
         self._irradianceCubeMapTexture = irradianceMap

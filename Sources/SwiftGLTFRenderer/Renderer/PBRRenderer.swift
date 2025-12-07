@@ -79,8 +79,7 @@ public class PBRRenderer {
 
         self.pbrPipelineConnector = pbrPipelineConnector
         self.envMapLoader = EnvironmentMapLoader(
-            device: device,
-            library: library,
+            commandQueue: commandQueue,
             shaderConnection: shaderConnection
         )
 

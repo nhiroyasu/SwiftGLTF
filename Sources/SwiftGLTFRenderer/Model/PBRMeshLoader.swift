@@ -29,7 +29,7 @@ public class PBRMeshLoader {
         sceneIndex: Int? = nil,
         animationIndex: Int? = nil,
         variantIndex: Int? = nil
-    ) throws -> PBRMeshBundle {
+    ) async throws -> PBRMeshBundle {
         #if DEBUG
         let startTime = Date()
         defer {
@@ -227,7 +227,7 @@ public class PBRMeshLoader {
 
         // Commit all batched operations once at the end
         batchCommandBuffer.commit()
-        batchCommandBuffer.waitUntilCompleted()
+        await batchCommandBuffer.completed()
 
         return PBRMeshBundle(
             meshes: pbrMeshes,

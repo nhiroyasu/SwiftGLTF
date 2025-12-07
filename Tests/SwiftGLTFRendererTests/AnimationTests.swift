@@ -42,7 +42,7 @@ final class AnimationTests {
         eye: SIMD3<Float>,
         animationIndex: Int,
         animationState: RendererAnimationState
-    ) throws {
+    ) async throws {
         let viewport = MTLViewport(
             originX: 0,
             originY: 0,
@@ -77,7 +77,7 @@ final class AnimationTests {
 
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL, options: .init(autoScale: false))
-        let context = RenderingContextBuilder
+        let context = await RenderingContextBuilder
             .new()
             .mesh(bundle: try meshLoader.loadMeshes(from: asset, animationIndex: animationIndex))
             .envMap(bundle: try envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!))
@@ -104,7 +104,7 @@ final class AnimationTests {
             context: context
         )
         cmdBuf.commit()
-        cmdBuf.waitUntilCompleted()
+        await cmdBuf.completed()
     }
 
     // MARK: - Export golden images
@@ -127,14 +127,14 @@ final class AnimationTests {
     // Export baseline textures
     // These should be run manually to generate expected textures
     @Test
-    func ExportGoldenImages() throws {
+    func ExportGoldenImages() async throws {
         guard EXPORT_GOLDEN_IMAGES_FLAG, !isCI() else { return }
 
         while time > currentTime {
             for (meshName, ext, eye, animIndex) in meshFiles {
                 let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
                 let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-                try renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationIndex: animIndex, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
+                try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationIndex: animIndex, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
                 try export(texture: meshTarget, name: "\(goldenFilePrefix)\(meshName)_\(animIndex)_\(String(format: "%.1f", currentTime)).png")
             }
             currentTime += interval
@@ -144,7 +144,7 @@ final class AnimationTests {
     // MARK: - Tests
 
     @Test
-    func testMeshRenderingMatchesGolden() throws {
+    func testMeshRenderingMatchesGolden() async throws {
         // This rendering test is not run on CI because it depends on the GPU and the supported Metal version.
         guard !isCI() else { return }
 
@@ -152,7 +152,7 @@ final class AnimationTests {
             for (meshName, ext, eye, animIndex) in meshFiles {
                 let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
                 let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-                try renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationIndex: animIndex, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
+                try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye, animationIndex: animIndex, animationState: .init(time: currentTime, speed: 1.0, isLooping: true))
 
                 assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)_\(animIndex)_\(String(format: "%.1f", currentTime))")
 

@@ -117,7 +117,7 @@ public class GLTFView: MTKView {
             pipelineConnector: pbrPipelineConnector
         )
         self.envMapLoader = EnvironmentMapLoader(
-            device: device,
+            commandQueue: commandQueue,
             shaderConnection: shaderConnection
         )
 
@@ -157,14 +157,14 @@ public class GLTFView: MTKView {
         sceneIndex: Int? = nil,
         animationIndex: Int? = nil,
         variantIndex: Int? = nil
-    ) {
+    ) async {
         do {
             displayType = .loading
             defer { displayType = .drawable }
             let data = try Data(contentsOf: url)
             let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
             let asset = try makeMDLAsset(from: gltfBundle)
-            loadedMeshBundle = try meshLoader.loadMeshes(
+            loadedMeshBundle = try await meshLoader.loadMeshes(
                 from: asset,
                 sceneIndex: sceneIndex,
                 animationIndex: animationIndex,
@@ -188,11 +188,11 @@ public class GLTFView: MTKView {
     ///
     /// - Parameter url: The file URL of the environment map to use for lighting/reflections.
     /// - Important: Large HDR/EXR files may take time to process depending on device capabilities.
-    public func load(environment url: URL) {
+    public func load(environment url: URL) async {
         do {
             displayType = .loading
             defer { displayType = .drawable }
-            loadedEnvMapBundle = try envMapLoader.makeEnvMapBundle(from: url)
+            loadedEnvMapBundle = try await envMapLoader.makeEnvMapBundle(from: url)
         } catch {
             os_log("Failed to load environment map from URL: %@", type: .error, error.localizedDescription)
         }

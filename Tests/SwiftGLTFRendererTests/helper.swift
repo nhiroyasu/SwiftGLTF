@@ -164,7 +164,7 @@ func makeRenderTestInstance(
         pipelineConnector: pbrPipelineConnector
     )
     let envMapLoader = EnvironmentMapLoader(
-        device: device,
+        commandQueue: commandQueue,
         shaderConnection: shaderConnection
     )
 
