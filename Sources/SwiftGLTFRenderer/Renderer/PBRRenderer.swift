@@ -102,10 +102,6 @@ public class PBRRenderer {
 
         // setup default env map
         self.defaultEnvMapBundle = try envMapLoader.makeEnvMapBundle(from: CGColor(gray: 0.0, alpha: 1.0))
-        self.indirectEnvMapArgumentBuffer = device.makeBuffer(
-            length: MemoryLayout<PBREnvMapArguments>.size,
-            options: [.storageModePrivate]
-        )!
 
         // Scene color sampler
         let samplerDesc = MTLSamplerDescriptor()
@@ -139,7 +135,8 @@ public class PBRRenderer {
             commandQueue.device.heapBufferSizeAndAlign(length:MemoryLayout<SceneUniforms>.size).alignedSize +
             commandQueue.device.heapBufferSizeAndAlign(length:MemoryLayout<simd_float4x4>.size).alignedSize +
             commandQueue.device.heapBufferSizeAndAlign(length:MemoryLayout<Int>.size).alignedSize +
-            commandQueue.device.heapBufferSizeAndAlign(length:MemoryLayout<FreeCameraUniforms>.size).alignedSize
+            commandQueue.device.heapBufferSizeAndAlign(length:MemoryLayout<FreeCameraUniforms>.size).alignedSize +
+            commandQueue.device.heapBufferSizeAndAlign(length:MemoryLayout<PBREnvMapArguments>.size).alignedSize
             let heap = commandQueue.device.makeHeap(descriptor: desc)!
             heap.label = "[SwiftGLTF] PBR Indirect Command Heap"
             return heap
@@ -158,6 +155,10 @@ public class PBRRenderer {
         )!
         self.indirectFreeCameraUniformsBuffer = indirectHeap.makeBuffer(
             length: MemoryLayout<FreeCameraUniforms>.size,
+            options: .storageModePrivate
+        )!
+        self.indirectEnvMapArgumentBuffer = indirectHeap.makeBuffer(
+            length: MemoryLayout<PBREnvMapArguments>.size,
             options: .storageModePrivate
         )!
 
