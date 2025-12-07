@@ -56,13 +56,17 @@ public class PBRRenderer {
     private let indirectModelMatrixBuffer: MTLBuffer
     private let indirectEnvMapArgumentBuffer: MTLBuffer
 
+    // FrameInFlight
+    private let frameInFlightManager: PBRFrameInFlightManager
+
     public init(
         commandQueue: MTLCommandQueue,
         sampleCount: Int = 4,
         colorPixelFormat: MTLPixelFormat = .rgba8Unorm_srgb,
         depthPixelFormat: MTLPixelFormat = .depth32Float,
         shaderConnection: ShaderConnection,
-        pbrPipelineConnector: PBRPipelineConnector
+        pbrPipelineConnector: PBRPipelineConnector,
+        maxFramesInFlight: Int = 2
     ) throws {
         self.device = commandQueue.device
         self.commandQueue = commandQueue
@@ -167,6 +171,9 @@ public class PBRRenderer {
             length: MemoryLayout<PBRScreenColorArguments>.size,
             options: [.storageModePrivate]
         )!
+
+        // FrameInFlight
+        frameInFlightManager = PBRFrameInFlightManager(device: device, maxFramesInFlight: maxFramesInFlight)
     }
 
     // MARK: - Rendering
@@ -180,6 +187,13 @@ public class PBRRenderer {
             os_log("PBRRenderer: Missing mesh bundle or rendering state in finalized rendering context", type: .error)
             return
         }
+
+        let frameInFlightResources = frameInFlightManager.currentResourcesWith(
+            modelMatrix: context.modelMatrix,
+            sceneUniforms: context.sceneUniforms,
+            cameraIndex: context.cameraIndex,
+            freeCameraUniforms: context.freeCameraUniforms
+        )
 
         var animationFence: MTLFence?
         if let animationState = context.animationState {
@@ -197,11 +211,10 @@ public class PBRRenderer {
             renderPassDescriptor: renderingState.renderPassDescriptor,
             drawableSize: renderingState.drawableSize,
             viewport: renderingState.viewport,
-            fragmentParams: renderingState.fragmentParams,
-            viewPos: renderingState.viewPos,
-            cameraIndexBuffer: renderingState.cameraIndexBuffer,
-            freeCameraUniformsBuffer: renderingState.freeCameraUniformsBuffer,
-            modelMatrixBuffer: renderingState.modelMatrixBuffer,
+            fragmentParams: frameInFlightResources.sceneUniformsBuffer,
+            cameraIndexBuffer: frameInFlightResources.cameraIndexBuffer,
+            freeCameraUniformsBuffer: frameInFlightResources.freeCameraUniformsBuffer,
+            modelMatrixBuffer: frameInFlightResources.modelMatrixBuffer,
             showsSkybox: context.showsSkybox,
             waitFence: animationFence
         )
@@ -301,7 +314,6 @@ public class PBRRenderer {
         drawableSize: CGSize,
         viewport: MTLViewport,
         fragmentParams: MTLBuffer,
-        viewPos: SIMD3<Float>,
         cameraIndexBuffer: MTLBuffer,
         freeCameraUniformsBuffer: MTLBuffer,
         modelMatrixBuffer: MTLBuffer,

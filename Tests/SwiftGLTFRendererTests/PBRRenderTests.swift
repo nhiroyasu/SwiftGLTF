@@ -47,48 +47,8 @@ final class PBRRenderTests {
         )
         // Create view-projection matrix buffer
         let eye = eye ?? SIMD3<Float>(-1.41, 1.41, -1.41)
-        let view = lookAt(eye: eye, target: SIMD3<Float>(0, 0, 0), up: SIMD3<Float>(0, 1, 0))
         let aspect: Float = Float(viewport.width / max(viewport.height, 1))
         let fovY = Float.pi / 3.0
-        let fovX = 2 * atan(tan(fovY / 2) * aspect)
-        let projection = perspectiveMatrix(fov: fovY, aspect: aspect, near: 0.1, far: 1000.0)
-        var modelMatrix = simd_float4x4(1)
-        let modelMatrixBuffer = device.makeBuffer(
-            bytes: &modelMatrix,
-            length: MemoryLayout<simd_float4x4>.size,
-            options: .storageModeShared
-        )!
-        let cameraIndexBuffer = device.makeBuffer(
-            bytes: [Int(-1)],
-            length: MemoryLayout<Int>.size,
-            options: .storageModeShared
-        )!
-        var freeCameraUniforms = FreeCameraUniforms(
-            viewMatrix: view,
-            projectionMatrix: projection,
-            position: eye,
-            fov: SIMD2<Float>(fovX, fovY),
-            camRight: SIMD3<Float>(1, 0, 0),
-            camUp: SIMD3<Float>(0, 1, 0),
-            aspectRatio: aspect
-        )
-        let freeCameraUniformsBuffer = device.makeBuffer(
-            bytes: &freeCameraUniforms,
-            length: MemoryLayout<FreeCameraUniforms>.size,
-            options: .storageModeShared
-        )!
-
-        // Create a pbr scene uniforms buffer
-        var pbrSceneUniforms = SceneUniforms(
-            lightPosition: SIMD3<Float>(0, 5, -5),
-            ambientLightColor: SIMD3<Float>(5, 5, 5),
-            viewportSize: SIMD2<Float>(Float(viewport.width), Float(viewport.height))
-        )
-        let fragmentParams = device.makeBuffer(
-            bytes: &pbrSceneUniforms,
-            length: MemoryLayout<SceneUniforms>.size,
-            options: .storageModeShared
-        )!
 
         let depthTextureDesc = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .depth32Float,
@@ -118,15 +78,17 @@ final class PBRRenderTests {
             .mesh(bundle: try meshLoader.loadMeshes(from: asset))
             .envMap(bundle: try envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!))
             .skybox(false)
+            .lightPosition(SIMD3<Float>(0, 5, -5))
+            .ambientLightColor(SIMD3<Float>(5, 5, 5))
+            .freeCameraUniforms(.build(
+                eye: eye,
+                aspect: aspect,
+                fovY: fovY
+            ))
             .render(
                 renderPassDescriptor: passDesc,
                 drawableSize: CGSize(width: output.width, height: output.height),
                 viewport: viewport,
-                fragmentParams: fragmentParams,
-                viewPos: eye,
-                cameraIndexBuffer: cameraIndexBuffer,
-                freeCameraUniformsBuffer: freeCameraUniformsBuffer,
-                modelMatrixBuffer: modelMatrixBuffer
             )
             .finalize()
 
