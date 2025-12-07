@@ -20,10 +20,7 @@ extension FreeCameraUniforms {
             near: 0.1,
             far: 1000.0
         )
-
-        // TODO: Calculate correct camRight and camUp vectors
-//        let camRight = simd_normalize(simd_cross(target - eye, simd_float3(0, upSign, 0)))
-//        let camUp = simd_normalize(simd_cross(camRight, target - eye))
+        
         let camRight = simd_float3(1, 0, 0)
         let camUp = simd_float3(0, 1, 0)
 
