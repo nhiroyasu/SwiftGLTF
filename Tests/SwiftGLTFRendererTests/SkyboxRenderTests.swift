@@ -21,9 +21,8 @@ final class SkyboxRenderTests {
         self.library = try! device.makePackageLibrary()
         self.commandQueue = device.makeCommandQueue()!
 
-        self.shaderConnection = ShaderConnection(
+        self.shaderConnection = try! ShaderConnection(
             device: device,
-            library: library,
             commandQueue: commandQueue
         )
         self.envMapLoader = EnvironmentMapLoader(

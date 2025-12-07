@@ -5,7 +5,7 @@ import SwiftGLTFParser
 import SwiftGLTFCore
 import SwiftGLTFShaderTypes
 
-class PBRMeshLoader {
+public class PBRMeshLoader {
     private let device: MTLDevice
     private let pipelineConnector: PBRPipelineConnector
     private let shaderConnection: ShaderConnection
@@ -13,7 +13,7 @@ class PBRMeshLoader {
 
     private let kDefaultAnimationIndex = 0
 
-    init(
+    public init(
         device: MTLDevice,
         shaderConnection: ShaderConnection,
         pipelineConnector: PBRPipelineConnector
@@ -24,7 +24,7 @@ class PBRMeshLoader {
         self.textureLoader = MTKTextureLoader(device: device)
     }
 
-    func loadMeshes(
+    public func loadMeshes(
         from asset: MDLAsset,
         sceneIndex: Int? = nil,
         animationIndex: Int? = nil,
@@ -120,7 +120,7 @@ class PBRMeshLoader {
             animationIndex: animationIndex ?? kDefaultAnimationIndex
         )
         #if DEBUG
-        os_log("📊 Animation processing: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(animationStart))
+        os_log("PBRMeshLoader: Animation processing: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(animationStart))
         #endif
 
         // Vertex mesh heap creation
@@ -132,7 +132,7 @@ class PBRMeshLoader {
         #endif
         let meshBufferMap = try makeMeshBufferMap(commandBuffer: batchCommandBuffer, from: asset, use: vertexMeshHeap)
         #if DEBUG
-        os_log("📊 Mesh buffer mapping: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(meshBufferStart))
+        os_log("PBRMeshLoader: Mesh buffer mapping: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(meshBufferStart))
         #endif
 
         let gltfMaterials = asset.objectSafe(atPath: GLTFAssetPath.materials) as? GLTFMaterials
@@ -149,7 +149,7 @@ class PBRMeshLoader {
             textureMap = try convertHeapTexture(commandBuffer: batchCommandBuffer, from: textureMap, use: texturesHeap)
         }
         #if DEBUG
-        os_log("📊 Texture processing: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(textureStart))
+        os_log("PBRMeshLoader: Texture processing: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(textureStart))
         #endif
 
         // Fragment heap creation
@@ -158,7 +158,7 @@ class PBRMeshLoader {
         #endif
         let fragmentHeap = try makeFragmentHeap(from: asset, sceneIndex: sceneIndex)
         #if DEBUG
-        os_log("📊 Fragment heap creation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(fragmentHeapStart))
+        os_log("PBRMeshLoader: Fragment heap creation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(fragmentHeapStart))
         #endif
 
         // Material buffer creation
@@ -173,7 +173,7 @@ class PBRMeshLoader {
             fragmentHeap: fragmentHeap
         )
         #if DEBUG
-        os_log("📊 Material buffer creation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(materialStart))
+        os_log("PBRMeshLoader: Material buffer creation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(materialStart))
         #endif
 
         // Recursive mesh loading (most time-consuming)
@@ -198,7 +198,7 @@ class PBRMeshLoader {
             variantIndex: selectedVariantIndex
         )
         #if DEBUG
-        os_log("📊 Recursive mesh loading: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(meshLoadingStart))
+        os_log("PBRMeshLoader: Recursive mesh loading: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(meshLoadingStart))
         #endif
 
         // Bounding spheres computation
@@ -207,7 +207,7 @@ class PBRMeshLoader {
         #endif
         let boundingSpheresBuffer = try shaderConnection.encodeComputeBoundingSpheres(batchCommandBuffer, meshes: pbrMeshes)
         #if DEBUG
-        os_log("📊 Bounding spheres computation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(boundingSpheresStart))
+        os_log("PBRMeshLoader: Bounding spheres computation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(boundingSpheresStart))
         #endif
 
         // Camera uniforms buffer creation
@@ -220,7 +220,7 @@ class PBRMeshLoader {
             cameraIndices: nodeLevelHierarchy.cameraIndices
         )
         #if DEBUG
-        os_log("📊 Camera uniforms buffer creation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(cameraStart))
+        os_log("PBRMeshLoader: Camera uniforms buffer creation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(cameraStart))
         #endif
 
         checkRemainingHeapSize([vertexMeshHeap, texturesHeap, fragmentHeap].compactMap({ $0 }))
@@ -1528,7 +1528,7 @@ class PBRMeshLoader {
             let size = heap.size
             let remaining = size - used
             if remaining > 0 {
-                os_log("[SwiftGLTF] Heap '%{public}s' has %{public}d bytes remaining (%{public}d / %{public}d used)", type: .debug, heap.label ?? "Unnamed", remaining, used, size)
+                os_log("PBRMeshLoader: Heap '%{public}s' has %{public}d bytes remaining (%{public}d / %{public}d used)", type: .debug, heap.label ?? "Unnamed", remaining, used, size)
             }
         }
     }

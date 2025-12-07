@@ -9,7 +9,7 @@ extension PBRVertexArgId {
     }
 }
 
-class PBRPipelineConnector {
+public class PBRPipelineConnector {
     private let device: MTLDevice
     private let vertexFunction: MTLFunction
     private let fragmentFunction: MTLFunction
@@ -18,14 +18,18 @@ class PBRPipelineConnector {
     let opaquePSO: MTLRenderPipelineState
     let alphaBlendPSO: MTLRenderPipelineState
 
-    init(
+    public init(
         device: MTLDevice,
-        library: MTLLibrary,
-        config: PipelineStateLoaderConfig,
+        config: PipelineStateLoaderConfig = .init(
+            sampleCount: 4,
+            colorPixelFormat: .rgba16Float,
+            depthPixelFormat: .depth32Float
+        ),
         shaderConnection: ShaderConnection
     ) throws {
         self.device = device
         self.shaderConnection = shaderConnection
+        let library = try device.makePackageLibrary()
         self.vertexFunction = library.makeFunction(name: "pbr_vertex_shader")!
         self.fragmentFunction = library.makeFunction(name: "pbr_fragment_shader")!
 

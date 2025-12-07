@@ -165,6 +165,8 @@ public enum RenderErrorCode: Sendable, Equatable {
     case meshCreationFailed
     case samplerCreateFailed
     case sceneNotFound
+    case missingMeshBundleInRenderPassContext
+    case missingRenderingStateInRenderPassContext
     case unsupportedFeature(description: String)
 }
 
@@ -330,6 +332,8 @@ extension SwiftGLTFError: LocalizedError {
         case .meshCreationFailed: return "Failed to create mesh"
         case .samplerCreateFailed: return "Failed to create sampler"
         case .sceneNotFound: return "Scene not found"
+        case .missingMeshBundleInRenderPassContext: return "Missing mesh bundle in render pass context"
+        case .missingRenderingStateInRenderPassContext: return "Missing rendering state in render pass context"
         case let .unsupportedFeature(description): return "Unsupported feature: \(description)"
         }
     }
@@ -437,7 +441,9 @@ extension SwiftGLTFError: CustomNSError {
         case .meshCreationFailed: return 17
         case .samplerCreateFailed: return 18
         case .sceneNotFound: return 19
-        case .unsupportedFeature: return 20
+        case .missingMeshBundleInRenderPassContext: return 20
+        case .missingRenderingStateInRenderPassContext: return 21
+        case .unsupportedFeature: return 22
         }
     }
 

@@ -11,13 +11,18 @@ final class AnimationTests {
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
     let renderer: PBRRenderer
+    let meshLoader: PBRMeshLoader
+    let envMapLoader: EnvironmentMapLoader
 
     let TEX_SIZE = 256
 
     init() throws {
         self.device = MTLCreateSystemDefaultDevice()!
         self.commandQueue = device.makeCommandQueue()!
-        self.renderer = try PBRRenderer(commandQueue: commandQueue)
+        (self.renderer, self.meshLoader, self.envMapLoader) = makeRenderTestInstance(
+            device: device,
+            commandQueue: commandQueue
+        )
     }
 
     // Helper to create a render target texture
@@ -113,27 +118,30 @@ final class AnimationTests {
 
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL, options: .init(autoScale: false))
-        try renderer.load(from: asset, animationIndex: animationIndex)
-        try renderer.setEnvironment(url: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
+        let context = RenderingContextBuilder
+            .new()
+            .mesh(bundle: try meshLoader.loadMeshes(from: asset, animationIndex: animationIndex))
+            .envMap(bundle: try envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!))
+            .skybox(false)
+            .animation(animationState)
+            .render(
+                renderPassDescriptor: passDesc,
+                drawableSize: CGSize(width: output.width, height: output.height),
+                viewport: viewport,
+                fragmentParams: fragmentParams,
+                viewPos: eye,
+                cameraIndexBuffer: cameraIndexBuffer,
+                freeCameraUniformsBuffer: freeCameraUniformsBuffer,
+                modelMatrixBuffer: modelMatrixBuffer
+            )
+            .finalize()
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
-
-        let fence = renderer.animation(commandBuffer: cmdBuf, animationState: animationState)
         renderer.render(
             commandBuffer: cmdBuf,
-            renderPassDescriptor: passDesc,
-            drawableSize: CGSize(width: output.width, height: output.height),
-            viewport: viewport,
-            fragmentParams: fragmentParams,
-            viewPos: eye,
-            cameraIndexBuffer: cameraIndexBuffer,
-            freeCameraUniformsBuffer: freeCameraUniformsBuffer,
-            modelMatrixBuffer: modelMatrixBuffer,
-            showsSkybox: false,
-            waitFence: fence
+            context: context
         )
-
         cmdBuf.commit()
         cmdBuf.waitUntilCompleted()
     }
