@@ -38,29 +38,46 @@ public class EnvironmentMapLoader {
         MTLTexture, // brdfLUT
         MTLTexture  // prefiltered sheen
     ) {
-        let commandBuffer = commandQueue.makeCommandBuffer()!
+        guard let cubeMapTextureCB = commandQueue.makeCommandBuffer(),
+              let prefilterEnvMapCB = commandQueue.makeCommandBuffer(),
+              let irradianceTextureCB = commandQueue.makeCommandBuffer(),
+              let brdfLUTCB = commandQueue.makeCommandBuffer(),
+              let sheenEnvMapCB = commandQueue.makeCommandBuffer(),
+              let blitCB = commandQueue.makeCommandBuffer() else {
+            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
+        }
+
         let (envMap, _) = try encodeGeneratingCubeTexture(
-            commandBuffer: commandBuffer,
+            commandBuffer: cubeMapTextureCB,
             exr: url
         )
+        cubeMapTextureCB.commit()
+
         let prefilterEnvMapTexture = try shaderConnection.encodePrefilterEnvMapTexture(
-            commandBuffer,
+            prefilterEnvMapCB,
             envMap: envMap
         )
+        prefilterEnvMapCB.commit()
+
         let irradianceCubeMapTexture = try shaderConnection.encodeIrradianceTexture(
-            commandBuffer,
+            irradianceTextureCB,
             envMap: envMap,
             size: IRRADIANCE_SIZE
         )
+        irradianceTextureCB.commit()
+
         let brdfLUT = try shaderConnection.encodeBRDFLUT(
-            commandBuffer,
+            brdfLUTCB,
             width: envMap.width,
             height: envMap.height
         )
+        brdfLUTCB.commit()
+
         let prefilterSheenTexture = try shaderConnection.encodePrefilterSheenTexture(
-            commandBuffer,
+            sheenEnvMapCB,
             envMap: envMap
         )
+        sheenEnvMapCB.commit()
 
         let descriptor = MTLHeapDescriptor()
         descriptor.storageMode = .private
@@ -82,7 +99,7 @@ public class EnvironmentMapLoader {
         heap.label = "[SwiftGLTF] Environment Map Heap"
 
         let results = try shaderConnection.encodeMoveResourcesToHeap(
-            commandBuffer,
+            blitCB,
             from: [prefilterEnvMapTexture, irradianceCubeMapTexture, brdfLUT, prefilterSheenTexture],
             use: heap
         )
@@ -90,9 +107,16 @@ public class EnvironmentMapLoader {
         results[1].label = "[SwiftGLTF] Irradiance Map"
         results[2].label = "[SwiftGLTF] BRDF LUT"
         results[3].label = "[SwiftGLTF] Prefilter Sheen Map"
+        blitCB.commit()
 
-        commandBuffer.commit()
-        await commandBuffer.completed()
+        await withTaskGroup { group in
+            group.addTask(operation: prefilterEnvMapCB.completed)
+            group.addTask(operation: irradianceTextureCB.completed)
+            group.addTask(operation: brdfLUTCB.completed)
+            group.addTask(operation: sheenEnvMapCB.completed)
+            group.addTask(operation: blitCB.completed)
+            await group.waitForAll()
+        }
 
         return (
             heap,

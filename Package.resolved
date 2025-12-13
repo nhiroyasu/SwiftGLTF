@@ -1,13 +1,13 @@
 {
-  "originHash" : "7965dc160a7f6fe5ec2b4275be66bd3d4cf7d3d781f7fce7dd48f06f7e3bd308",
+  "originHash" : "e7f74917db8729a9649aca8e3791a8276e1511593ef66e389b014f29184311f6",
   "pins" : [
     {
       "identity" : "img2cubemap",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nhiroyasu/Img2Cubemap.git",
       "state" : {
-        "revision" : "4d676b8394cba04dff50b443ac6f6b950cbfe2e6",
-        "version" : "0.1.13"
+        "revision" : "9c1df1b5f0399d4d637cf528f14b936e0d751da3",
+        "version" : "0.1.14"
       }
     },
     {
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nhiroyasu/OpenEXRWrapper.git",
       "state" : {
-        "revision" : "c3c3673e4efe76368a1d504c0b6d4151daac97dc",
-        "version" : "0.1.1"
+        "revision" : "989c926375e1ea146cfc7a531dc2dcaacab83bdb",
+        "version" : "0.1.2"
       }
     }
   ],

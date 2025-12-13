@@ -10,19 +10,17 @@ import SwiftGLTFShaderTypes
 final class PBRRenderTests {
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
-    let renderer: PBRRenderer
-    let meshLoader: PBRMeshLoader
-    let envMapLoader: EnvironmentMapLoader
-
+    let envMapBundle: EnvMapBundle
     let TEX_SIZE = 256
 
-    init() throws {
+    init() async throws {
         self.device = MTLCreateSystemDefaultDevice()!
         self.commandQueue = device.makeCommandQueue()!
-        (self.renderer, self.meshLoader, self.envMapLoader) = makeRenderTestInstance(
+        let (_, _, envMapLoader) = makeRenderTestInstance(
             device: device,
             commandQueue: commandQueue
         )
+        self.envMapBundle = try await envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
     }
 
     // Helper to create a render target texture
@@ -37,6 +35,11 @@ final class PBRRenderTests {
     }
 
     func renderMesh(to output: MTLTexture, meshURL: URL, eye: SIMD3<Float>?) async throws {
+        let (renderer, meshLoader, _) = makeRenderTestInstance(
+            device: device,
+            commandQueue: commandQueue
+        )
+
         let viewport = MTLViewport(
             originX: 0,
             originY: 0,
@@ -76,7 +79,7 @@ final class PBRRenderTests {
         let context = await RenderingContextBuilder
             .new()
             .mesh(bundle: try meshLoader.loadMeshes(from: asset))
-            .envMap(bundle: try envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!))
+            .envMap(bundle: envMapBundle)
             .skybox(false)
             .lightPosition(SIMD3<Float>(0, 5, -5))
             .ambientLightColor(SIMD3<Float>(5, 5, 5))
@@ -144,21 +147,107 @@ final class PBRRenderTests {
 
     // MARK: - Tests
 
-    @Test
-    func testMeshRenderingMatchesGolden() async throws {
-        // This rendering test is not run on CI because it depends on the GPU and the supported Metal version.
+    private func performMeshRenderingTest(meshName: String, ext: String, eye: SIMD3<Float>?) async throws {
         guard !isCI() else { return }
 
-        for (meshName, ext, eye) in meshFiles {
-            let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
-            let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
-            try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye)
+        let meshTarget = makeRenderTarget(width: TEX_SIZE, height: TEX_SIZE)
+        let meshURL = Bundle.module.url(forResource: meshName, withExtension: ext)!
+        try await renderMesh(to: meshTarget, meshURL: meshURL, eye: eye)
 
-            assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
+        assertEqual(output: meshTarget, goldenName: "\(goldenFilePrefix)\(meshName)")
 
-            if EXPORT_OUTPUT_IMAGES_FLAG, !isCI() {
-                try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName).png")
-            }
+        if EXPORT_OUTPUT_IMAGES_FLAG {
+            try export(texture: meshTarget, name: "\(outputFilePrefix)\(meshName).png")
         }
+    }
+
+    @Test
+    func testBoxTexturedRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "BoxTextured", ext: "glb", eye: nil)
+    }
+
+    @Test
+    func testCompareBaseColorRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "CompareBaseColor", ext: "glb", eye: nil)
+    }
+
+    @Test
+    func testCompareEmissiveStrengthRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "CompareEmissiveStrength", ext: "glb", eye: nil)
+    }
+
+    @Test
+    func testCompareMetallicRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "CompareMetallic", ext: "glb", eye: nil)
+    }
+
+    @Test
+    func testCompareNormalRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "CompareNormal", ext: "glb", eye: nil)
+    }
+
+    @Test
+    func testCompareRoughnessRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "CompareRoughness", ext: "glb", eye: nil)
+    }
+
+    @Test
+    func testOrientationTestRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "OrientationTest", ext: "glb", eye: SIMD3<Float>(-10.6, 10.6, -10.6))
+    }
+
+    @Test
+    func testTextureCoordinateTestRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "TextureCoordinateTest", ext: "glb", eye: SIMD3<Float>(-2.83, 2.83, -2.83))
+    }
+
+    @Test
+    func testVertexColorTestRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "VertexColorTest", ext: "glb", eye: nil)
+    }
+
+    @Test
+    func testFoxRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "Fox", ext: "glb", eye: SIMD3<Float>(-106, 106, -106))
+    }
+
+    @Test
+    func testMultiUVTestRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "MultiUVTest", ext: "glb", eye: SIMD3<Float>(-2.83, 2.83, -2.83))
+    }
+
+    @Test
+    func testTextureSettingsTestRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "TextureSettingsTest", ext: "glb", eye: SIMD3<Float>(-4.24, 4.24, -4.24))
+    }
+
+    @Test
+    func testSimpleSkinRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "SimpleSkin", ext: "gltf", eye: SIMD3<Float>(-2.83, 2.83, -2.83))
+    }
+
+    @Test
+    func testMorphPrimitivesTestRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "MorphPrimitivesTest", ext: "glb", eye: SIMD3<Float>(-0.7, 0.7, -0.7))
+    }
+
+    @Test
+    func testCompareTransmissionRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "CompareTransmission", ext: "glb", eye: nil)
+    }
+
+    @Test
+    func testCompareClearcoatRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "CompareClearcoat", ext: "glb", eye: nil)
+    }
+
+    @Test
+    func testTextureTransformMultiTestRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "TextureTransformMultiTest", ext: "glb", eye: nil)
+    }
+
+    @Test
+    func testCompareVolumeRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "CompareVolume", ext: "glb", eye: nil)
     }
 }

@@ -143,7 +143,7 @@ public class PBRMeshLoader {
         #if DEBUG
         let textureStart = Date()
         #endif
-        var textureMap = try extractAllTextureMap(commandBuffer: batchCommandBuffer, from: asset)
+        var textureMap = try await extractAllTextureMap(commandBuffer: batchCommandBuffer, from: asset)
         let texturesHeap = try makeTexturesHeap(from: Array(textureMap.values))
         if let texturesHeap {
             textureMap = try convertHeapTexture(commandBuffer: batchCommandBuffer, from: textureMap, use: texturesHeap)
@@ -689,7 +689,7 @@ public class PBRMeshLoader {
         return meshVertexBufferMap
     }
 
-    func extractAllTextureMap(commandBuffer: MTLCommandBuffer, from asset: MDLAsset) throws -> [MDLTexture: MTLTexture] {
+    func extractAllTextureMap(commandBuffer: MTLCommandBuffer, from asset: MDLAsset) async throws -> [MDLTexture: MTLTexture] {
         // 1. Collect unique textures and whether they need linear-space conversion (sRGB -> Linear)
         var textureUsage: [MDLTexture: Bool] = [:] // value == true => needs linear conversion
 
@@ -724,30 +724,19 @@ public class PBRMeshLoader {
 
         // 2. Load all unique textures in parallel
         let textures = Array(textureUsage.keys)
-        var textureMap: [MDLTexture: MTLTexture] = [:]
-        textureMap.reserveCapacity(textures.count)
-
-        var firstError: Error?
-        let lock = NSLock()
-
-        DispatchQueue.concurrentPerform(iterations: textures.count) { index in
-            if firstError != nil { return }
-
-            let mdlTexture = textures[index]
-            do {
-                let mtlTexture = try self.mdl2mtlTexture(mdlTexture)
-                lock.lock()
-                textureMap[mdlTexture] = mtlTexture
-                lock.unlock()
-            } catch {
-                lock.lock()
-                if firstError == nil {
-                    firstError = error
+        var textureMap = try await withThrowingTaskGroup { group in
+            for mdlTexture in textures {
+                group.addTask {
+                    let mtlTexture = try await self.mdl2mtlTexture(mdlTexture)
+                    return (mdlTexture, mtlTexture)
                 }
-                lock.unlock()
             }
+            var results: [MDLTexture: MTLTexture] = [:]
+            for try await (mdlTexture, mtlTexture) in group {
+                results[mdlTexture] = mtlTexture
+            }
+            return results
         }
-        if let error = firstError { throw error }
 
         // 3. Convert textures that need linear space conversion
         let texturesNeedingLinear: [MDLTexture] = textureUsage.compactMap { (key, value) in
@@ -1049,10 +1038,10 @@ public class PBRMeshLoader {
         }
     }
 
-    private func mdl2mtlTexture(_ mdlTexture: MDLTexture) throws -> MTLTexture {
+    private func mdl2mtlTexture(_ mdlTexture: MDLTexture) async throws -> MTLTexture {
         // Create a fresh loader per call to avoid any potential internal state issues when used from multiple threads.
         let loader = MTKTextureLoader(device: device)
-        return try loader.newTexture(
+        return try await loader.newTexture(
             texture: mdlTexture,
             options: [
                 .origin: MTKTextureLoader.Origin.topLeft,
