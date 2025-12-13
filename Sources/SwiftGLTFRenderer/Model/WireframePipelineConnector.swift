@@ -36,7 +36,7 @@ class WireframePipelineConnector {
     ) throws -> MTLBuffer {
         let encoder = vertexFunction.makeArgumentEncoder(bufferIndex: 1)
         guard let buffer = device.makeBuffer(length: encoder.encodedLength, options: [.storageModeShared]) else {
-            throw SwiftGLTFError.makeRender(.argumentBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create argument buffer")
         }
         encoder.setArgumentBuffer(buffer, offset: 0)
 

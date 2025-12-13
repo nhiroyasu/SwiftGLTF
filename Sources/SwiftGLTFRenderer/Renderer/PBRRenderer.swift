@@ -117,7 +117,7 @@ public class PBRRenderer {
         samplerDesc.tAddressMode = .clampToEdge
         samplerDesc.supportArgumentBuffers = true
         guard let screenColorSampler = device.makeSamplerState(descriptor: samplerDesc) else {
-            throw SwiftGLTFError.makeRender(.samplerCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create sampler")
         }
         self.sceneColorSampler = screenColorSampler
 

@@ -2,26 +2,18 @@ import XCTest
 @testable import SwiftGLTFCore
 
 final class ErrorTests: XCTestCase {
-    func testParseMissingAttributeCapturesContext() {
-        let err = SwiftGLTFError.makeParse(
-            .missingAttribute(name: "POSITION"),
-            context: .capture(stage: .parse, jsonPointer: "/meshes/0/primitives/0/attributes/POSITION")
-        )
-        guard case let .parse(code, ctx, underlying) = err else {
-            XCTFail("not parse error"); return
+    func testParseErrorDescription() {
+        let err = SwiftGLTFError.parser(description: "Missing attribute: POSITION")
+        guard case let .parser(description) = err else {
+            XCTFail("not parser error"); return
         }
-        XCTAssertNil(underlying)
-        XCTAssertEqual(ctx.stage, .parse)
-        XCTAssertEqual(ctx.jsonPointer, "/meshes/0/primitives/0/attributes/POSITION")
-        if case let .missingAttribute(name) = code {
-            XCTAssertEqual(name, "POSITION")
-        } else {
-            XCTFail("unexpected code")
-        }
+        XCTAssertEqual(description, "Missing attribute: POSITION")
+        XCTAssertEqual(err.errorDescription, "[SwiftGLTF][Parser] Missing attribute: POSITION")
+
         let ns = err as NSError
         XCTAssertEqual(ns.domain, "com.swiftgltf.error")
-        XCTAssertEqual(ns.userInfo["SwiftGLTF.Stage"] as? String, "parse")
-        XCTAssertNotNil(ns.userInfo["SwiftGLTF.FileID"])
+        XCTAssertEqual(ns.code, 0)
+        XCTAssertEqual(ns.userInfo[NSLocalizedDescriptionKey] as? String, "[SwiftGLTF][Parser] Missing attribute: POSITION")
     }
 }
 

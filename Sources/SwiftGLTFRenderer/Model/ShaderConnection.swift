@@ -26,7 +26,7 @@ public class ShaderConnection {
         guard count > 0 else { return outBuffer }
 
         guard let function = library.makeFunction(name: "computeBoundingSphereForMesh") else {
-            throw SwiftGLTFError.makeRender(.convertShaderCreationFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create convert shader")
         }
         let pso = try device.makeComputePipelineState(function: function)
 
@@ -69,7 +69,7 @@ public class ShaderConnection {
         guard count > 0 else { return outBuffer }
 
         guard let function = library.makeFunction(name: "computeBoundingSphereForMesh") else {
-            throw SwiftGLTFError.makeRender(.convertShaderCreationFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create convert shader")
         }
         let pso = try device.makeComputePipelineState(function: function)
 
@@ -101,7 +101,7 @@ public class ShaderConnection {
     func convertSrgb2Linear(textures: [MTLTexture]) throws -> [MTLTexture] {
         let commandBuffer = commandQueue.makeCommandBuffer()!
         guard let convertShader = library.makeFunction(name: "texture_srgb_2_linear_shader") else {
-            throw SwiftGLTFError.makeRender(.convertShaderCreationFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create convert shader")
         }
         let pso = try device.makeComputePipelineState(function: convertShader)
 
@@ -116,7 +116,7 @@ public class ShaderConnection {
             outputTextureDescriptor.arrayLength = texture.arrayLength
             outputTextureDescriptor.usage = [.shaderRead, .shaderWrite]
             guard let outputTexture = texture.device.makeTexture(descriptor: outputTextureDescriptor) else {
-                throw SwiftGLTFError.makeRender(.outputTextureCreateFailed, context: .capture(stage: .render))
+                throw SwiftGLTFError.render(description: "Failed to create output texture")
             }
 
             let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
@@ -165,7 +165,7 @@ public class ShaderConnection {
 
     func encodeConvertSrgb2Linear(_ commandBuffer: MTLCommandBuffer, textures: [MTLTexture]) throws -> [MTLTexture] {
         guard let convertShader = library.makeFunction(name: "texture_srgb_2_linear_shader") else {
-            throw SwiftGLTFError.makeRender(.convertShaderCreationFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create convert shader")
         }
         let pso = try device.makeComputePipelineState(function: convertShader)
 
@@ -180,7 +180,7 @@ public class ShaderConnection {
             outputTextureDescriptor.arrayLength = texture.arrayLength
             outputTextureDescriptor.usage = [.shaderRead, .shaderWrite]
             guard let outputTexture = texture.device.makeTexture(descriptor: outputTextureDescriptor) else {
-                throw SwiftGLTFError.makeRender(.outputTextureCreateFailed, context: .capture(stage: .render))
+                throw SwiftGLTFError.render(description: "Failed to create output texture")
             }
 
             let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
@@ -230,7 +230,7 @@ public class ShaderConnection {
     ) throws -> MTLTexture {
         let results = try moveResourcesToHeap(from: [texture], use: heap)
         guard let firstTexture = results.first else {
-            throw SwiftGLTFError.makeRender(.moveTextureToHeapFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to move texture to heap")
         }
         return firstTexture
     }
@@ -240,10 +240,10 @@ public class ShaderConnection {
         use heap: MTLHeap
     ) throws -> [MTLTexture] {
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
-            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create command buffer")
         }
         guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create blit command encoder")
         }
 
         var output: [MTLTexture] = []
@@ -293,7 +293,7 @@ public class ShaderConnection {
         use heap: MTLHeap
     ) throws -> [MTLTexture] {
         guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create blit command encoder")
         }
 
         var output: [MTLTexture] = []
@@ -341,7 +341,7 @@ public class ShaderConnection {
         use heap: MTLHeap
     ) throws -> MTLBuffer {
         guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create blit command encoder")
         }
 
         let heapBuffer = heap.makeBuffer(
@@ -349,7 +349,7 @@ public class ShaderConnection {
             options: [.storageModePrivate]
         )
         guard let heapBuffer else {
-            throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create heap buffer")
         }
 
         encoder.copy(from: buffer, sourceOffset: 0, to: heapBuffer, destinationOffset: 0, size: buffer.length)
@@ -363,10 +363,10 @@ public class ShaderConnection {
         use heap: MTLHeap
     ) throws -> [MTLBuffer] {
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
-            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create command buffer")
         }
         guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create blit command encoder")
         }
 
         var heapBuffers: [MTLBuffer] = []
@@ -376,7 +376,7 @@ public class ShaderConnection {
                 length: sourceBuffer.length,
                 options: [.storageModePrivate]
             ) else {
-                throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+                throw SwiftGLTFError.render(description: "Failed to create heap buffer")
             }
             encoder.copy(
                 from: sourceBuffer,
@@ -400,7 +400,7 @@ public class ShaderConnection {
         use heap: MTLHeap
     ) throws -> [MTLBuffer] {
         guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create blit command encoder")
         }
 
         var heapBuffers: [MTLBuffer] = []
@@ -410,7 +410,7 @@ public class ShaderConnection {
                 length: sourceBuffer.length,
                 options: [.storageModePrivate]
             ) else {
-                throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+                throw SwiftGLTFError.render(description: "Failed to create heap buffer")
             }
             encoder.copy(
                 from: sourceBuffer,
@@ -431,10 +431,10 @@ public class ShaderConnection {
         use heap: MTLHeap
     ) throws -> MTLBuffer {
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
-            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create command buffer")
         }
         guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create blit command encoder")
         }
 
         let heapBuffer = heap.makeBuffer(
@@ -442,7 +442,7 @@ public class ShaderConnection {
             options: [.storageModePrivate]
         )
         guard let heapBuffer else {
-            throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create heap buffer")
         }
 
         encoder.copy(from: buffer, sourceOffset: 0, to: heapBuffer, destinationOffset: 0, size: buffer.length)
@@ -459,7 +459,7 @@ public class ShaderConnection {
         use heap: MTLHeap
     ) throws -> MTLBuffer {
         guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create blit command encoder")
         }
 
         let heapBuffer = heap.makeBuffer(
@@ -467,7 +467,7 @@ public class ShaderConnection {
             options: [.storageModePrivate]
         )
         guard let heapBuffer else {
-            throw SwiftGLTFError.makeRender(.heapBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create heap buffer")
         }
 
         encoder.copy(from: buffer, sourceOffset: 0, to: heapBuffer, destinationOffset: 0, size: buffer.length)
@@ -480,10 +480,10 @@ public class ShaderConnection {
         let length = MemoryLayout<T>.size
         let staging = device.makeBuffer(bytes: valuePtr, length: length, options: .storageModeShared)!
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
-            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create command buffer")
         }
         guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw SwiftGLTFError.makeRender(.blitCommandEncoderCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create blit command encoder")
         }
         encoder.copy(from: staging, sourceOffset: 0, to: dst, destinationOffset: 0, size: length)
         encoder.endEncoding()

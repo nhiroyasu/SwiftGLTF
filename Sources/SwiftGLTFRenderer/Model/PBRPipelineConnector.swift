@@ -337,7 +337,7 @@ public class PBRPipelineConnector {
         argCount: Int
     ) throws -> MTLBuffer {
         guard let buffer = device.makeBuffer(length: encoder.encodedLength * argCount, options: [.storageModeShared]) else {
-            throw SwiftGLTFError.makeRender(.argumentBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create argument buffer")
         }
         return buffer
     }

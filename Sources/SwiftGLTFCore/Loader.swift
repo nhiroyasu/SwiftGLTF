@@ -8,11 +8,11 @@ import Accelerate
 func dataFromDataURI(_ uri: String) throws -> Data {
     // Extract base64 string after comma
     guard let comma = uri.firstIndex(of: ",") else {
-        throw SwiftGLTFError.makeIO(.invalidDataURI, context: .capture(stage: .io))
+        throw SwiftGLTFError.core(description: "Invalid data URI")
     }
     let b64 = String(uri[uri.index(after: comma)...])
     guard let data = Data(base64Encoded: b64) else {
-        throw SwiftGLTFError.makeIO(.base64DecodeFailed, context: .capture(stage: .io))
+        throw SwiftGLTFError.core(description: "Failed to decode base64 data")
     }
     return data
 }
@@ -21,7 +21,7 @@ func makeMDLTexture(from data: Data, name: String) throws -> MDLTexture {
     guard
         let src = CGImageSourceCreateWithData(data as CFData, nil),
         let cgImage = CGImageSourceCreateImageAtIndex(src, 0, nil)
-    else { throw SwiftGLTFError.makeIO(.makeCGImageFailed, context: .capture(stage: .decode)) }
+    else { throw SwiftGLTFError.core(description: "Failed to create CGImage from data") }
 
     let properties = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
     let bitsPerComponent = properties?[kCGImagePropertyDepth] as? Int ?? 8
@@ -35,13 +35,13 @@ func makeMDLTexture(from data: Data, name: String) throws -> MDLTexture {
         bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
         renderingIntent: .defaultIntent
     ) else {
-        throw SwiftGLTFError.makeIO(.invalidCGImageFormat, context: .capture(stage: .decode))
+        throw SwiftGLTFError.core(description: "Invalid CGImage format")
     }
 
     var buffer = vImage_Buffer()
     let kvFlags = vImage_Flags(kvImageNoFlags)
     let initErr = vImageBuffer_InitWithCGImage(&buffer, &format, nil, cgImage, kvFlags)
-    guard initErr == kvImageNoError else { throw SwiftGLTFError.makeIO(.vImageBufferInitFailed, context: .capture(stage: .decode)) }
+    guard initErr == kvImageNoError else { throw SwiftGLTFError.core(description: "Failed to initialize vImage buffer") }
 
     let bufferRowBytes = Int(buffer.rowBytes)
     let imageRowBytes = Int(buffer.width * 4)
@@ -80,23 +80,23 @@ func isGLB(_ data: Data) -> Bool {
 
 private func loadFromGLB(_ data: Data) throws -> GLTFBundle {
     guard data.count >= 12 else {
-        throw SwiftGLTFError.makeIO(.glbTooShort, context: .capture(stage: .decode))
+        throw SwiftGLTFError.core(description: "GLB data too short for header")
     }
 
     let magic = data.prefix(4)
     let expectedMagic = Data([0x67, 0x6C, 0x54, 0x46])
     guard magic == expectedMagic else {
-        throw SwiftGLTFError.makeIO(.glbInvalidMagic, context: .capture(stage: .decode))
+        throw SwiftGLTFError.core(description: "Invalid GLB magic header")
     }
 
     let version: UInt32 = data[4..<8].withUnsafeBytes { $0.load(as: UInt32.self) }.littleEndian
     guard version == 2 else {
-        throw SwiftGLTFError.makeIO(.glbUnsupportedVersion(Int(version)), context: .capture(stage: .decode))
+        throw SwiftGLTFError.core(description: "Unsupported GLB version: \(version)")
     }
 
     let totalLength: UInt32 = data[8..<12].withUnsafeBytes { $0.load(as: UInt32.self) }.littleEndian
     guard totalLength == data.count else {
-        throw SwiftGLTFError.makeIO(.glbLengthMismatch, context: .capture(stage: .decode))
+        throw SwiftGLTFError.core(description: "GLB length mismatch")
     }
 
     var offset = 12
@@ -109,7 +109,7 @@ private func loadFromGLB(_ data: Data) throws -> GLTFBundle {
         let chunkStart = offset + 8
         let chunkEnd = chunkStart + Int(chunkLength)
         guard chunkEnd <= data.count else {
-            throw SwiftGLTFError.makeIO(.glbChunkOutOfBounds, context: .capture(stage: .decode))
+            throw SwiftGLTFError.core(description: "GLB chunk exceeds data bounds")
         }
 
         let chunk = data.subdata(in: chunkStart..<chunkEnd)
@@ -125,20 +125,20 @@ private func loadFromGLB(_ data: Data) throws -> GLTFBundle {
     }
 
     guard let jsonChunk else {
-        throw SwiftGLTFError.makeIO(.glbJSONChunkMissing, context: .capture(stage: .decode))
+        throw SwiftGLTFError.core(description: "JSON chunk not found in GLB")
     }
     let decoder = JSONDecoder()
     let gltf = try decoder.decode(GLTF.self, from: jsonChunk)
 
     guard let binChunk else {
-        throw SwiftGLTFError.makeIO(.glbBINChunkMissing, context: .capture(stage: .decode))
+        throw SwiftGLTFError.core(description: "BIN chunk not found in GLB")
     }
 
     // Extract embedded images from bufferViews
     var textures: [MDLTexture] = []
     if let images = gltf.images {
         guard let bufferViews = gltf.bufferViews else {
-            throw SwiftGLTFError.makeIO(.imageBufferViewMissing(index: 0), context: .capture(stage: .decode))
+            throw SwiftGLTFError.core(description: "Image bufferView is missing for image 0")
         }
         for (idx, image) in images.enumerated() {
             if let bvIndex = image.bufferView?.value {
@@ -150,7 +150,7 @@ private func loadFromGLB(_ data: Data) throws -> GLTFBundle {
                 let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
                 textures.append(texture)
             } else {
-                throw SwiftGLTFError.makeIO(.imageBufferViewMissing(index: idx), context: .capture(stage: .decode))
+                throw SwiftGLTFError.core(description: "Image bufferView is missing for image \(idx)")
             }
         }
     }
@@ -169,18 +169,18 @@ private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFBundle {
             if uri.hasPrefix("data:") {
                 // Data URI: data:<mime>;base64,<data>
                 guard let comma = uri.firstIndex(of: ",") else {
-                    throw SwiftGLTFError.makeIO(.invalidDataURI, context: .capture(stage: .io))
+                    throw SwiftGLTFError.core(description: "Invalid data URI")
                 }
                 let b64 = String(uri[uri.index(after: comma)...])
                 guard let decoded = Data(base64Encoded: b64) else {
-                    throw SwiftGLTFError.makeIO(.base64DecodeFailed, context: .capture(stage: .io))
+                    throw SwiftGLTFError.core(description: "Failed to decode base64 data")
                 }
                 data = decoded
             } else {
                 data = try Data(contentsOf: url)
             }
         } else {
-            throw SwiftGLTFError.makeIO(.bufferURIMissing, context: .capture(stage: .io))
+            throw SwiftGLTFError.core(description: "Buffer URI is missing or empty")
         }
         buffers.append(data)
     }
@@ -200,10 +200,10 @@ private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFBundle {
                 let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
                 textures.append(texture)
             } else {
-                throw SwiftGLTFError.makeIO(.imageURIMissingOrInvalid, context: .capture(stage: .io))
+                throw SwiftGLTFError.core(description: "Image URI is missing or invalid")
             }
         } else {
-            throw SwiftGLTFError.makeIO(.imageURIMissingOrInvalid, context: .capture(stage: .io))
+            throw SwiftGLTFError.core(description: "Image URI is missing or invalid")
         }
     }
     return GLTFBundle(gltf: gltf, binaryBuffers: buffers, binaryTextures: textures)
@@ -233,18 +233,18 @@ public class GLTFBinaryLoader {
         let binaryBuffers = gltfBundle.binaryBuffers
 
         guard let accessors = gltf.accessors, accessorIndex.value < accessors.count else {
-            throw SwiftGLTFError.makeIO(.bufferIndexOutOfRange, context: .capture(stage: .decode))
+            throw SwiftGLTFError.core(description: "Buffer index out of range")
         }
         let accessor = accessors[accessorIndex.value]
         guard let bufferViews = gltf.bufferViews,
               let bvIndex = accessor.bufferView?.value,
               bvIndex < bufferViews.count else {
-            throw SwiftGLTFError.makeIO(.bufferIndexOutOfRange, context: .capture(stage: .decode))
+            throw SwiftGLTFError.core(description: "Buffer index out of range")
         }
         let bv = bufferViews[bvIndex]
         let bufIdx = bv.buffer.value
         guard bufIdx < binaryBuffers.count else {
-            throw SwiftGLTFError.makeIO(.bufferIndexOutOfRange, context: .capture(stage: .decode))
+            throw SwiftGLTFError.core(description: "Buffer index out of range")
         }
         let bufferData = binaryBuffers[bufIdx]
         let baseOffset = accessor.byteOffset + bv.byteOffset
@@ -254,7 +254,7 @@ public class GLTFBinaryLoader {
         let diffStride = bufferStride - accessorStride
         let endOffset = baseOffset + totalLength - diffStride
         guard endOffset <= bufferData.count else {
-            throw SwiftGLTFError.makeIO(.bufferOverrun, context: .capture(stage: .decode))
+            throw SwiftGLTFError.core(description: "Buffer overrun in accessor data")
         }
         var slice = bufferData.subdata(in: baseOffset..<endOffset)
         if diffStride != 0 {
@@ -278,7 +278,7 @@ public class GLTFBinaryLoader {
         let binaryTextures = gltfBundle.binaryTextures
 
         guard textureIndex.value < binaryTextures.count else {
-            throw SwiftGLTFError.makeIO(.textureIndexOutOfRange, context: .capture(stage: .decode))
+            throw SwiftGLTFError.core(description: "Texture index out of range")
         }
         return binaryTextures[textureIndex.value]
     }
