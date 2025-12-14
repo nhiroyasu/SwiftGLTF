@@ -1,5 +1,5 @@
 import ModelIO
-import os.log
+import OSLog
 import SwiftGLTFCore
 import SwiftGLTFParser
 
@@ -79,7 +79,8 @@ func makeNodeLevelHierarchy(root: MDLObject) -> NodeLevelHierarchy {
         for (obj, p) in curr {
             let oid = ObjectIdentifier(obj)
             guard !visited.contains(oid) else {
-                os_log("⚠️ Warning: Detected cyclic or duplicate node reference for %s. Skipping.", log: .default, type: .error, obj.name)
+                let nodeName = obj.name ?? "Unknown"
+                Log.common.error("⚠️ Warning: Detected cyclic or duplicate node reference for \(nodeName, privacy: .public). Skipping.")
                 continue
             }
             visited.insert(oid)

@@ -1,6 +1,6 @@
 import ModelIO
 import simd
-import os.log
+import OSLog
 import SwiftGLTFCore
 
 public class GLTFAnimationContainer: MDLObjectContainer {
@@ -69,7 +69,7 @@ enum GLTFAnimationChannelBuilder {
         options: GLTFDecodeOptions
     ) throws -> GLTFAnimationChannel? {
         guard let nodeIndex = channel.target.node else {
-            os_log("Animation channel missing target node index", type: .debug)
+            Log.common.debug("Animation channel missing target node index")
             return nil
         }
         let sampler = samplers[channel.sampler]
@@ -100,7 +100,7 @@ enum GLTFAnimationChannelBuilder {
                 }
                 animationType = .translation(float3Array)
             } else {
-                os_log("Unexpected accessor type for translation animation output", type: .error)
+                Log.common.error("Unexpected accessor type for translation animation output")
                 animationType = .unknown
             }
         case .scale:
@@ -116,7 +116,7 @@ enum GLTFAnimationChannelBuilder {
                 }
                 animationType = .scale(float3Array)
             } else {
-                os_log("Unexpected accessor type for scale animation output", type: .error)
+                Log.common.error("Unexpected accessor type for scale animation output")
                 animationType = .unknown
             }
         case .rotation:
@@ -135,7 +135,7 @@ enum GLTFAnimationChannelBuilder {
                 }
                 animationType = .rotation(quatArray)
             } else {
-                os_log("Unexpected accessor type for rotation animation output", type: .error)
+                Log.common.error("Unexpected accessor type for rotation animation output")
                 animationType = .unknown
             }
         case .weights:
@@ -148,11 +148,11 @@ enum GLTFAnimationChannelBuilder {
                 }
                 animationType = .weights(outputArray)
             } else {
-                os_log("Unexpected accessor type for weights animation output", type: .error)
+                Log.common.error("Unexpected accessor type for weights animation output")
                 animationType = .unknown
             }
         case .unknown:
-            os_log("Unknown animation path", type: .error)
+            Log.common.error("Unknown animation path")
             animationType = .unknown
         }
 

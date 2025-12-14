@@ -1,5 +1,5 @@
 import Metal
-import os.log
+import OSLog
 
 extension MTLCommandQueue {
     func makeDebuggableCommandBuffer() -> MTLCommandBuffer? {
@@ -11,9 +11,9 @@ extension MTLCommandQueue {
         buffer?.addCompletedHandler { cb in
             switch cb.status {
             case .error:
-                os_log("[SwiftGLTF] Renderer: Command buffer completed with error: %@", type: .error, String(describing: cb.error))
+                Log.common.error("[SwiftGLTF] Renderer: Command buffer completed with error: \(String(describing: cb.error), privacy: .public)")
                 if let error = cb.error as? NSError {
-                    os_log("[SwiftGLTF] Renderer: Metal error domain: %@", type: .error, String(describing: error.userInfo[MTLCommandBufferEncoderInfoErrorKey]))
+                    Log.common.error("[SwiftGLTF] Renderer: Metal error domain: \(String(describing: error.userInfo[MTLCommandBufferEncoderInfoErrorKey]), privacy: .public)")
                 }
             default:
                 break

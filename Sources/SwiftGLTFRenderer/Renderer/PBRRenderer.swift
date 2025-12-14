@@ -1,6 +1,6 @@
 import Img2Cubemap
 import MetalKit
-import os.log
+import OSLog
 import simd
 import ModelIO
 import SwiftGLTFParser
@@ -151,7 +151,7 @@ public class PBRRenderer {
             return nil
         }
         guard let en = cb.makeComputeCommandEncoder() else {
-            os_log("Failed to create compute command encoder", type: .error)
+            Log.common.error("Failed to create compute command encoder")
             return nil
         }
         en.label = "[SwiftGLTF] Animation Update Encoder"
@@ -202,12 +202,12 @@ public class PBRRenderer {
                 commandEncoder: en
             )
         } catch {
-            os_log("Failed to compute world matrices: %@", type: .error, String(describing: error))
+            Log.common.error("Failed to compute world matrices: \(String(describing: error), privacy: .public)")
             return nil
         }
 
         guard let fence = device.makeFence() else {
-            os_log("Failed to create fence", type: .error)
+            Log.common.error("Failed to create fence")
             return nil
         }
         en.updateFence(fence)
@@ -242,7 +242,7 @@ public class PBRRenderer {
         // Copy indirect buffers
         guard let blitEncoder = commandBuffer.makeBlitCommandEncoder(),
               let blitFence = device.makeFence() else {
-            os_log("Failed to create blit command encoder", type: .error)
+            Log.common.error("Failed to create blit command encoder")
             return
         }
         blitEncoder.label = "[SwiftGLTF] Ensure Indirect Buffers Blit Encoder"
@@ -266,7 +266,7 @@ public class PBRRenderer {
             offscreenResources = try offscreenTextureManager.resolve(for: drawableSize)
             try ensureOffscreenResources(blitEncoder, from: offscreenResources, to: indirectRenderState)
         } catch {
-            os_log("Failed to resolve offscreen textures", type: .error)
+            Log.common.error("Failed to resolve offscreen textures")
             return
         }
 

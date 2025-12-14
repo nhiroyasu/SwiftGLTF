@@ -1,6 +1,6 @@
 import MetalKit
 import simd
-import os.log
+import OSLog
 import SwiftGLTFCore
 import SwiftGLTFShaderTypes
 
@@ -87,11 +87,11 @@ public class WireframeRenderer {
         fragmentParams: MTLBuffer,
     ) {
         guard let bundle else {
-            os_log("Mesh not loaded", log: .default, type: .error)
+            Log.common.error("Mesh not loaded")
             return
         }
         guard let skyboxMesh, let envMapArgBuffer, let envMapHeap else {
-            os_log("Skybox or textures not loaded", log: .default, type: .error)
+            Log.common.error("Skybox or textures not loaded")
             return
         }
 
