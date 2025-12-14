@@ -29,7 +29,6 @@ public class PBRRenderer {
 
     private let sourceScreenColorArgumentBuffer: MTLBuffer
     private let sourceNoScreenColorArgumentBuffer: MTLBuffer
-    private var composeRPD: MTLRenderPassDescriptor? = nil
     private let composePipelineState: MTLRenderPipelineState
 
     // FrameInFlight
