@@ -1,4 +1,5 @@
 import Metal
+import SwiftGLTFCore
 import SwiftGLTFShaderTypes
 
 struct PBROffscreenTextureResources {
@@ -49,7 +50,7 @@ class PBROffscreenTextureManager {
                 _updateFrameWithSave(size, r)
                 return r
             } else {
-                throw NSError(domain: "PBROffscreenTextureManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Cached resources missing"]) // TODO: Custom error
+                throw SwiftGLTFError.render(description: "Cached resources missing")
             }
         }
 
@@ -121,7 +122,7 @@ class PBROffscreenTextureManager {
         samplerDesc.tAddressMode = .clampToEdge
         samplerDesc.supportArgumentBuffers = true
         guard let screenColorSampler = device.makeSamplerState(descriptor: samplerDesc) else {
-            throw NSError(domain: "PBROffscreenTextureManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create sampler state"]) // TODO: Custom error
+            throw SwiftGLTFError.render(description: "Failed to create screen color sampler")
         }
 
         // Create destination mipmapped texture
@@ -141,7 +142,7 @@ class PBROffscreenTextureManager {
               let sceneTransmissionTexture,
               let screenPrefilterTexture,
               let sceneDepthMSAATexture else {
-            throw NSError(domain: "PBROffscreenTextureManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create required textures"]) // TODO: Custom error
+            throw SwiftGLTFError.render(description: "Failed to create offscreen textures")
         }
         let resources = PBROffscreenTextureResources(
             screenColorMSAATexture: screenColorMSAATexture,

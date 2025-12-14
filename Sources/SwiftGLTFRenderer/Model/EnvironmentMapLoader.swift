@@ -40,7 +40,7 @@ public class EnvironmentMapLoader {
               let brdfLUTCB = commandQueue.makeDebuggableCommandBuffer(),
               let sheenEnvMapCB = commandQueue.makeDebuggableCommandBuffer(),
               let blitCB = commandQueue.makeDebuggableCommandBuffer() else {
-            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create command buffers.")
         }
 
         let (envMap, _) = try encodeGeneratingCubeTexture(

@@ -546,7 +546,7 @@ public class ShaderConnection {
         waitFence: MTLFence? = nil
     ) throws -> MTLTexture {
         guard envMap.mipmapLevelCount > 1 else {
-            throw SwiftGLTFError.makeRender(.invalidEnvironmentMap, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Environment map must have mipmaps for prefiltering.")
         }
         let prefilterEnvMapKernel = library.makeFunction(name: "prefilterEnvMap")!
         let pso = try device.makeComputePipelineState(function: prefilterEnvMapKernel)
