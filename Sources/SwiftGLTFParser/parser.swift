@@ -616,15 +616,15 @@ private func makePositionVertex(
     binaryLoader: GLTFBinaryLoader
 ) throws -> VertexInfo {
     guard let positionAccessorIndex = primitive.attributes[GLTFAttribute.position.rawValue] else {
-        throw SwiftGLTFError.parser(description: "Missing attribute: POSITION")
+        throw SwiftGLTFParserError(description: "Missing attribute: POSITION")
     }
     guard accessors.count > positionAccessorIndex else {
-        throw SwiftGLTFError.parser(description: "Invalid accessor index for POSITION: \(positionAccessorIndex)")
+        throw SwiftGLTFParserError(description: "Invalid accessor index for POSITION: \(positionAccessorIndex)")
     }
 
     let positionAccessor = accessors[positionAccessorIndex]
     guard let positionVertexFormat = getMDLVertexFormat(accessor: positionAccessor) else {
-        throw SwiftGLTFError.parser(description: "Invalid accessor: POSITION")
+        throw SwiftGLTFParserError(description: "Invalid accessor: POSITION")
     }
     let positionVertex = VertexInfo(
         data: try binaryLoader.extractData(accessorIndex: AccessorIndex(positionAccessorIndex)),
@@ -715,7 +715,7 @@ private func makeJointVertex(
     }
     let accessor = accessors[attrIndex]
     guard accessor.type == .vec4 else {
-        throw SwiftGLTFError.parser(description: "JOINTS_0 vertex must be VEC4")
+        throw SwiftGLTFParserError(description: "JOINTS_0 vertex must be VEC4")
     }
     switch accessor.componentType {
     case .unsignedByte, .unsignedShort:
@@ -741,7 +741,7 @@ private func makeJointVertex(
             return VertexInfo(data: out, componentFormat: .uShort4, componentSize: MemoryLayout<UInt16>.size * 4)
         }
     default:
-        throw SwiftGLTFError.parser(description: "JOINTS_0 vertex must be uByte4 or uShort4")
+        throw SwiftGLTFParserError(description: "JOINTS_0 vertex must be uByte4 or uShort4")
     }
 }
 
@@ -755,7 +755,7 @@ private func makeWeightVertex(
     }
     let accessor = accessors[attrIndex]
     guard accessor.type == .vec4 else {
-        throw SwiftGLTFError.parser(description: "WEIGHTS_0 vertex must be VEC4")
+        throw SwiftGLTFParserError(description: "WEIGHTS_0 vertex must be VEC4")
     }
     let count = accessor.count
     switch accessor.componentType {
@@ -812,7 +812,7 @@ private func makeWeightVertex(
         }
         return VertexInfo(data: out, componentFormat: .float4, componentSize: MemoryLayout<Float>.size * 4)
     default:
-        throw SwiftGLTFError.parser(description: "WEIGHTS_0 vertex must be float4|uByte4|uShort4")
+        throw SwiftGLTFParserError(description: "WEIGHTS_0 vertex must be float4|uByte4|uShort4")
     }
 }
 
@@ -824,7 +824,7 @@ private func makeIndexInfo(
 ) throws -> IndexInfo {
     if let indexAccessorIndex = primitive.indices {
         guard accessors.count > indexAccessorIndex.value else {
-            throw SwiftGLTFError.parser(description: "Invalid indices reference")
+            throw SwiftGLTFParserError(description: "Invalid indices reference")
         }
 
         let accessor = accessors[indexAccessorIndex.value]
@@ -837,7 +837,7 @@ private func makeIndexInfo(
         case .unsignedShort: indexType = .uInt16
         case .unsignedInt: indexType = .uInt32
         default:
-            throw SwiftGLTFError.parser(description: "Unsupported index type")
+            throw SwiftGLTFParserError(description: "Unsupported index type")
         }
 
         return IndexInfo(
@@ -876,42 +876,42 @@ private func makeVertexDescriptor(
 
     let positionIsFloat3 = positionVertex.componentFormat == .float3
     if !positionIsFloat3 {
-        throw SwiftGLTFError.parser(description: "POSITION vertex must be float3")
+        throw SwiftGLTFParserError(description: "POSITION vertex must be float3")
     }
     if let normalVertex {
         let normalIsFloat3 = normalVertex.componentFormat == .float3
         if !normalIsFloat3 {
-            throw SwiftGLTFError.parser(description: "NORMAL vertex must be float3")
+            throw SwiftGLTFParserError(description: "NORMAL vertex must be float3")
         }
     }
     if let tangentVertex {
         if tangentVertex.componentFormat != .float4 {
-            throw SwiftGLTFError.parser(description: "TANGENT vertex must be float4")
+            throw SwiftGLTFParserError(description: "TANGENT vertex must be float4")
         }
     }
     if let texcoordVertex0 {
         if texcoordVertex0.componentFormat != .float2 {
-            throw SwiftGLTFError.parser(description: "TEXCOORD vertex must be float2")
+            throw SwiftGLTFParserError(description: "TEXCOORD vertex must be float2")
         }
     }
     if let texcoordVertex1 {
         if texcoordVertex1.componentFormat != .float2 {
-            throw SwiftGLTFError.parser(description: "TEXCOORD vertex must be float2")
+            throw SwiftGLTFParserError(description: "TEXCOORD vertex must be float2")
         }
     }
     if let modulationColorVertex {
         if modulationColorVertex.componentFormat != .float3 && modulationColorVertex.componentFormat != .float4 {
-            throw SwiftGLTFError.parser(description: "COLOR vertex must be float3 or float4")
+            throw SwiftGLTFParserError(description: "COLOR vertex must be float3 or float4")
         }
     }
     if let jointsVertex {
         if jointsVertex.componentFormat != .uShort4 {
-            throw SwiftGLTFError.parser(description: "JOINTS_0 vertex must be uShort4")
+            throw SwiftGLTFParserError(description: "JOINTS_0 vertex must be uShort4")
         }
     }
     if let weightsVertex {
         if weightsVertex.componentFormat != .float4 {
-            throw SwiftGLTFError.parser(description: "WEIGHTS_0 vertex must be float4")
+            throw SwiftGLTFParserError(description: "WEIGHTS_0 vertex must be float4")
         }
     }
 
@@ -1792,14 +1792,14 @@ private func extractMorphVec3Data(
     options: GLTFDecodeOptions
 ) throws -> Data {
     guard accessors.indices.contains(accessorIndex) else {
-        throw SwiftGLTFError.parser(description: "Invalid accessor index for morph \(attributeName): \(accessorIndex)")
+        throw SwiftGLTFParserError(description: "Invalid accessor index for morph \(attributeName): \(accessorIndex)")
     }
     let accessor = accessors[accessorIndex]
     guard accessor.type == .vec3, accessor.componentType == .float else {
-        throw SwiftGLTFError.parser(description: "Invalid accessor: morph \(attributeName): must be VEC3 with FLOAT components")
+        throw SwiftGLTFParserError(description: "Invalid accessor: morph \(attributeName): must be VEC3 with FLOAT components")
     }
     guard accessor.count == vertexCount else {
-        throw SwiftGLTFError.parser(description: "Invalid accessor: morph \(attributeName): vertex count mismatch")
+        throw SwiftGLTFParserError(description: "Invalid accessor: morph \(attributeName): vertex count mismatch")
     }
     var data = try binaryLoader.extractData(accessorIndex: AccessorIndex(accessorIndex))
     if options.convertToLeftHanded {
