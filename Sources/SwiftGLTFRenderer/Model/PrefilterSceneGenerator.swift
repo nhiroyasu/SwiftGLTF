@@ -1,5 +1,6 @@
 import Metal
 import SwiftGLTFShaderTypes
+import SwiftGLTFCore
 
 class PrefilterSceneGenerator {
     private let device: MTLDevice
@@ -11,7 +12,7 @@ class PrefilterSceneGenerator {
         self.library = try device.makePackageLibrary()
 
         guard let kernel = library.makeFunction(name: "prefilterScene2D") else {
-            throw NSError(domain: "PrefilterSceneGenerator", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create prefilterScene2D function"]) // TODO: Custom error
+            throw SwiftGLTFError.render(description: "Failed to find prefilterScene2D kernel function")
         }
         prefilterPSO = try device.makeComputePipelineState(function: kernel)
     }

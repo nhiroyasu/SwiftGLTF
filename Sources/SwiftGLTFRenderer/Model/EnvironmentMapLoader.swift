@@ -40,7 +40,7 @@ public class EnvironmentMapLoader {
               let brdfLUTCB = commandQueue.makeDebuggableCommandBuffer(),
               let sheenEnvMapCB = commandQueue.makeDebuggableCommandBuffer(),
               let blitCB = commandQueue.makeDebuggableCommandBuffer() else {
-            throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create command buffers.")
         }
 
         let (envMap, _) = try encodeGeneratingCubeTexture(
@@ -134,7 +134,7 @@ public class EnvironmentMapLoader {
         MTLTexture  // prefiltered sheen
     ) {
         guard cubeTexture.textureType == .typeCube else {
-            throw SwiftGLTFError.makeRender(.cubeTextureExpected, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Provided texture is not a cube texture.")
         }
 
         let prefilterEnvMapTexture = shaderConnection.generatePrefilterEnvMapTexture(envMap: cubeTexture)
@@ -196,7 +196,7 @@ public class EnvironmentMapLoader {
         descriptor.usage = [.shaderRead, .shaderWrite]
         descriptor.storageMode = .shared
         guard let cubeTexture = device.makeTexture(descriptor: descriptor) else {
-            throw SwiftGLTFError.makeRender(.cubeTextureCreateFailed, context: .capture(stage: .render))
+            throw SwiftGLTFError.render(description: "Failed to create cube texture")
         }
 
         let red: UInt8
