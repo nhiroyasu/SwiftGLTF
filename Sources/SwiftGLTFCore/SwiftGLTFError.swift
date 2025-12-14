@@ -168,6 +168,7 @@ public enum RenderErrorCode: Sendable, Equatable {
     case missingMeshBundleInRenderPassContext
     case missingRenderingStateInRenderPassContext
     case unsupportedFeature(description: String)
+    case invalidEnvironmentMap
 }
 
 public enum ValidateErrorCode: Sendable, Equatable {
@@ -335,6 +336,7 @@ extension SwiftGLTFError: LocalizedError {
         case .missingMeshBundleInRenderPassContext: return "Missing mesh bundle in render pass context"
         case .missingRenderingStateInRenderPassContext: return "Missing rendering state in render pass context"
         case let .unsupportedFeature(description): return "Unsupported feature: \(description)"
+        case .invalidEnvironmentMap: return "Invalid environment map"
         }
     }
 
@@ -444,6 +446,7 @@ extension SwiftGLTFError: CustomNSError {
         case .missingMeshBundleInRenderPassContext: return 20
         case .missingRenderingStateInRenderPassContext: return 21
         case .unsupportedFeature: return 22
+        case .invalidEnvironmentMap: return 23
         }
     }
 

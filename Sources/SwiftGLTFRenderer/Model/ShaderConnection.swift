@@ -7,13 +7,10 @@ public class ShaderConnection {
     let library: MTLLibrary
     let commandQueue: MTLCommandQueue
 
-    public init(
-        device: MTLDevice,
-        commandQueue: MTLCommandQueue
-    ) throws {
-        self.device = device
-        self.library = try device.makePackageLibrary()
+    public init(commandQueue: MTLCommandQueue) throws {
+        self.device = commandQueue.device
         self.commandQueue = commandQueue
+        self.library = try device.makePackageLibrary()
     }
 
     func computeBoundingSpheres(meshes: [PBRMesh]) throws -> MTLBuffer {
@@ -492,8 +489,6 @@ public class ShaderConnection {
     }
 
     func generatePrefilterEnvMapTexture(envMap: MTLTexture) -> MTLTexture {
-        // TODO: prefilterSheenMapを実装
-        // TODO: SheenをShaderに統合
         guard envMap.mipmapLevelCount > 1 else {
             fatalError("Environment map must have mipmaps for prefiltering.")
         }
@@ -545,6 +540,62 @@ public class ShaderConnection {
         return prefilterEnvMap
     }
 
+    func encodePrefilterEnvMapTexture(
+        _ commandBuffer: MTLCommandBuffer,
+        envMap: MTLTexture,
+        waitFence: MTLFence? = nil
+    ) throws -> MTLTexture {
+        guard envMap.mipmapLevelCount > 1 else {
+            throw SwiftGLTFError.makeRender(.invalidEnvironmentMap, context: .capture(stage: .render))
+        }
+        let prefilterEnvMapKernel = library.makeFunction(name: "prefilterEnvMap")!
+        let pso = try device.makeComputePipelineState(function: prefilterEnvMapKernel)
+        let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
+        if let waitFence {
+            commandEncoder.waitForFence(waitFence)
+        }
+        commandEncoder.setComputePipelineState(pso)
+
+        let prefilterEnvMapDescriptor = MTLTextureDescriptor.textureCubeDescriptor(
+            pixelFormat: .rgba16Float,
+            size: envMap.width,
+            mipmapped: true
+        )
+        prefilterEnvMapDescriptor.usage = [.shaderRead, .shaderWrite]
+        prefilterEnvMapDescriptor.storageMode = .shared
+        let prefilterEnvMap = device.makeTexture(descriptor: prefilterEnvMapDescriptor)!
+
+        commandEncoder.setTexture(envMap, index: 0)
+        commandEncoder.setTexture(prefilterEnvMap, index: 1)
+
+        let mipCount = envMap.mipmapLevelCount
+        let textureSize = envMap.width
+        for mipLevel in 0..<mipCount {
+            let roughness = Float(mipLevel) / Float(mipCount - 1)
+            let cubeSize = max(textureSize >> mipLevel, 1)
+
+            var params = PreFilterEnvMapParams(
+                roughness: roughness,
+                mipLevel: UInt32(mipLevel),
+                cubeSize: UInt32(cubeSize),
+                sampleCount: 1024
+            )
+            commandEncoder.setBytes(&params, length: MemoryLayout<PreFilterEnvMapParams>.size, index: 0)
+            let threads = MTLSize(width: 16, height: 16, depth: 1)
+            let threadGroups = MTLSize(
+                width: (cubeSize + threads.width - 1) / threads.width,
+                height: (cubeSize + threads.height - 1) / threads.height,
+                depth: 6
+            )
+            commandEncoder.dispatchThreadgroups(
+                threadGroups,
+                threadsPerThreadgroup: threads
+            )
+        }
+        commandEncoder.endEncoding()
+        return prefilterEnvMap
+    }
+
     func generateIrradianceTexture(envMap: MTLTexture, size: Int) -> MTLTexture {
         let irradianceKernel = library.makeFunction(name: "irradianceMap")!
         let irradiancePSO = try! device.makeComputePipelineState(function: irradianceKernel)
@@ -584,6 +635,50 @@ public class ShaderConnection {
         return irradianceMap
     }
 
+    func encodeIrradianceTexture(
+        _ commandBuffer: MTLCommandBuffer,
+        envMap: MTLTexture,
+        size: Int,
+        waitFence: MTLFence? = nil
+    ) throws -> MTLTexture {
+        let irradianceKernel = library.makeFunction(name: "irradianceMap")!
+        let irradiancePSO = try device.makeComputePipelineState(function: irradianceKernel)
+        let irradianceComputeEncoder = commandBuffer.makeComputeCommandEncoder()!
+        if let waitFence {
+            irradianceComputeEncoder.waitForFence(waitFence)
+        }
+        irradianceComputeEncoder.setComputePipelineState(irradiancePSO)
+
+        let irradianceTextureDescriptor = MTLTextureDescriptor.textureCubeDescriptor(
+            pixelFormat: .rgba16Float,
+            size: size,
+            mipmapped: false
+        )
+        irradianceTextureDescriptor.usage = [.shaderRead, .shaderWrite]
+        irradianceTextureDescriptor.storageMode = .shared
+        let irradianceMap = device.makeTexture(descriptor: irradianceTextureDescriptor)!
+        irradianceComputeEncoder.setTexture(envMap, index: 0)
+        irradianceComputeEncoder.setTexture(irradianceMap, index: 1)
+
+        var params = IrradianceMapParams(
+            cubeSize: UInt32(size)
+        )
+        irradianceComputeEncoder.setBytes(&params, length: MemoryLayout<IrradianceMapParams>.size, index: 0)
+
+        let threads = MTLSize(width: 16, height: 16, depth: 1)
+        let threadGroups = MTLSize(
+            width: (size + threads.width - 1) / threads.width,
+            height: (size + threads.height - 1) / threads.height,
+            depth: 6
+        )
+        irradianceComputeEncoder.dispatchThreadgroups(
+            threadGroups,
+            threadsPerThreadgroup: threads
+        )
+        irradianceComputeEncoder.endEncoding()
+        return irradianceMap
+    }
+
     func generateBRDFLUT(width: Int, height: Int) -> MTLTexture {
         let brdfLUTTextureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .rgba16Float,
@@ -615,6 +710,40 @@ public class ShaderConnection {
         brdfCommandBuffer.commit()
         brdfCommandBuffer.waitUntilCompleted()
 
+        return lut
+    }
+
+    func encodeBRDFLUT(
+        _ commandBuffer: MTLCommandBuffer,
+        width: Int,
+        height: Int
+    ) throws -> MTLTexture {
+        let brdfLUTTextureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba16Float,
+            width: width,
+            height: height,
+            mipmapped: false
+        )
+        brdfLUTTextureDescriptor.usage = [.shaderRead, .shaderWrite]
+        brdfLUTTextureDescriptor.storageMode = .shared
+        let lut = device.makeTexture(descriptor: brdfLUTTextureDescriptor)!
+
+        let brdfKernel = library.makeFunction(name: "generateBRDFLUT")!
+        let brdfPSO = try device.makeComputePipelineState(function: brdfKernel)
+
+        let brdfComputeEncoder = commandBuffer.makeComputeCommandEncoder()!
+        brdfComputeEncoder.setComputePipelineState(brdfPSO)
+        brdfComputeEncoder.setTexture(lut, index: 0)
+
+        let threadsPerThreadgroup = MTLSize(width: 16, height: 16, depth: 1)
+        let threadgroups = MTLSize(
+            width: lut.width + (threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
+            height: lut.height + (threadsPerThreadgroup.height - 1) / threadsPerThreadgroup.height,
+            depth: 1
+        )
+        brdfComputeEncoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerThreadgroup)
+
+        brdfComputeEncoder.endEncoding()
         return lut
     }
 
@@ -670,53 +799,60 @@ public class ShaderConnection {
         return sheenTex
     }
 
-    // Generate a prefiltered 2D texture pyramid from a base color buffer for rough transmission sampling
-    func generatePrefilterSceneTexture(
-        from base: MTLTexture,
-        to dst: MTLTexture,
-        commandBuffer: MTLCommandBuffer
-    ) {
-        let kernel = library.makeFunction(name: "prefilterScene2D")!
-        let pso = try! device.makeComputePipelineState(function: kernel)
-
-
-        // Copy base level into mip 0 on the provided command buffer
-        if let blit = commandBuffer.makeBlitCommandEncoder() {
-            let region = MTLRegionMake2D(0, 0, base.width, base.height)
-            blit.copy(from: base,
-                      sourceSlice: 0,
-                      sourceLevel: 0,
-                      sourceOrigin: region.origin,
-                      sourceSize: region.size,
-                      to: dst,
-                      destinationSlice: 0,
-                      destinationLevel: 0,
-                      destinationOrigin: region.origin)
-            blit.endEncoding()
+    func encodePrefilterSheenTexture(
+        _ commandBuffer: MTLCommandBuffer,
+        envMap: MTLTexture,
+        waitFence: MTLFence? = nil
+    ) throws -> MTLTexture {
+        guard envMap.mipmapLevelCount > 1 else {
+            fatalError("Environment map must have mipmaps for prefiltering.")
         }
-
-        // Build mips 1..N with compute on the same command buffer
-        if let enc = commandBuffer.makeComputeCommandEncoder() {
-            enc.setComputePipelineState(pso)
-            enc.setTexture(dst, index: 0) // read prev level
-            enc.setTexture(dst, index: 1) // write current level
-
-            let mipCount = dst.mipmapLevelCount
-            var w = dst.width
-            var h = dst.height
-            for level in 1..<mipCount {
-                w = max(w >> 1, 1)
-                h = max(h >> 1, 1)
-                var params = Prefilter2DParams(width: UInt32(w), height: UInt32(h), mipLevel: UInt32(level))
-                enc.setBytes(&params, length: MemoryLayout<Prefilter2DParams>.size, index: 0)
-                let tg = MTLSize(width: 8, height: 8, depth: 1)
-                let tgCount = MTLSize(width: (w + tg.width - 1) / tg.width,
-                                      height: (h + tg.height - 1) / tg.height,
-                                      depth: 1)
-                enc.dispatchThreadgroups(tgCount, threadsPerThreadgroup: tg)
-            }
-            enc.endEncoding()
+        let prefilterSheenKernel = library.makeFunction(name: "prefilterSheenEnvMap")!
+        let pso = try device.makeComputePipelineState(function: prefilterSheenKernel)
+        let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
+        if let waitFence {
+            commandEncoder.waitForFence(waitFence)
         }
+        commandEncoder.setComputePipelineState(pso)
+
+        let prefilterSheenDescriptor = MTLTextureDescriptor.textureCubeDescriptor(
+            pixelFormat: .rgba16Float,
+            size: envMap.width,
+            mipmapped: true
+        )
+        prefilterSheenDescriptor.usage = [.shaderRead, .shaderWrite]
+        prefilterSheenDescriptor.storageMode = .shared
+        let sheenTex = device.makeTexture(descriptor: prefilterSheenDescriptor)!
+
+        commandEncoder.setTexture(envMap, index: 0)
+        commandEncoder.setTexture(sheenTex, index: 1)
+
+        let mipCount = envMap.mipmapLevelCount
+        let textureSize = envMap.width
+        for mipLevel in 0..<mipCount {
+            let roughness = Float(mipLevel) / Float(mipCount - 1)
+            let cubeSize = max(textureSize >> mipLevel, 1)
+
+            var params = PreFilterSheenEnvMapParams(
+                roughness: roughness,
+                mipLevel: UInt32(mipLevel),
+                cubeSize: UInt32(cubeSize),
+                sampleCount: 2048
+            )
+            commandEncoder.setBytes(&params, length: MemoryLayout<PreFilterSheenEnvMapParams>.size, index: 0)
+            let threads = MTLSize(width: 16, height: 16, depth: 1)
+            let threadGroups = MTLSize(
+                width: (cubeSize + threads.width - 1) / threads.width,
+                height: (cubeSize + threads.height - 1) / threads.height,
+                depth: 6
+            )
+            commandEncoder.dispatchThreadgroups(
+                threadGroups,
+                threadsPerThreadgroup: threads
+            )
+        }
+        commandEncoder.endEncoding()
+        return sheenTex
     }
 
     func computeWorldMatrices(
