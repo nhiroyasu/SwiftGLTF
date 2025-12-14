@@ -13,7 +13,6 @@ public class PBRPipelineConnector {
     private let device: MTLDevice
     private let vertexFunction: MTLFunction
     private let fragmentFunction: MTLFunction
-    private let shaderConnection: ShaderConnection
 
     let opaquePSO: MTLRenderPipelineState
     let alphaBlendPSO: MTLRenderPipelineState
@@ -24,11 +23,9 @@ public class PBRPipelineConnector {
             sampleCount: 4,
             colorPixelFormat: .rgba16Float,
             depthPixelFormat: .depth32Float
-        ),
-        shaderConnection: ShaderConnection
+        )
     ) throws {
         self.device = device
-        self.shaderConnection = shaderConnection
         let library = try device.makePackageLibrary()
         self.vertexFunction = library.makeFunction(name: "pbr_vertex_shader")!
         self.fragmentFunction = library.makeFunction(name: "pbr_fragment_shader")!

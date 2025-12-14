@@ -19,11 +19,13 @@ public protocol GLTFViewDelegate: AnyObject {
 public class GLTFView: MTKView {
     private let commandQueue: MTLCommandQueue
     private let renderer: PBRRenderer
+    private let indirectRenderStateBuilder: PBRIndirectRenderStateBuilder
     private let meshLoader: PBRMeshLoader
     private let envMapLoader: EnvironmentMapLoader
 
     private var loadedGLTF: GLTF?
     private var loadedMeshBundle: PBRMeshBundle?
+    private var loadedIndirectRenderState: PBRIndirectRenderState?
     private var loadedEnvMapBundle: EnvMapBundle?
 
     // MARK: - Display State
@@ -94,32 +96,16 @@ public class GLTFView: MTKView {
         self.ambientLightColor = defaultAmbientLightColor
         self.lightPosition = defaultLightPosition
 
-        let shaderConnection = try ShaderConnection(
-            device: device,
-            commandQueue: commandQueue
-        )
-        let pbrPipelineConnector = try PBRPipelineConnector(
-            device: device,
-            shaderConnection: shaderConnection
-        )
         self.renderer = try PBRRenderer(
             commandQueue: commandQueue,
             sampleCount: sampleCount,
             colorPixelFormat: colorPixelFormat,
             depthPixelFormat: depthPixelFormat,
-            shaderConnection: shaderConnection,
-            pbrPipelineConnector: pbrPipelineConnector,
             maxFramesInFlight: maxFramesInFlight
         )
-        self.meshLoader = PBRMeshLoader(
-            device: device,
-            shaderConnection: shaderConnection,
-            pipelineConnector: pbrPipelineConnector
-        )
-        self.envMapLoader = EnvironmentMapLoader(
-            device: device,
-            shaderConnection: shaderConnection
-        )
+        self.indirectRenderStateBuilder = PBRIndirectRenderStateBuilder(device: device)
+        self.meshLoader = try PBRMeshLoader(commandQueue: commandQueue)
+        self.envMapLoader = try EnvironmentMapLoader(commandQueue: commandQueue)
 
         self.frameSemaphores = DispatchSemaphore(value: maxFramesInFlight)
 
@@ -157,19 +143,21 @@ public class GLTFView: MTKView {
         sceneIndex: Int? = nil,
         animationIndex: Int? = nil,
         variantIndex: Int? = nil
-    ) {
+    ) async {
         do {
             displayType = .loading
             defer { displayType = .drawable }
             let data = try Data(contentsOf: url)
             let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
             let asset = try makeMDLAsset(from: gltfBundle)
-            loadedMeshBundle = try meshLoader.loadMeshes(
+            let meshBundle = try await meshLoader.loadMeshes(
                 from: asset,
                 sceneIndex: sceneIndex,
                 animationIndex: animationIndex,
                 variantIndex: variantIndex
             )
+            self.loadedMeshBundle = meshBundle
+            self.loadedIndirectRenderState = try indirectRenderStateBuilder.build(meshBundle: meshBundle)
 
             loadedGLTF = gltfBundle.gltf
             gltfLoadHandler?(.success(gltfBundle.gltf))
@@ -188,11 +176,11 @@ public class GLTFView: MTKView {
     ///
     /// - Parameter url: The file URL of the environment map to use for lighting/reflections.
     /// - Important: Large HDR/EXR files may take time to process depending on device capabilities.
-    public func load(environment url: URL) {
+    public func load(environment url: URL) async {
         do {
             displayType = .loading
             defer { displayType = .drawable }
-            loadedEnvMapBundle = try envMapLoader.makeEnvMapBundle(from: url)
+            loadedEnvMapBundle = try await envMapLoader.makeEnvMapBundle(from: url)
         } catch {
             os_log("Failed to load environment map from URL: %@", type: .error, error.localizedDescription)
         }
@@ -222,7 +210,8 @@ public class GLTFView: MTKView {
     public override func draw(_ rect: CGRect) {
         guard let drawable = currentDrawable,
               let descriptor = currentRenderPassDescriptor,
-              let commandBuffer = commandQueue.makeCommandBuffer() else {
+              let commandBuffer = _makeCommandBuffer(commandQueue),
+              let loadedIndirectRenderState else {
             return
         }
 
@@ -244,7 +233,6 @@ public class GLTFView: MTKView {
         // Make rendering context
         let context = RenderingContextBuilder
             .new()
-            .mesh(bundle: loadedMeshBundle)
             .envMap(bundle: loadedEnvMapBundle)
             .skybox(true)
             .animation(animationState)
@@ -259,12 +247,12 @@ public class GLTFView: MTKView {
                 aspect: Float(renderViewport.width / renderViewport.height),
                 fovY: .pi / 3
             ))
-            .render(
+            .finalizeWithICB(
+                state: loadedIndirectRenderState,
                 renderPassDescriptor: descriptor,
                 drawableSize: drawableSize,
                 viewport: renderViewport
             )
-            .finalize()
 
         // Render
         renderer.render(commandBuffer: commandBuffer, context: context)
@@ -545,4 +533,27 @@ public class GLTFView: MTKView {
         case drawable
         case error(String)
     }
+}
+
+private func _makeCommandBuffer(_ commandQueue: MTLCommandQueue) -> MTLCommandBuffer? {
+#if DEBUG
+    let desc = MTLCommandBufferDescriptor()
+    desc.errorOptions = .encoderExecutionStatus
+    let buffer = commandQueue.makeCommandBuffer(descriptor: desc)
+    buffer?.label = "[SwiftGLTF] GLTFView Frame Command Buffer"
+    buffer?.addCompletedHandler { cb in
+        switch cb.status {
+        case .error:
+            os_log("[SwiftGLTF] GLTFView: Command buffer completed with error: %@", type: .error, String(describing: cb.error))
+            if let error = cb.error as? NSError {
+                os_log("[SwiftGLTF] GLTFView: Metal error domain: %@", type: .error, String(describing: error.userInfo[MTLCommandBufferEncoderInfoErrorKey]))
+            }
+        default:
+            break
+        }
+    }
+    return buffer
+#else
+    return commandQueue.makeCommandBuffer()
+#endif
 }

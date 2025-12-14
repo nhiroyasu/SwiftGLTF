@@ -16,20 +16,13 @@ final class SkyboxRenderTests {
 
     let TEX_SIZE = 256
 
-    init() {
+    init() throws {
         self.device = MTLCreateSystemDefaultDevice()!
-        self.library = try! device.makePackageLibrary()
+        self.library = try device.makePackageLibrary()
         self.commandQueue = device.makeCommandQueue()!
 
-        self.shaderConnection = try! ShaderConnection(
-            device: device,
-            commandQueue: commandQueue
-        )
-        self.envMapLoader = EnvironmentMapLoader(
-            device: device,
-            library: library,
-            shaderConnection: shaderConnection
-        )
+        self.shaderConnection = try ShaderConnection(commandQueue: commandQueue)
+        self.envMapLoader = try EnvironmentMapLoader(commandQueue: commandQueue)
     }
 
     // Helper to create a render target texture
@@ -65,7 +58,9 @@ final class SkyboxRenderTests {
         let aspect: Float = 1.0
         let vMatrix = lookAt(eye: SIMD3<Float>(0, 0, 0), target: skyboxTarget, up: SIMD3<Float>(0, 1, 0))
         let pMatrix = perspectiveMatrix(fov: .pi / 3, aspect: aspect, near: 0.1, far: 100.0)
-        let envMapBundle = try envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
+        let envMapBundle = try await envMapLoader.makeEnvMapBundle(
+            from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!
+        )
         var cameraIndex = -1
         let cameraIndexBuffer = device.makeBuffer(
             bytes: &cameraIndex,

@@ -20,10 +20,7 @@ final class WireframeRenderTests {
         self.library = try! device.makePackageLibrary()
         self.commandQueue = device.makeCommandQueue()!
 
-        self.shaderConnection = try! ShaderConnection(
-            device: device,
-            commandQueue: commandQueue
-        )
+        self.shaderConnection = try! ShaderConnection(commandQueue: commandQueue)
     }
 
     // Helper to create a render target texture
