@@ -10,7 +10,6 @@ public class RenderingContextBuilder {
 
 public struct RenderingContext {
     // resources
-    private var meshBundle: PBRMeshBundle? = nil
     private var envMapBundle: EnvMapBundle? = nil
 
     // uniforms
@@ -33,7 +32,6 @@ public struct RenderingContext {
     private var renderingState: RenderingState? = nil
     private var viewportSize: simd_float2 = simd_float2(1, 1)
     private var showsSkybox: Bool = false
-    private var enableIndirectCommands = true
 
     public func modelMatrix(_ matrix: float4x4) -> Self {
         var copy = self
@@ -65,12 +63,6 @@ public struct RenderingContext {
         return copy
     }
 
-    public func mesh(bundle: PBRMeshBundle?) -> Self {
-        var copy = self
-        copy.meshBundle = bundle
-        return copy
-    }
-
     public func envMap(bundle: EnvMapBundle?) -> Self {
         var copy = self
         copy.envMapBundle = bundle
@@ -89,30 +81,21 @@ public struct RenderingContext {
         return copy
     }
 
-    public func render(
+    public func finalizeWithICB(
+        state: PBRIndirectRenderState,
         renderPassDescriptor: MTLRenderPassDescriptor,
         drawableSize: CGSize,
         viewport: MTLViewport
-    ) -> Self {
-        var copy = self
-        copy.renderingState = RenderingState(
+    ) -> FinalizedRenderingContext {
+        let renderingState = RenderingState(
             renderPassDescriptor: renderPassDescriptor,
             drawableSize: drawableSize,
             viewport: viewport
         )
-        copy.viewportSize = simd_float2(Float(viewport.width), Float(viewport.height))
-        return copy
-    }
+        let viewportSize = simd_float2(Float(viewport.width), Float(viewport.height))
 
-    public func indirectCommands(_ enabled: Bool) -> Self {
-        var copy = self
-        copy.enableIndirectCommands = enabled
-        return copy
-    }
-
-    public func finalize() -> FinalizedRenderingContext {
-        return FinalizedRenderingContext(
-            meshBundle: meshBundle,
+        return FinalizedRenderingContext.icb(
+            indirectRenderState: state,
             envMapBundle: envMapBundle,
             modelMatrix: modelMatrix,
             sceneUniforms: SceneUniforms(
@@ -124,8 +107,7 @@ public struct RenderingContext {
             freeCameraUniforms: freeCameraUniforms,
             animationState: animationState,
             renderingState: renderingState,
-            showsSkybox: showsSkybox,
-            enableIndirectCommands: enableIndirectCommands
+            showsSkybox: showsSkybox
         )
     }
 }
@@ -136,15 +118,16 @@ public struct RenderingState {
     let viewport: MTLViewport
 }
 
-public struct FinalizedRenderingContext {
-    let meshBundle: PBRMeshBundle?
-    let envMapBundle: EnvMapBundle?
-    let modelMatrix: float4x4
-    let sceneUniforms: SceneUniforms
-    let cameraIndex: Int
-    let freeCameraUniforms: FreeCameraUniforms
-    let animationState: RendererAnimationState?
-    let renderingState: RenderingState?
-    let showsSkybox: Bool
-    let enableIndirectCommands: Bool
+public enum FinalizedRenderingContext {
+    case icb(
+        indirectRenderState: PBRIndirectRenderState,
+        envMapBundle: EnvMapBundle?,
+        modelMatrix: float4x4,
+        sceneUniforms: SceneUniforms,
+        cameraIndex: Int,
+        freeCameraUniforms: FreeCameraUniforms,
+        animationState: RendererAnimationState?,
+        renderingState: RenderingState,
+        showsSkybox: Bool
+    )
 }

@@ -16,19 +16,13 @@ final class SkyboxRenderTests {
 
     let TEX_SIZE = 256
 
-    init() {
+    init() throws {
         self.device = MTLCreateSystemDefaultDevice()!
-        self.library = try! device.makePackageLibrary()
+        self.library = try device.makePackageLibrary()
         self.commandQueue = device.makeCommandQueue()!
 
-        self.shaderConnection = try! ShaderConnection(
-            device: device,
-            commandQueue: commandQueue
-        )
-        self.envMapLoader = EnvironmentMapLoader(
-            commandQueue: commandQueue,
-            shaderConnection: shaderConnection
-        )
+        self.shaderConnection = try ShaderConnection(commandQueue: commandQueue)
+        self.envMapLoader = try EnvironmentMapLoader(commandQueue: commandQueue)
     }
 
     // Helper to create a render target texture

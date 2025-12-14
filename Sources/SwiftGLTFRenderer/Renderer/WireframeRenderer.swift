@@ -46,10 +46,7 @@ public class WireframeRenderer {
         self.sampleCount = sampleCount
         self.colorPixelFormat = colorPixelFormat
         self.depthPixelFormat = depthPixelFormat
-        self.shaderConnection = try ShaderConnection(
-            device: device,
-            commandQueue: commandQueue
-        )
+        self.shaderConnection = try ShaderConnection(commandQueue: commandQueue)
 
         let pipelineStateConfig = PipelineStateLoaderConfig(
             sampleCount: sampleCount,
@@ -76,10 +73,7 @@ public class WireframeRenderer {
             pipelineConnector: pipelineConnector,
             shaderConnection: shaderConnection
         )
-        self.envMapLoader = EnvironmentMapLoader(
-            commandQueue: commandQueue,
-            shaderConnection: shaderConnection
-        )
+        self.envMapLoader = try EnvironmentMapLoader(commandQueue: commandQueue)
 
         self.depthStencilState = try makeLessEqualDepthStencilState(device: device)
     }

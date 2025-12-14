@@ -1,27 +1,6 @@
 import Metal
 import SwiftGLTFShaderTypes
 
-class FrameInFlightBuffer {
-    private let maxFramesInFlight: Int
-    private let buffers: [MTLBuffer]
-
-    init(maxFramesInFlight: Int, initialBuffer: () -> MTLBuffer) {
-        self.maxFramesInFlight = maxFramesInFlight
-        self.buffers = (0..<maxFramesInFlight).map { _ in
-            initialBuffer()
-        }
-    }
-
-    func buffer(_ index: Int) -> MTLBuffer {
-        return buffers[index % maxFramesInFlight]
-    }
-
-    func updateBuffer(_ index: Int, from data: UnsafeRawPointer, byteCount: Int) {
-        let buffer = buffers[index % maxFramesInFlight]
-        buffer.contents().copyMemory(from: data, byteCount: byteCount)
-    }
-}
-
 struct PBRFrameInFlightResources {
     let sceneUniformsBuffer: MTLBuffer
     let modelMatrixBuffer: MTLBuffer
@@ -35,10 +14,14 @@ class PBRFrameInFlightManager {
     private let cameraIndexBuffer: FrameInFlightBuffer
     private let freeCameraUniformsBuffer: FrameInFlightBuffer
     private let maxFramesInFlight: Int
+    private let framesInFlightSemaphore: DispatchSemaphore
+
     private var currentFrameIndex: Int = 0
+    private let stateSemaphore = DispatchSemaphore(value: 1)
 
     init(device: MTLDevice, maxFramesInFlight: Int = 2) {
         self.maxFramesInFlight = maxFramesInFlight
+        self.framesInFlightSemaphore = DispatchSemaphore(value: maxFramesInFlight)
         self.sceneUniformsBuffer = FrameInFlightBuffer(maxFramesInFlight: maxFramesInFlight) {
             device.makeBuffer(
                 length: MemoryLayout<SceneUniforms>.size,
@@ -66,7 +49,9 @@ class PBRFrameInFlightManager {
     }
 
     private func _updateFrame() {
+        stateSemaphore.wait()
         currentFrameIndex = (currentFrameIndex + 1) % maxFramesInFlight
+        stateSemaphore.signal()
     }
 
     func currentResources() -> PBRFrameInFlightResources {
@@ -84,6 +69,9 @@ class PBRFrameInFlightManager {
         cameraIndex: Int?,
         freeCameraUniforms: FreeCameraUniforms
     ) -> PBRFrameInFlightResources {
+        framesInFlightSemaphore.wait()
+        defer { framesInFlightSemaphore.signal() }
+
         let currentResources = currentResources()
 
         var modelMatrix = modelMatrix

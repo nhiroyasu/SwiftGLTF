@@ -13,16 +13,17 @@ final class CameraTests {
     let renderer: PBRRenderer
     let meshLoader: PBRMeshLoader
     let envMapLoader: EnvironmentMapLoader
+    let indirectRenderStateBuilder: PBRIndirectRenderStateBuilder
 
     let TEX_SIZE = 256
 
     init() throws {
         self.device = MTLCreateSystemDefaultDevice()!
         self.commandQueue = device.makeCommandQueue()!
-        (self.renderer, self.meshLoader, self.envMapLoader) = makeRenderTestInstance(
-            device: device,
-            commandQueue: commandQueue
-        )
+        self.meshLoader = try PBRMeshLoader(commandQueue: commandQueue)
+        self.envMapLoader = try EnvironmentMapLoader(commandQueue: commandQueue)
+        self.renderer = try PBRRenderer(commandQueue: commandQueue)
+        self.indirectRenderStateBuilder = PBRIndirectRenderStateBuilder(device: device)
     }
 
     // Helper to create a render target texture
@@ -76,9 +77,10 @@ final class CameraTests {
 
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL, options: .init(autoScale: false))
+        let mesh = try await meshLoader.loadMeshes(from: asset)
+        let indirectRenderState = try indirectRenderStateBuilder.build(meshBundle: mesh)
         let context = await RenderingContextBuilder
             .new()
-            .mesh(bundle: try meshLoader.loadMeshes(from: asset))
             .envMap(bundle: try envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!))
             .skybox(false)
             .lightPosition(SIMD3<Float>(0, 5, -5))
@@ -89,12 +91,12 @@ final class CameraTests {
                 aspect: aspect,
                 fovY: fovY
             ))
-            .render(
+            .finalizeWithICB(
+                state: indirectRenderState,
                 renderPassDescriptor: passDesc,
                 drawableSize: CGSize(width: output.width, height: output.height),
                 viewport: viewport
             )
-            .finalize()
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!

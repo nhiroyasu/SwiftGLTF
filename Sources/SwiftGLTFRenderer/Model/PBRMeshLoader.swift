@@ -13,14 +13,10 @@ public class PBRMeshLoader {
 
     private let kDefaultAnimationIndex = 0
 
-    public init(
-        device: MTLDevice,
-        shaderConnection: ShaderConnection,
-        pipelineConnector: PBRPipelineConnector
-    ) {
-        self.device = device
-        self.shaderConnection = shaderConnection
-        self.pipelineConnector = pipelineConnector
+    public init(commandQueue: MTLCommandQueue) throws {
+        self.device = commandQueue.device
+        self.shaderConnection = try ShaderConnection(commandQueue: commandQueue)
+        self.pipelineConnector = try PBRPipelineConnector(device: device)
         self.textureLoader = MTKTextureLoader(device: device)
     }
 

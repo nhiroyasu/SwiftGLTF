@@ -20,15 +20,11 @@ public class EnvironmentMapLoader {
 
     private let IRRADIANCE_SIZE = 32
 
-    public init(
-        commandQueue: MTLCommandQueue,
-        library: MTLLibrary? = nil,
-        shaderConnection: ShaderConnection
-    ) {
+    public init(commandQueue: MTLCommandQueue) throws {
         self.device = commandQueue.device
         self.commandQueue = commandQueue
-        self.library = library ?? (try! device.makePackageLibrary())
-        self.shaderConnection = shaderConnection
+        self.library = try device.makePackageLibrary()
+        self.shaderConnection = try ShaderConnection(commandQueue: commandQueue)
     }
 
     func makeEnvMapHeapAndTexture(url: URL) async throws -> (
@@ -38,12 +34,12 @@ public class EnvironmentMapLoader {
         MTLTexture, // brdfLUT
         MTLTexture  // prefiltered sheen
     ) {
-        guard let cubeMapTextureCB = commandQueue.makeCommandBuffer(),
-              let prefilterEnvMapCB = commandQueue.makeCommandBuffer(),
-              let irradianceTextureCB = commandQueue.makeCommandBuffer(),
-              let brdfLUTCB = commandQueue.makeCommandBuffer(),
-              let sheenEnvMapCB = commandQueue.makeCommandBuffer(),
-              let blitCB = commandQueue.makeCommandBuffer() else {
+        guard let cubeMapTextureCB = commandQueue.makeDebuggableCommandBuffer(),
+              let prefilterEnvMapCB = commandQueue.makeDebuggableCommandBuffer(),
+              let irradianceTextureCB = commandQueue.makeDebuggableCommandBuffer(),
+              let brdfLUTCB = commandQueue.makeDebuggableCommandBuffer(),
+              let sheenEnvMapCB = commandQueue.makeDebuggableCommandBuffer(),
+              let blitCB = commandQueue.makeDebuggableCommandBuffer() else {
             throw SwiftGLTFError.makeRender(.commandBufferCreateFailed, context: .capture(stage: .render))
         }
 

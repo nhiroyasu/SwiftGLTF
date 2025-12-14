@@ -10,17 +10,19 @@ import SwiftGLTFShaderTypes
 final class PBRRenderTests {
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
+    let meshLoader: PBRMeshLoader
     let envMapBundle: EnvMapBundle
+    let indirectRenderStateBuilder: PBRIndirectRenderStateBuilder
     let TEX_SIZE = 256
+    let SAMPLE_COUNT = 4
 
     init() async throws {
         self.device = MTLCreateSystemDefaultDevice()!
         self.commandQueue = device.makeCommandQueue()!
-        let (_, _, envMapLoader) = makeRenderTestInstance(
-            device: device,
-            commandQueue: commandQueue
-        )
+        self.meshLoader = try PBRMeshLoader(commandQueue: commandQueue)
+        let envMapLoader = try EnvironmentMapLoader(commandQueue: commandQueue)
         self.envMapBundle = try await envMapLoader.makeEnvMapBundle(from: Bundle.module.url(forResource: "env_map", withExtension: "exr")!)
+        self.indirectRenderStateBuilder = PBRIndirectRenderStateBuilder(device: device)
     }
 
     // Helper to create a render target texture
@@ -35,10 +37,7 @@ final class PBRRenderTests {
     }
 
     func renderMesh(to output: MTLTexture, meshURL: URL, eye: SIMD3<Float>?) async throws {
-        let (renderer, meshLoader, _) = makeRenderTestInstance(
-            device: device,
-            commandQueue: commandQueue
-        )
+        let renderer = try PBRRenderer(commandQueue: commandQueue, sampleCount: SAMPLE_COUNT)
 
         let viewport = MTLViewport(
             originX: 0,
@@ -76,9 +75,9 @@ final class PBRRenderTests {
 
         // Load a sample mesh
         let asset = try makeMDLAsset(from: meshURL)
-        let context = await RenderingContextBuilder
+        let mesh = try await meshLoader.loadMeshes(from: asset)
+        let context = RenderingContextBuilder
             .new()
-            .mesh(bundle: try meshLoader.loadMeshes(from: asset))
             .envMap(bundle: envMapBundle)
             .skybox(false)
             .lightPosition(SIMD3<Float>(0, 5, -5))
@@ -88,12 +87,15 @@ final class PBRRenderTests {
                 aspect: aspect,
                 fovY: fovY
             ))
-            .render(
+            .finalizeWithICB(
+                state: try indirectRenderStateBuilder.build(
+                    meshBundle: mesh,
+                    sampleCount: SAMPLE_COUNT
+                ),
                 renderPassDescriptor: passDesc,
                 drawableSize: CGSize(width: output.width, height: output.height),
                 viewport: viewport,
             )
-            .finalize()
 
         // Create command buffer and render encoder
         let cmdBuf = commandQueue.makeCommandBuffer()!
