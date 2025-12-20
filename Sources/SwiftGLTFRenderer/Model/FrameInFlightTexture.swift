@@ -50,7 +50,7 @@ class PBROffscreenTextureManager {
                 _updateFrameWithSave(size, r)
                 return r
             } else {
-                throw SwiftGLTFError.render(description: "Cached resources missing")
+                throw SwiftGLTFRendererError(description: "Cached resources missing")
             }
         }
 
@@ -122,7 +122,7 @@ class PBROffscreenTextureManager {
         samplerDesc.tAddressMode = .clampToEdge
         samplerDesc.supportArgumentBuffers = true
         guard let screenColorSampler = device.makeSamplerState(descriptor: samplerDesc) else {
-            throw SwiftGLTFError.render(description: "Failed to create screen color sampler")
+            throw SwiftGLTFRendererError(description: "Failed to create screen color sampler")
         }
 
         // Create destination mipmapped texture
@@ -142,7 +142,7 @@ class PBROffscreenTextureManager {
               let sceneTransmissionTexture,
               let screenPrefilterTexture,
               let sceneDepthMSAATexture else {
-            throw SwiftGLTFError.render(description: "Failed to create offscreen textures")
+            throw SwiftGLTFRendererError(description: "Failed to create offscreen textures")
         }
         let resources = PBROffscreenTextureResources(
             screenColorMSAATexture: screenColorMSAATexture,

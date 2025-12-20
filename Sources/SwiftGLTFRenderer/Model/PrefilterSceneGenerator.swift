@@ -12,7 +12,7 @@ class PrefilterSceneGenerator {
         self.library = try device.makePackageLibrary()
 
         guard let kernel = library.makeFunction(name: "prefilterScene2D") else {
-            throw SwiftGLTFError.render(description: "Failed to find prefilterScene2D kernel function")
+            throw SwiftGLTFRendererError(description: "Failed to find prefilterScene2D kernel function")
         }
         prefilterPSO = try device.makeComputePipelineState(function: kernel)
     }

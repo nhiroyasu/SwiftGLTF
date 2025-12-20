@@ -8,7 +8,7 @@ func makeLessEqualDepthStencilState(device: MTLDevice) throws -> MTLDepthStencil
     descriptor.isDepthWriteEnabled = true
 
     guard let depthStencilState = device.makeDepthStencilState(descriptor: descriptor) else {
-        throw SwiftGLTFError.render(description: "Failed to create depth stencil state (writeEnabled=true)")
+        throw SwiftGLTFRendererError(description: "Failed to create depth stencil state (writeEnabled=true)")
     }
     return depthStencilState
 }
@@ -20,7 +20,7 @@ func makeLessEqualNoWriteDepthStencilState(device: MTLDevice) throws -> MTLDepth
     descriptor.isDepthWriteEnabled = false
 
     guard let depthStencilState = device.makeDepthStencilState(descriptor: descriptor) else {
-        throw SwiftGLTFError.render(description: "Failed to create depth stencil state (writeEnabled=false)")
+        throw SwiftGLTFRendererError(description: "Failed to create depth stencil state (writeEnabled=false)")
     }
     return depthStencilState
 }

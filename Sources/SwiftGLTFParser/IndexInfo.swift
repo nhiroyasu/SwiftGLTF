@@ -37,7 +37,7 @@ struct IndexInfo {
                 }
                 return intArray
             default:
-                throw SwiftGLTFError.parser(description: "Unsupported index type for normal generation")
+                throw SwiftGLTFParserError(description: "Unsupported index type for normal generation")
             }
         }
     }
