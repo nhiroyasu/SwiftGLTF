@@ -17,7 +17,7 @@ public func makeMDLAsset(
     let startTime = Date()
     defer {
         let elapsed = Date().timeIntervalSince(startTime)
-        Log.common.info("⏳ MDLAsset: Loaded in \(elapsed, format: .fixed(precision: 2), privacy: .public) seconds")
+        logger.info("⏳ MDLAsset: Loaded in \(elapsed, format: .fixed(precision: 2), privacy: .public) seconds")
     }
     #endif
 
@@ -216,7 +216,7 @@ public func makeMDLMesh(
 
     // If JOINTS_0/WEIGHTS_0 are not both present, disable skinning
     if (jointsVertex == nil) != (weightsVertex == nil) {
-        Log.common.info("JOINTS_0/WEIGHTS_0 mismatch: disabling skinning for this primitive")
+        logger.info("JOINTS_0/WEIGHTS_0 mismatch: disabling skinning for this primitive")
         jointsVertex = nil
         weightsVertex = nil
     }
@@ -510,7 +510,7 @@ func loadTextureSampler(
     do {
         mdlTexture = try binaryLoader.extractTexture(textureIndex: sourceIndex)
     } catch {
-        Log.common.error("Texture not found for index \(sourceIndex.value, privacy: .public)")
+        logger.error("Texture not found for index \(sourceIndex.value, privacy: .public)")
         return nil
     }
     let sampler = MDLTextureSampler()

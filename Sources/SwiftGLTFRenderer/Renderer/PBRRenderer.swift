@@ -151,7 +151,7 @@ public class PBRRenderer {
             return nil
         }
         guard let en = cb.makeComputeCommandEncoder() else {
-            Log.common.error("Failed to create compute command encoder")
+            logger.error("Failed to create compute command encoder")
             return nil
         }
         en.label = "[SwiftGLTF] Animation Update Encoder"
@@ -202,12 +202,12 @@ public class PBRRenderer {
                 commandEncoder: en
             )
         } catch {
-            Log.common.error("Failed to compute world matrices: \(String(describing: error), privacy: .public)")
+            logger.error("Failed to compute world matrices: \(String(describing: error), privacy: .public)")
             return nil
         }
 
         guard let fence = device.makeFence() else {
-            Log.common.error("Failed to create fence")
+            logger.error("Failed to create fence")
             return nil
         }
         en.updateFence(fence)
@@ -242,7 +242,7 @@ public class PBRRenderer {
         // Copy indirect buffers
         guard let blitEncoder = commandBuffer.makeBlitCommandEncoder(),
               let blitFence = device.makeFence() else {
-            Log.common.error("Failed to create blit command encoder")
+            logger.error("Failed to create blit command encoder")
             return
         }
         blitEncoder.label = "[SwiftGLTF] Ensure Indirect Buffers Blit Encoder"
@@ -266,7 +266,7 @@ public class PBRRenderer {
             offscreenResources = try offscreenTextureManager.resolve(for: drawableSize)
             try ensureOffscreenResources(blitEncoder, from: offscreenResources, to: indirectRenderState)
         } catch {
-            Log.common.error("Failed to resolve offscreen textures")
+            logger.error("Failed to resolve offscreen textures")
             return
         }
 

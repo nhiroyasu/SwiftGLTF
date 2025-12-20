@@ -11,9 +11,9 @@ extension MTLCommandQueue {
         buffer?.addCompletedHandler { cb in
             switch cb.status {
             case .error:
-                Log.common.error("[SwiftGLTF] Renderer: Command buffer completed with error: \(String(describing: cb.error), privacy: .public)")
+                logger.error("[SwiftGLTF] Renderer: Command buffer completed with error: \(String(describing: cb.error), privacy: .public)")
                 if let error = cb.error as? NSError {
-                    Log.common.error("[SwiftGLTF] Renderer: Metal error domain: \(String(describing: error.userInfo[MTLCommandBufferEncoderInfoErrorKey]), privacy: .public)")
+                    logger.error("[SwiftGLTF] Renderer: Metal error domain: \(String(describing: error.userInfo[MTLCommandBufferEncoderInfoErrorKey]), privacy: .public)")
                 }
             default:
                 break
