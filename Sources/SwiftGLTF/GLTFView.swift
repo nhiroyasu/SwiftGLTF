@@ -162,7 +162,7 @@ public class GLTFView: MTKView {
             loadedGLTF = gltfBundle.gltf
             gltfLoadHandler?(.success(gltfBundle.gltf))
         } catch {
-            Log.common.error("Failed to load asset from URL: \(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to load asset from URL: \(error.localizedDescription, privacy: .public)")
             displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
             loadedGLTF = nil
             gltfLoadHandler?(.failure(error) )
@@ -182,7 +182,7 @@ public class GLTFView: MTKView {
             defer { displayType = .drawable }
             loadedEnvMapBundle = try await envMapLoader.makeEnvMapBundle(from: url)
         } catch {
-            Log.common.error("Failed to load environment map from URL: \(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to load environment map from URL: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -544,9 +544,9 @@ private func _makeCommandBuffer(_ commandQueue: MTLCommandQueue) -> MTLCommandBu
     buffer?.addCompletedHandler { cb in
         switch cb.status {
         case .error:
-            Log.common.error("[SwiftGLTF] GLTFView: Command buffer completed with error: \(String(describing: cb.error), privacy: .public)")
+            logger.error("[SwiftGLTF] GLTFView: Command buffer completed with error: \(String(describing: cb.error), privacy: .public)")
             if let error = cb.error as? NSError {
-                Log.common.error("[SwiftGLTF] GLTFView: Metal error domain: \(String(describing: error.userInfo[MTLCommandBufferEncoderInfoErrorKey]), privacy: .public)")
+                logger.error("[SwiftGLTF] GLTFView: Metal error domain: \(String(describing: error.userInfo[MTLCommandBufferEncoderInfoErrorKey]), privacy: .public)")
             }
         default:
             break

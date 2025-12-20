@@ -168,7 +168,7 @@ public class GLTFStatableView: GLTFView {
             animationIndex: animationIndex,
             variantIndex: variantIndex
         )
-        Log.common.info("GLTFStatableView: Reloaded GLTF due to asset change")
+        logger.info("GLTFStatableView: Reloaded GLTF due to asset change")
     }
 
     /// Checks if reloading the environment map is necessary and performs it if needed.
@@ -183,7 +183,7 @@ public class GLTFStatableView: GLTFView {
         if url != currentEnvironmentURL {
             currentEnvironmentURL = url
             await super.load(environment: url)
-            Log.common.info("GLTFStatableView: Reloaded environment map")
+            logger.info("GLTFStatableView: Reloaded environment map")
         }
     }
 

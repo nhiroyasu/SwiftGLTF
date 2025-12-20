@@ -80,7 +80,7 @@ func makeNodeLevelHierarchy(root: MDLObject) -> NodeLevelHierarchy {
             let oid = ObjectIdentifier(obj)
             guard !visited.contains(oid) else {
                 let nodeName = obj.name ?? "Unknown"
-                Log.common.error("⚠️ Warning: Detected cyclic or duplicate node reference for \(nodeName, privacy: .public). Skipping.")
+                logger.error("⚠️ Warning: Detected cyclic or duplicate node reference for \(nodeName, privacy: .public). Skipping.")
                 continue
             }
             visited.insert(oid)

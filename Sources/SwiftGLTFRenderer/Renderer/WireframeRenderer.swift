@@ -87,11 +87,11 @@ public class WireframeRenderer {
         fragmentParams: MTLBuffer,
     ) {
         guard let bundle else {
-            Log.common.error("Mesh not loaded")
+            logger.error("Mesh not loaded")
             return
         }
         guard let skyboxMesh, let envMapArgBuffer, let envMapHeap else {
-            Log.common.error("Skybox or textures not loaded")
+            logger.error("Skybox or textures not loaded")
             return
         }
 

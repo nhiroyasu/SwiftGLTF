@@ -69,7 +69,7 @@ enum GLTFAnimationChannelBuilder {
         options: GLTFDecodeOptions
     ) throws -> GLTFAnimationChannel? {
         guard let nodeIndex = channel.target.node else {
-            Log.common.debug("Animation channel missing target node index")
+            logger.debug("Animation channel missing target node index")
             return nil
         }
         let sampler = samplers[channel.sampler]
@@ -100,7 +100,7 @@ enum GLTFAnimationChannelBuilder {
                 }
                 animationType = .translation(float3Array)
             } else {
-                Log.common.error("Unexpected accessor type for translation animation output")
+                logger.error("Unexpected accessor type for translation animation output")
                 animationType = .unknown
             }
         case .scale:
@@ -116,7 +116,7 @@ enum GLTFAnimationChannelBuilder {
                 }
                 animationType = .scale(float3Array)
             } else {
-                Log.common.error("Unexpected accessor type for scale animation output")
+                logger.error("Unexpected accessor type for scale animation output")
                 animationType = .unknown
             }
         case .rotation:
@@ -135,7 +135,7 @@ enum GLTFAnimationChannelBuilder {
                 }
                 animationType = .rotation(quatArray)
             } else {
-                Log.common.error("Unexpected accessor type for rotation animation output")
+                logger.error("Unexpected accessor type for rotation animation output")
                 animationType = .unknown
             }
         case .weights:
@@ -148,11 +148,11 @@ enum GLTFAnimationChannelBuilder {
                 }
                 animationType = .weights(outputArray)
             } else {
-                Log.common.error("Unexpected accessor type for weights animation output")
+                logger.error("Unexpected accessor type for weights animation output")
                 animationType = .unknown
             }
         case .unknown:
-            Log.common.error("Unknown animation path")
+            logger.error("Unknown animation path")
             animationType = .unknown
         }
 
