@@ -1,7 +1,7 @@
 import Foundation
 import MetalKit
 import SwiftGLTFCore
-import os.log
+import OSLog
 
 public func makeMDLAsset(from url: URL, options: GLTFDecodeOptions = .default) throws -> MDLAsset {
     let data = try Data(contentsOf: url)
@@ -17,7 +17,7 @@ public func makeMDLAsset(
     let startTime = Date()
     defer {
         let elapsed = Date().timeIntervalSince(startTime)
-        os_log("⏳ MDLAsset: Loaded in %{public}.2f seconds", log: .default, type: .info, elapsed)
+        logger.info("⏳ MDLAsset: Loaded in \(elapsed, format: .fixed(precision: 2), privacy: .public) seconds")
     }
     #endif
 
@@ -214,12 +214,12 @@ public func makeMDLMesh(
         var jointsVertex = try makeJointVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
         var weightsVertex = try makeWeightVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
 
-        // If JOINTS_0/WEIGHTS_0 are not both present, disable skinning
-        if (jointsVertex == nil) != (weightsVertex == nil) {
-            os_log("JOINTS_0/WEIGHTS_0 mismatch: disabling skinning for this primitive", log: .default, type: .info)
-            jointsVertex = nil
-            weightsVertex = nil
-        }
+    // If JOINTS_0/WEIGHTS_0 are not both present, disable skinning
+    if (jointsVertex == nil) != (weightsVertex == nil) {
+        logger.info("JOINTS_0/WEIGHTS_0 mismatch: disabling skinning for this primitive")
+        jointsVertex = nil
+        weightsVertex = nil
+    }
 
         if normalVertex == nil,
            primitive.mode == .triangles {
@@ -510,7 +510,7 @@ func loadTextureSampler(
     do {
         mdlTexture = try binaryLoader.extractTexture(textureIndex: sourceIndex)
     } catch {
-        os_log("Texture not found for index %{public}d", log: .default, type: .error, sourceIndex.value)
+        logger.error("Texture not found for index \(sourceIndex.value, privacy: .public)")
         return nil
     }
     let sampler = MDLTextureSampler()

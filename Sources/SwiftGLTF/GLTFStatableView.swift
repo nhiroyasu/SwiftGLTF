@@ -4,7 +4,7 @@ import SwiftGLTFRenderer
 import SwiftGLTFCore
 import MetalKit
 import ModelIO
-import os.log
+import OSLog
 
 /// A subclass of GLTFView that automatically detects changes in the GLTF file and environment map,
 /// and reloads only when necessary.
@@ -168,7 +168,7 @@ public class GLTFStatableView: GLTFView {
             animationIndex: animationIndex,
             variantIndex: variantIndex
         )
-        os_log("GLTFStatableView: Reloaded GLTF due to asset change", type: .info)
+        logger.info("GLTFStatableView: Reloaded GLTF due to asset change")
     }
 
     /// Checks if reloading the environment map is necessary and performs it if needed.
@@ -183,7 +183,7 @@ public class GLTFStatableView: GLTFView {
         if url != currentEnvironmentURL {
             currentEnvironmentURL = url
             await super.load(environment: url)
-            os_log("GLTFStatableView: Reloaded environment map", type: .info)
+            logger.info("GLTFStatableView: Reloaded environment map")
         }
     }
 

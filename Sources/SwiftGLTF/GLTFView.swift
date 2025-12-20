@@ -3,7 +3,7 @@ import SwiftGLTFShaderTypes
 import SwiftGLTFRenderer
 import SwiftGLTFCore
 import MetalKit
-import os.log
+import OSLog
 import QuartzCore
 
 public protocol GLTFViewDelegate: AnyObject {
@@ -162,7 +162,7 @@ public class GLTFView: MTKView {
             loadedGLTF = gltfBundle.gltf
             gltfLoadHandler?(.success(gltfBundle.gltf))
         } catch {
-            os_log("Failed to load asset from URL: %@", type: .error, error.localizedDescription)
+            logger.error("Failed to load asset from URL: \(error.localizedDescription, privacy: .public)")
             displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
             loadedGLTF = nil
             gltfLoadHandler?(.failure(error) )
@@ -182,7 +182,7 @@ public class GLTFView: MTKView {
             defer { displayType = .drawable }
             loadedEnvMapBundle = try await envMapLoader.makeEnvMapBundle(from: url)
         } catch {
-            os_log("Failed to load environment map from URL: %@", type: .error, error.localizedDescription)
+            logger.error("Failed to load environment map from URL: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -544,9 +544,9 @@ private func _makeCommandBuffer(_ commandQueue: MTLCommandQueue) -> MTLCommandBu
     buffer?.addCompletedHandler { cb in
         switch cb.status {
         case .error:
-            os_log("[SwiftGLTF] GLTFView: Command buffer completed with error: %@", type: .error, String(describing: cb.error))
+            logger.error("[SwiftGLTF] GLTFView: Command buffer completed with error: \(String(describing: cb.error), privacy: .public)")
             if let error = cb.error as? NSError {
-                os_log("[SwiftGLTF] GLTFView: Metal error domain: %@", type: .error, String(describing: error.userInfo[MTLCommandBufferEncoderInfoErrorKey]))
+                logger.error("[SwiftGLTF] GLTFView: Metal error domain: \(String(describing: error.userInfo[MTLCommandBufferEncoderInfoErrorKey]), privacy: .public)")
             }
         default:
             break

@@ -1,6 +1,6 @@
 import MetalKit
 import Accelerate
-import os.log
+import OSLog
 import SwiftGLTFParser
 import SwiftGLTFCore
 import SwiftGLTFShaderTypes
@@ -30,7 +30,7 @@ public class PBRMeshLoader {
         let startTime = Date()
         defer {
             let elapsed = Date().timeIntervalSince(startTime)
-            os_log("⏳ PBRMeshLoader: Loaded in %{public}.2f seconds", log: .default, type: .info, elapsed)
+            logger.info("⏳ PBRMeshLoader: Loaded in \(elapsed, format: .fixed(precision: 2), privacy: .public) seconds")
         }
         #endif
 
@@ -116,7 +116,7 @@ public class PBRMeshLoader {
             animationIndex: animationIndex ?? kDefaultAnimationIndex
         )
         #if DEBUG
-        os_log("PBRMeshLoader: Animation processing: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(animationStart))
+        logger.debug("PBRMeshLoader: Animation processing: \(Date().timeIntervalSince(animationStart), format: .fixed(precision: 3), privacy: .public) sec")
         #endif
 
         // Vertex mesh heap creation
@@ -128,7 +128,7 @@ public class PBRMeshLoader {
         #endif
         let meshBufferMap = try makeMeshBufferMap(commandBuffer: batchCommandBuffer, from: asset, use: vertexMeshHeap)
         #if DEBUG
-        os_log("PBRMeshLoader: Mesh buffer mapping: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(meshBufferStart))
+        logger.debug("PBRMeshLoader: Mesh buffer mapping: \(Date().timeIntervalSince(meshBufferStart), format: .fixed(precision: 3), privacy: .public) sec")
         #endif
 
         let gltfMaterials = asset.objectSafe(atPath: GLTFAssetPath.materials) as? GLTFMaterials
@@ -145,7 +145,7 @@ public class PBRMeshLoader {
             textureMap = try convertHeapTexture(commandBuffer: batchCommandBuffer, from: textureMap, use: texturesHeap)
         }
         #if DEBUG
-        os_log("PBRMeshLoader: Texture processing: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(textureStart))
+        logger.debug("PBRMeshLoader: Texture processing: \(Date().timeIntervalSince(textureStart), format: .fixed(precision: 3), privacy: .public) sec")
         #endif
 
         // Fragment heap creation
@@ -154,7 +154,7 @@ public class PBRMeshLoader {
         #endif
         let fragmentHeap = try makeFragmentHeap(from: asset, sceneIndex: sceneIndex)
         #if DEBUG
-        os_log("PBRMeshLoader: Fragment heap creation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(fragmentHeapStart))
+        logger.debug("PBRMeshLoader: Fragment heap creation: \(Date().timeIntervalSince(fragmentHeapStart), format: .fixed(precision: 3), privacy: .public) sec")
         #endif
 
         // Material buffer creation
@@ -169,7 +169,7 @@ public class PBRMeshLoader {
             fragmentHeap: fragmentHeap
         )
         #if DEBUG
-        os_log("PBRMeshLoader: Material buffer creation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(materialStart))
+        logger.debug("PBRMeshLoader: Material buffer creation: \(Date().timeIntervalSince(materialStart), format: .fixed(precision: 3), privacy: .public) sec")
         #endif
 
         // Recursive mesh loading (most time-consuming)
@@ -194,7 +194,7 @@ public class PBRMeshLoader {
             variantIndex: selectedVariantIndex
         )
         #if DEBUG
-        os_log("PBRMeshLoader: Recursive mesh loading: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(meshLoadingStart))
+        logger.debug("PBRMeshLoader: Recursive mesh loading: \(Date().timeIntervalSince(meshLoadingStart), format: .fixed(precision: 3), privacy: .public) sec")
         #endif
 
         // Bounding spheres computation
@@ -203,7 +203,7 @@ public class PBRMeshLoader {
         #endif
         let boundingSpheresBuffer = try shaderConnection.encodeComputeBoundingSpheres(batchCommandBuffer, meshes: pbrMeshes)
         #if DEBUG
-        os_log("PBRMeshLoader: Bounding spheres computation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(boundingSpheresStart))
+        logger.debug("PBRMeshLoader: Bounding spheres computation: \(Date().timeIntervalSince(boundingSpheresStart), format: .fixed(precision: 3), privacy: .public) sec")
         #endif
 
         // Camera uniforms buffer creation
@@ -216,7 +216,7 @@ public class PBRMeshLoader {
             cameraIndices: nodeLevelHierarchy.cameraIndices
         )
         #if DEBUG
-        os_log("PBRMeshLoader: Camera uniforms buffer creation: %{public}.3f sec", log: .default, type: .debug, Date().timeIntervalSince(cameraStart))
+        logger.debug("PBRMeshLoader: Camera uniforms buffer creation: \(Date().timeIntervalSince(cameraStart), format: .fixed(precision: 3), privacy: .public) sec")
         #endif
 
         checkRemainingHeapSize([vertexMeshHeap, texturesHeap, fragmentHeap].compactMap({ $0 }))
@@ -375,7 +375,7 @@ public class PBRMeshLoader {
                 if let vb = meshBufferMap[targetMDL] {
                     morphTargetBuffers[i] = vb.vertexBuffer
                 } else {
-                    os_log("⚠️ Warning: Morph target mesh not found in vertex map.", log: .default, type: .error)
+                    logger.error("⚠️ Warning: Morph target mesh not found in vertex map.")
                 }
             }
         }
@@ -530,7 +530,8 @@ public class PBRMeshLoader {
             if let index = nodeLevelHierarchy.objectToIndex[oid] {
                 skinJoints.append(index)
             } else {
-                os_log("⚠️ Warning: Joint node %s not found in node hierarchy.", log: .default, type: .error, joint.name)
+                let jointName = joint.name ?? "Unknown"
+                logger.error("⚠️ Warning: Joint node \(jointName, privacy: .public) not found in node hierarchy.")
             }
         }
 
@@ -590,7 +591,8 @@ public class PBRMeshLoader {
         var pbrAnimations: [PBRMeshAnimation] = []
         for channel in anim.channels {
             guard let targetNode = nodeLevelHierarchy.objectToIndex[ObjectIdentifier(channel.targetNode)] else {
-                os_log("⚠️ Warning: Animation target node %s not found in node hierarchy.", log: .default, type: .error, channel.targetNode.name)
+                let targetName = channel.targetNode.name ?? "Unknown"
+                logger.error("⚠️ Warning: Animation target node \(targetName, privacy: .public) not found in node hierarchy.")
                 continue
             }
             let pbrAnim = PBRMeshAnimation(
@@ -1509,7 +1511,8 @@ public class PBRMeshLoader {
             let size = heap.size
             let remaining = size - used
             if remaining > 0 {
-                os_log("PBRMeshLoader: Heap '%{public}s' has %{public}d bytes remaining (%{public}d / %{public}d used)", type: .debug, heap.label ?? "Unnamed", remaining, used, size)
+                let label = heap.label ?? "Unnamed"
+                logger.debug("PBRMeshLoader: Heap '\(label, privacy: .public)' has \(remaining, privacy: .public) bytes remaining (\(used, privacy: .public) / \(size, privacy: .public) used)")
             }
         }
     }
