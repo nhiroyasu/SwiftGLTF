@@ -165,7 +165,7 @@ public class WireframeRenderer {
 
         // TODO: env map loading should be optional
         guard let envMapUrl = Bundle.module.url(forResource: "env_map", withExtension: "exr") else {
-            throw SwiftGLTFError.render(description: "Environment map not found")
+            throw SwiftGLTFRendererError(description: "Environment map not found")
         }
         let (
             envMapHeap,

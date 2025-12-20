@@ -85,7 +85,7 @@ public class GLTFView: MTKView {
         if let commandQueue = device.makeCommandQueue() {
             self.commandQueue = commandQueue
         } else {
-            throw SwiftGLTFError.swiftgltf(description: "Failed to create command queue")
+            throw SwiftGLTFError(description: "Failed to create command queue")
         }
 
         let sampleCount = 4

@@ -37,7 +37,7 @@ public class PBRMeshLoader {
         let defaultSceneIndex = asset.objectSafe(atPath: GLTFAssetPath.scenes)?.component(ofType: GLTFDefaultScene.self)?.index ?? 0
         let sceneIndex = sceneIndex ?? defaultSceneIndex
         guard let scene = asset.objectSafe(atPath: GLTFAssetPath.scene(sceneIndex)) else {
-            throw SwiftGLTFError.render(description: "Scene not found")
+            throw SwiftGLTFRendererError(description: "Scene not found")
         }
         let nodeLevelHierarchy = makeNodeLevelHierarchy(root: scene)
 
@@ -337,7 +337,7 @@ public class PBRMeshLoader {
         variantIndex: Int?
     ) throws -> PBRMesh {
         guard let meshData = meshBufferMap[mdlMesh] else {
-            throw SwiftGLTFError.render(description: "Failed to create mesh")
+            throw SwiftGLTFRendererError(description: "Failed to create mesh")
         }
 
         // Model & Inverse Model matrix buffers
@@ -888,7 +888,7 @@ public class PBRMeshLoader {
         heapDescriptor.storageMode = .private
 
         guard let texturesHeap = device.makeHeap(descriptor: heapDescriptor) else {
-            throw SwiftGLTFError.render(description: "Failed to create textures heap")
+            throw SwiftGLTFRendererError(description: "Failed to create textures heap")
         }
         texturesHeap.label = "[SwiftGLTF] Textures Heap"
         return texturesHeap
@@ -909,10 +909,10 @@ public class PBRMeshLoader {
         heapDescriptor.storageMode = .private
 
         guard heapDescriptor.size > 0 else {
-            throw SwiftGLTFError.render(description: "Failed to create heap buffer")
+            throw SwiftGLTFRendererError(description: "Failed to create heap buffer")
         }
         guard let fragmentArgumentHeap = device.makeHeap(descriptor: heapDescriptor) else {
-            throw SwiftGLTFError.render(description: "Failed to create fragment argument heap")
+            throw SwiftGLTFRendererError(description: "Failed to create fragment argument heap")
         }
         fragmentArgumentHeap.label = "[SwiftGLTF] Fragment Heap"
         return fragmentArgumentHeap
@@ -963,10 +963,10 @@ public class PBRMeshLoader {
         heapDescriptor.storageMode = .private
 
         guard heapDescriptor.size > 0 else {
-            throw SwiftGLTFError.render(description: "Failed to create heap buffer")
+            throw SwiftGLTFRendererError(description: "Failed to create heap buffer")
         }
         guard let vertexModelHeap = device.makeHeap(descriptor: heapDescriptor) else {
-            throw SwiftGLTFError.render(description: "Failed to create vertex model heap")
+            throw SwiftGLTFRendererError(description: "Failed to create vertex model heap")
         }
         vertexModelHeap.label = "[SwiftGLTF] Vertex Heap"
         return vertexModelHeap
@@ -1080,7 +1080,7 @@ public class PBRMeshLoader {
         if let samplerState = device.makeSamplerState(descriptor: descriptor) {
             return samplerState
         } else {
-            throw SwiftGLTFError.render(description: "Failed to create argument buffer")
+            throw SwiftGLTFRendererError(description: "Failed to create argument buffer")
         }
     }
 
