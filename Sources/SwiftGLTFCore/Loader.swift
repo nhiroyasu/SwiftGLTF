@@ -209,6 +209,13 @@ private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFBundle {
     return GLTFBundle(gltf: gltf, binaryBuffers: buffers, binaryTextures: textures)
 }
 
+public func loadGLTF(from data: Data, baseURL: URL) async throws -> GLTFBundle {
+    try await Task { try loadGLTF(from: data, baseURL: baseURL) }.value
+}
+
+/// This method reads GLTF files synchronously.
+///
+/// To call it asynchronously, use `await`.
 public func loadGLTF(from data: Data, baseURL: URL) throws -> GLTFBundle {
     if isGLB(data) {
         // Load GLB: parse JSON and binary chunks

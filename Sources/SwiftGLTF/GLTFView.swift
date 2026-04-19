@@ -148,8 +148,8 @@ public class GLTFView: MTKView {
             displayType = .loading
             defer { displayType = .drawable }
             let data = try Data(contentsOf: url)
-            let gltfBundle = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-            let asset = try makeMDLAsset(from: gltfBundle)
+            let gltfBundle = try await loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
+            let asset = try await makeMDLAsset(from: gltfBundle)
             let meshBundle = try await meshLoader.loadMeshes(
                 from: asset,
                 sceneIndex: sceneIndex,

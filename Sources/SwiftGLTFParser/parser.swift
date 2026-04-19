@@ -12,6 +12,16 @@ public func makeMDLAsset(from url: URL, options: GLTFDecodeOptions = .default) t
 public func makeMDLAsset(
     from gltfBundle: GLTFBundle,
     options: GLTFDecodeOptions = .default
+) async throws -> MDLAsset {
+    try await Task { try makeMDLAsset(from: gltfBundle, options: options) }.value
+}
+
+/// This method synchronously generates MDLAssets from a GLTF Bundle.
+///
+/// To call it asynchronously, use `await`.
+public func makeMDLAsset(
+    from gltfBundle: GLTFBundle,
+    options: GLTFDecodeOptions = .default
 ) throws -> MDLAsset {
     #if DEBUG
     let startTime = Date()

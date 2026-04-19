@@ -40,7 +40,6 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       showGraphicsOverview = "Yes"
-      logGraphicsOverview = "Yes"
       allowLocationSimulation = "YES">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
