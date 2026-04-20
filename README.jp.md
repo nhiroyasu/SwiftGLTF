@@ -87,6 +87,7 @@ var body: some View {
 |------------|-----------|
 | PNG        | ✅         |
 | JPEG       | ✅         |
+| WebP       | ✅         |
 | KTX2       | ❌         |
 
 ### Mesh Compression
