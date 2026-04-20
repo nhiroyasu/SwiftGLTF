@@ -5,13 +5,13 @@ public struct GLTFBundle: Equatable {
     public let gltf: GLTF
     /// Embedded binary chunks; for .glb files this contains the BIN chunk data
     public let binaryBuffers: [Data]
-    /// Image binary data mapped by image index (embedded or external). Nil means decode failed.
-    public let binaryTextures: [MDLTexture?]
+    /// Image binary data mapped by image index (embedded or external)
+    public let binaryTextures: [MDLTexture]
 
     public init(
         gltf: GLTF,
         binaryBuffers: [Data],
-        binaryTextures: [MDLTexture?]
+        binaryTextures: [MDLTexture]
     ) {
         self.gltf = gltf
         self.binaryBuffers = binaryBuffers

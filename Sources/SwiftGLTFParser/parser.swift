@@ -515,57 +515,15 @@ func loadTextureSampler(
         return nil
     }
     let gltfTexture = textures[textureIndex.value]
+    guard let source = gltfTexture.extensions?.extTextureWebP?.source ?? gltfTexture.source else {
+        return nil
+    }
     let mdlTexture: MDLTexture
-    if let webPSource = gltfTexture.extensions?.extTextureWebP?.source {
-        let fallbackSource: ImageIndex? = {
-            guard let source = gltfTexture.source, source != webPSource else { return nil }
-            return source
-        }()
-
-        do {
-            if let webPTexture = try binaryLoader.extractTexture(textureIndex: webPSource) {
-                mdlTexture = webPTexture
-            } else if let fallbackSource {
-                guard let fallbackTexture = try binaryLoader.extractTexture(textureIndex: fallbackSource) else {
-                    logger.error("Fallback texture not found for index \(fallbackSource.value, privacy: .public)")
-                    return nil
-                }
-                mdlTexture = fallbackTexture
-            } else {
-                logger.error("Texture not found for index \(webPSource.value, privacy: .public)")
-                return nil
-            }
-        } catch {
-            guard let fallbackSource else {
-                logger.error("Texture not found for index \(webPSource.value, privacy: .public)")
-                return nil
-            }
-            do {
-                guard let fallbackTexture = try binaryLoader.extractTexture(textureIndex: fallbackSource) else {
-                    logger.error("Fallback texture not found for index \(fallbackSource.value, privacy: .public)")
-                    return nil
-                }
-                mdlTexture = fallbackTexture
-            } catch {
-                logger.error("Texture not found for index \(webPSource.value, privacy: .public)")
-                logger.error("Fallback texture not found for index \(fallbackSource.value, privacy: .public)")
-                return nil
-            }
-        }
-    } else {
-        guard let source = gltfTexture.source else {
-            return nil
-        }
-        do {
-            guard let sourceTexture = try binaryLoader.extractTexture(textureIndex: source) else {
-                logger.error("Texture not found for index \(source.value, privacy: .public)")
-                return nil
-            }
-            mdlTexture = sourceTexture
-        } catch {
-            logger.error("Texture not found for index \(source.value, privacy: .public)")
-            return nil
-        }
+    do {
+        mdlTexture = try binaryLoader.extractTexture(textureIndex: source)
+    } catch {
+        logger.error("Texture not found for index \(source.value, privacy: .public)")
+        return nil
     }
 
     let sampler = MDLTextureSampler()

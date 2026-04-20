@@ -5,8 +5,6 @@ import Foundation
 @testable import SwiftGLTFCore
 
 struct TextureWebPTests {
-    private let fallbackPNGDataURI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAABlBMVEUAAAD///+l2Z/dAAAACklEQVQI12NgAAAAAgAB4iG8MwAAAABJRU5ErkJggg=="
-
     @Test
     func testEXTTextureWebPPrioritizesWebPSource() throws {
         let sampler = try loadSampler(gltfName: "texture_webp_priority")
@@ -19,14 +17,12 @@ struct TextureWebPTests {
     }
 
     @Test
-    func testEXTTextureWebPFallsBackToSourceWhenWebPIsUnavailable() throws {
-        let sampler = try loadSampler(gltfName: "texture_webp_fallback_to_source")
-        let actualTexture = try #require(sampler.texture)
-
-        let fallbackData = try dataFromDataURI(fallbackPNGDataURI)
-        let expectedTexture = try makeMDLTexture(from: fallbackData, name: "ExpectedFallbackPNG")
-
-        #expect(actualTexture.texelDataWithTopLeftOrigin() == expectedTexture.texelDataWithTopLeftOrigin())
+    func testEXTTextureWebPLoadFailsWhenWebPIsUnavailable() throws {
+        let gltfURL = try #require(Bundle.module.url(forResource: "texture_webp_fallback_to_source", withExtension: "gltf"))
+        let data = try Data(contentsOf: gltfURL)
+        #expect(throws: Error.self) {
+            _ = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
+        }
     }
 
     @Test

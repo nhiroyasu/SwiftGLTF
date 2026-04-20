@@ -51,8 +51,8 @@ struct CubeBinaryWithTextureTests {
 
         // glTFに定義されたURIから直接MDLTextureを作成
         // en: Create MDLTexture directly from the URI defined in glTF
-        let expectedBaseColorTexture = try #require(gltfContainer.binaryTextures[1])
-        let expectedNormalTexture = try #require(gltfContainer.binaryTextures[0])
+        let expectedBaseColorTexture = gltfContainer.binaryTextures[1]
+        let expectedNormalTexture = gltfContainer.binaryTextures[0]
 
         #expect(baseColorTexture.texelDataWithTopLeftOrigin() == expectedBaseColorTexture.texelDataWithTopLeftOrigin())
         #expect(normalTexture.texelDataWithTopLeftOrigin() == expectedNormalTexture.texelDataWithTopLeftOrigin())

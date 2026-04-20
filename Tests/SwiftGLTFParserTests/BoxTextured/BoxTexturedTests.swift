@@ -10,7 +10,7 @@ struct BoxTexturedTests {
         let gltfBundle = try loadGLTFBundle()
         // Expect exactly one texture
         #expect(gltfBundle.binaryTextures.count == 1)
-        let actualTexture = try #require(gltfBundle.binaryTextures[0])
+        let actualTexture = gltfBundle.binaryTextures[0]
 
         // Load expected image from resource
         let pngURL = Bundle.module.url(forResource: "CesiumLogoFlat", withExtension: "png")!
