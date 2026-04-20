@@ -141,17 +141,17 @@ private func loadFromGLB(_ data: Data) throws -> GLTFBundle {
             throw SwiftGLTFCoreError(description: "Image bufferView is missing for image 0")
         }
         for (idx, image) in images.enumerated() {
-            if let bvIndex = image.bufferView?.value {
-                let bv = bufferViews[bvIndex]
-
-                let start = bv.byteOffset
-                let length = bv.byteLength
-                let imageData = binChunk.subdata(in: start..<(start + length))
-                let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
-                textures.append(texture)
-            } else {
+            guard let bvIndex = image.bufferView?.value else {
                 throw SwiftGLTFCoreError(description: "Image bufferView is missing for image \(idx)")
             }
+
+            let bv = bufferViews[bvIndex]
+            let start = bv.byteOffset
+            let length = bv.byteLength
+            let imageData = binChunk.subdata(in: start..<(start + length))
+
+            let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
+            textures.append(texture)
         }
     }
     return GLTFBundle(gltf: gltf, binaryBuffers: [binChunk], binaryTextures: textures)
@@ -186,22 +186,23 @@ private func loadFromGLTF(_ data: Data, baseURL: URL) throws -> GLTFBundle {
     }
 
     // Extract external images or data URIs
+    let images = gltf.images ?? []
     var textures: [MDLTexture] = []
-    for (idx, image) in (gltf.images ?? []).enumerated() {
-        if let uri = image.uri {
-            if uri.hasPrefix("data:") {
-                // Make MDLTexture from data URI
-                let imageData = try dataFromDataURI(uri)
-                let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
-                textures.append(texture)
-            } else if let url = URL(string: uri, relativeTo: baseURL) {
-                // Make MDLTexture from external file
-                let imageData = try Data(contentsOf: url)
-                let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
-                textures.append(texture)
-            } else {
-                throw SwiftGLTFCoreError(description: "Image URI is missing or invalid")
-            }
+    for (idx, image) in images.enumerated() {
+        guard let uri = image.uri else {
+            throw SwiftGLTFCoreError(description: "Image URI is missing or invalid")
+        }
+
+        if uri.hasPrefix("data:") {
+            // Make MDLTexture from data URI
+            let imageData = try dataFromDataURI(uri)
+            let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
+            textures.append(texture)
+        } else if let url = URL(string: uri, relativeTo: baseURL) {
+            // Make MDLTexture from external file
+            let imageData = try Data(contentsOf: url)
+            let texture = try makeMDLTexture(from: imageData, name: "Texture_\(idx)")
+            textures.append(texture)
         } else {
             throw SwiftGLTFCoreError(description: "Image URI is missing or invalid")
         }

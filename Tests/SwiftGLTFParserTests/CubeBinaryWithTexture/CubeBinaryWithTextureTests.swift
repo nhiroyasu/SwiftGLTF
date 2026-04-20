@@ -111,8 +111,8 @@ struct CubeBinaryWithTextureTests {
             throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "cube.glb not found"])
         }
         let data = try Data(contentsOf: gltfURL)
-        let gltfBundle = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try makeMDLAsset(from: gltfBundle)
+        let gltfBundle = try await loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
+        let asset = try await makeMDLAsset(from: gltfBundle)
         return (gltfBundle, asset)
     }
 

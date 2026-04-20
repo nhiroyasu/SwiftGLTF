@@ -511,18 +511,21 @@ func loadTextureSampler(
 ) -> MDLTextureSampler? {
     // Load texture data via binaryLoader
     let textures = gltf.textures ?? []
-    guard textureIndex.value < textures.count,
-          let sourceIndex = textures[textureIndex.value].source else {
+    guard textureIndex.value < textures.count else {
         return nil
     }
     let gltfTexture = textures[textureIndex.value]
-    let mdlTexture: MDLTexture
-    do {
-        mdlTexture = try binaryLoader.extractTexture(textureIndex: sourceIndex)
-    } catch {
-        logger.error("Texture not found for index \(sourceIndex.value, privacy: .public)")
+    guard let source = gltfTexture.extensions?.extTextureWebP?.source ?? gltfTexture.source else {
         return nil
     }
+    let mdlTexture: MDLTexture
+    do {
+        mdlTexture = try binaryLoader.extractTexture(textureIndex: source)
+    } catch {
+        logger.error("Texture not found for index \(source.value, privacy: .public)")
+        return nil
+    }
+
     let sampler = MDLTextureSampler()
     sampler.texture = mdlTexture
     // Configure sampler filtering and wrapping if specified

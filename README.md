@@ -96,6 +96,7 @@ var body: some View {
 |------------|-----------|
 | PNG        | ✅         |
 | JPEG       | ✅         |
+| WebP       | ✅         |
 | KTX2       | ❌         |
 
 ### Mesh Compression
@@ -134,6 +135,7 @@ var body: some View {
 - `KHR_materials_unlit`
 - `KHR_materials_variants`
 - `KHR_texture_transform`
+- `EXT_texture_webp`
 
 ### Vertex Attributes
 | Attribute     | Supported |

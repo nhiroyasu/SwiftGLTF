@@ -69,6 +69,7 @@ let package = Package(
                 .process("EmissiveCube/Resources/emissive_cube.bin"),
                 .process("BoxTextured/Resources/EmbeddedBoxTextured.gltf"),
                 .process("BoxTextured/Resources/CesiumLogoFlat.png"),
+                .process("TextureWebP/Resources"),
                 .process("SimpleSkin/Resources"),
                 .process("AnimatedMorphCube/Resources"),
             ]),

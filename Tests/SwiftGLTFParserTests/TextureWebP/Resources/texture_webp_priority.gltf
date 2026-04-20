@@ -1,0 +1,23 @@
+{
+    "asset": {
+        "version": "2.0"
+    },
+    "images": [
+        {
+            "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAABlBMVEUAAAD///+l2Z/dAAAACklEQVQI12NgAAAAAgAB4iG8MwAAAABJRU5ErkJggg=="
+        },
+        {
+            "uri": "TextureWebP_Priority.webp"
+        }
+    ],
+    "textures": [
+        {
+            "source": 0,
+            "extensions": {
+                "EXT_texture_webp": {
+                    "source": 1
+                }
+            }
+        }
+    ]
+}
