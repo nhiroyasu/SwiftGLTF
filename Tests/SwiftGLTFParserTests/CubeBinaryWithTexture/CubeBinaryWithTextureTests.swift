@@ -51,8 +51,8 @@ struct CubeBinaryWithTextureTests {
 
         // glTFに定義されたURIから直接MDLTextureを作成
         // en: Create MDLTexture directly from the URI defined in glTF
-        let expectedBaseColorTexture = gltfContainer.binaryTextures[1]
-        let expectedNormalTexture = gltfContainer.binaryTextures[0]
+        let expectedBaseColorTexture = try #require(gltfContainer.binaryTextures[1])
+        let expectedNormalTexture = try #require(gltfContainer.binaryTextures[0])
 
         #expect(baseColorTexture.texelDataWithTopLeftOrigin() == expectedBaseColorTexture.texelDataWithTopLeftOrigin())
         #expect(normalTexture.texelDataWithTopLeftOrigin() == expectedNormalTexture.texelDataWithTopLeftOrigin())
@@ -111,8 +111,8 @@ struct CubeBinaryWithTextureTests {
             throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "cube.glb not found"])
         }
         let data = try Data(contentsOf: gltfURL)
-        let gltfBundle = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try makeMDLAsset(from: gltfBundle)
+        let gltfBundle = try await loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
+        let asset = try await makeMDLAsset(from: gltfBundle)
         return (gltfBundle, asset)
     }
 

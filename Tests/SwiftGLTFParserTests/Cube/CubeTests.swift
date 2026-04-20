@@ -234,8 +234,8 @@ struct CubeTests {
             throw NSError(domain: "CubeGLTFTests", code: -1, userInfo: [NSLocalizedDescriptionKey: "cube.gltf not found"])
         }
         let data = try Data(contentsOf: gltfURL)
-        let gltfContainer = try loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
-        let asset = try makeMDLAsset(
+        let gltfContainer = try await loadGLTF(from: data, baseURL: gltfURL.deletingLastPathComponent())
+        let asset = try await makeMDLAsset(
             from: gltfContainer,
             options: GLTFDecodeOptions(convertToLeftHanded: false, autoScale: false)
         )

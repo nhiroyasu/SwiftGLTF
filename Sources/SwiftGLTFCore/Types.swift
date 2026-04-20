@@ -5,10 +5,14 @@ public struct GLTFBundle: Equatable {
     public let gltf: GLTF
     /// Embedded binary chunks; for .glb files this contains the BIN chunk data
     public let binaryBuffers: [Data]
-    /// Image binary data mapped by image index (embedded or external)
-    public let binaryTextures: [MDLTexture]
+    /// Image binary data mapped by image index (embedded or external). Nil means decode failed.
+    public let binaryTextures: [MDLTexture?]
 
-    public init(gltf: GLTF, binaryBuffers: [Data], binaryTextures: [MDLTexture]) {
+    public init(
+        gltf: GLTF,
+        binaryBuffers: [Data],
+        binaryTextures: [MDLTexture?]
+    ) {
         self.gltf = gltf
         self.binaryBuffers = binaryBuffers
         self.binaryTextures = binaryTextures
@@ -718,7 +722,20 @@ public struct ImageIndex: Codable, Hashable, ExpressibleByIntegerLiteral, Equata
 public struct Texture: Codable, Equatable {
     public let sampler: Int?
     public let source: ImageIndex?
+    public let extensions: TextureExtensions?
     public let name: String?
+}
+
+public struct TextureExtensions: Codable, Equatable {
+    public let extTextureWebP: EXTTextureWebP?
+
+    enum CodingKeys: String, CodingKey {
+        case extTextureWebP = "EXT_texture_webp"
+    }
+}
+
+public struct EXTTextureWebP: Codable, Equatable {
+    public let source: ImageIndex
 }
 
 public struct Sampler: Codable, Equatable {

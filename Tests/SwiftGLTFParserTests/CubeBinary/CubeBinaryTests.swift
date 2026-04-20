@@ -225,8 +225,8 @@ struct CubeBinaryTests {
                           userInfo: [NSLocalizedDescriptionKey: "cube.glb not found"])
         }
         let data = try Data(contentsOf: url)
-        let gltfContainer = try loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
-        let asset = try makeMDLAsset(
+        let gltfContainer = try await loadGLTF(from: data, baseURL: url.deletingLastPathComponent())
+        let asset = try await makeMDLAsset(
             from: gltfContainer,
             options: GLTFDecodeOptions(convertToLeftHanded: false, autoScale: false)
         )
