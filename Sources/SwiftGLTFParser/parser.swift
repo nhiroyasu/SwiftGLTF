@@ -224,12 +224,12 @@ public func makeMDLMesh(
         var jointsVertex = try makeJointVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
         var weightsVertex = try makeWeightVertex(for: primitive, accessors: accessors, binaryLoader: binaryLoader)
 
-    // If JOINTS_0/WEIGHTS_0 are not both present, disable skinning
-    if (jointsVertex == nil) != (weightsVertex == nil) {
-        logger.info("JOINTS_0/WEIGHTS_0 mismatch: disabling skinning for this primitive")
-        jointsVertex = nil
-        weightsVertex = nil
-    }
+        // If JOINTS_0/WEIGHTS_0 are not both present, disable skinning
+        if (jointsVertex == nil) != (weightsVertex == nil) {
+            logger.info("JOINTS_0/WEIGHTS_0 mismatch: disabling skinning for this primitive")
+            jointsVertex = nil
+            weightsVertex = nil
+        }
 
         if normalVertex == nil,
            primitive.mode == .triangles {
@@ -285,28 +285,23 @@ public func makeMDLMesh(
             nil
         }
 
-        // Calculate mesh center from POSITION accessor min/max and store to material property
+        // Calculate mesh center from POSITION accessor min/max
         // Used in distance sorting of transparent mesh
+        var meshCenter = SIMD3<Float>(0, 0, 0)
         if let positionAccessorIndex = primitive.attributes[GLTFAttribute.position.rawValue] {
             let accessors = gltf.accessors ?? []
             if accessors.indices.contains(positionAccessorIndex) {
                 let accessor = accessors[positionAccessorIndex]
                 if let minVals = accessor.min, minVals.count >= 3,
                    let maxVals = accessor.max, maxVals.count >= 3 {
-                    var center = SIMD3<Float>(
+                    meshCenter = SIMD3<Float>(
                         (minVals[0] + maxVals[0]) * 0.5,
                         (minVals[1] + maxVals[1]) * 0.5,
                         (minVals[2] + maxVals[2]) * 0.5
                     )
                     if options.convertToLeftHanded {
-                        center.z = -center.z
+                        meshCenter.z = -meshCenter.z
                     }
-                    let centerProp = MDLMaterialProperty(
-                        name: MaterialPropertyName.meshCenter.rawValue,
-                        semantic: .userDefined,
-                        float3: center
-                    )
-                    mdlMaterial?.setProperty(centerProp)
                 }
             }
         }
@@ -328,7 +323,8 @@ public func makeMDLMesh(
             geometryType: .triangles,
             material: mdlMaterial,
             materialIndex: primitive.material ?? -1,
-            variantMappings: variantMappings
+            variantMappings: variantMappings,
+            meshCenter: meshCenter
         )
 
         // Add the mesh to the list

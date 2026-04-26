@@ -440,8 +440,8 @@ public class PBRMeshLoader {
             // Double sided flag
             let isDoubleSided: Bool = (material?.propertyNamed(.doubleSided)?.floatValue ?? 0) != 0
 
-            // Mesh center in model space (from parser via MDLMaterial property)
-            let centerModelSpace: SIMD3<Float> = material?.propertyNamed(.meshCenter)?.float3Value ?? SIMD3<Float>(0, 0, 0)
+            // Mesh center in model space (from parser via GLTF_MDLSubmesh)
+            let centerModelSpace: SIMD3<Float> = gltfSubmesh?.meshCenter ?? SIMD3<Float>(0, 0, 0)
 
             // Material index
             let materialIndex = resolvedMaterialIndex

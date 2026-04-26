@@ -3,6 +3,7 @@ import ModelIO
 public class GLTF_MDLSubmesh: MDLSubmesh {
     public let materialIndex: Int
     public let variantMappings: [GLTFVariantMapping]
+    public let meshCenter: SIMD3<Float>
 
     init(
         name: String,
@@ -12,10 +13,12 @@ public class GLTF_MDLSubmesh: MDLSubmesh {
         geometryType: MDLGeometryType,
         material: MDLMaterial?,
         materialIndex: Int,
-        variantMappings: [GLTFVariantMapping]
+        variantMappings: [GLTFVariantMapping],
+        meshCenter: SIMD3<Float>
     ) {
         self.materialIndex = materialIndex
         self.variantMappings = variantMappings
+        self.meshCenter = meshCenter
         super.init(
             name: name,
             indexBuffer: indexBuffer,

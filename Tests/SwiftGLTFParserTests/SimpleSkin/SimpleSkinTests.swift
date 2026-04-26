@@ -5,6 +5,20 @@ import ModelIO
 
 struct SimpleSkinTests {
     @Test
+    func testMeshCenterProperty() async throws {
+        let (_, asset) = try await loadGLTFAndAsset()
+        let mdlMesh = targetMesh(from: asset)
+        let mdlSubmesh = mdlMesh.submeshes?.firstObject as! GLTF_MDLSubmesh
+
+        let expectedCenter = SIMD3<Float>(0, 1, 0)
+        let actualCenter = mdlSubmesh.meshCenter
+
+        #expect(actualCenter.x == expectedCenter.x)
+        #expect(actualCenter.y == expectedCenter.y)
+        #expect(actualCenter.z == expectedCenter.z)
+    }
+
+    @Test
     func testSkeletonNode() async throws {
         let (_, asset) = try await loadGLTFAndAsset()
         let skin = asset.object(atPath: GLTFAssetPath.skins).children.objects.first as! GLTFSkin
@@ -43,5 +57,10 @@ struct SimpleSkinTests {
             options: GLTFDecodeOptions(convertToLeftHanded: false, autoScale: false)
         )
         return (gltfContainer.gltf, asset)
+    }
+
+    private func targetMesh(from asset: MDLAsset) -> MDLMesh {
+        let mesh = asset.object(atPath: GLTFAssetPath.primitiveMesh(0)).children[0] as! MDLMesh
+        return mesh
     }
 }

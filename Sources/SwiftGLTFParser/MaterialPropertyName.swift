@@ -13,8 +13,6 @@ public enum MaterialPropertyName: String {
     case occlusionStrength
     case alphaMode
     case alphaCutoff
-    // Mesh center (from POSITION min/max)
-    case meshCenter
     // Texture coordinate indices for UV sets
     case normalTextureTexCoord
     case normalTextureTransformOffsetScale
