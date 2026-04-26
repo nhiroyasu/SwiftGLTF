@@ -130,7 +130,8 @@ final class PBRRenderTests {
         ("CompareTransmission", "glb", nil),
         ("CompareClearcoat", "glb", nil),
         ("TextureTransformMultiTest", "glb", nil),
-        ("CompareVolume", "glb", nil)
+        ("CompareVolume", "glb", nil),
+        ("EmissiveStrengthTest", "glb", SIMD3<Float>(0.0, 10.6, -10.6))
     ]
 
     // Export baseline textures

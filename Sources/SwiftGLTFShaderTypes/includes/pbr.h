@@ -8,6 +8,7 @@ typedef struct {
     vector_float4 baseColorFactor;
     vector_float4 metalRoughnessOcclusion; // x=metallic, y=roughness, z=occlusion, w=padding
     vector_float4 emissiveFactor;
+    float emissiveStrength;
     uint32_t doubleSided; // 0 or 1
     uint32_t isUnlit; // 0 or 1
     vector_float4 transmissionThicknessDistance; // x: transmissionFactor, y: thicknessFactor, z: attenuationDistance, w: padding

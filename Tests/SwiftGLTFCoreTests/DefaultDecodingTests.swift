@@ -38,6 +38,33 @@ final class DefaultDecodingTests {
     }
 
     @Test
+    func testEmissiveStrengthExtensionDecoding() throws {
+        let json = """
+        {
+          "asset": { "version": "2.0" },
+          "materials": [
+            {
+              "extensions": {
+                "KHR_materials_emissive_strength": {
+                  "emissiveStrength": 4.5
+                }
+              }
+            },
+            {
+              "extensions": {
+                "KHR_materials_emissive_strength": {}
+              }
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+        let gltf = try JSONDecoder().decode(GLTF.self, from: json)
+        let materials = try #require(gltf.materials)
+        #expect(materials[0].extensions?.khrMaterialsEmissiveStrength?.emissiveStrength == 4.5)
+        #expect(materials[1].extensions?.khrMaterialsEmissiveStrength?.emissiveStrength == 1.0)
+    }
+
+    @Test
     func testPBRDefaults() throws {
         let json = """
         {

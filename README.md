@@ -126,6 +126,7 @@ var body: some View {
 | extensions           | ✅ (see blow) |
 
 #### Supported Extensions for Materials
+- `KHR_materials_emissive_strength`
 - `KHR_materials_transmission`
 - `KHR_materials_volume`
 - `KHR_materials_ior`

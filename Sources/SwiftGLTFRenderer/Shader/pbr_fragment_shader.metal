@@ -70,8 +70,8 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
     uvE = apply_texture_transform(uvE, fragArgs.emissiveTransformOffsetScale, fragArgs.emissiveTransformRotation);
     // Emissive lighting: apply material emissive factor
     float3 emission = fragArgs.hasEmissiveTexture
-    ? emissiveTexture.sample(emissiveSampler, uvE).rgb * mUni.emissiveFactor.rgb
-    : float3(1, 1, 1) * mUni.emissiveFactor.rgb;
+    ? emissiveTexture.sample(emissiveSampler, uvE).rgb * mUni.emissiveFactor.rgb * mUni.emissiveStrength
+    : float3(1, 1, 1) * mUni.emissiveFactor.rgb * mUni.emissiveStrength;
 
     // Handle unlit materials
     if (mUni.isUnlit != 0) {

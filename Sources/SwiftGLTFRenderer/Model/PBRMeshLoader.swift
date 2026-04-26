@@ -1146,6 +1146,7 @@ public class PBRMeshLoader {
         let roughnessFactor = material?.propertyNamed(.roughness)?.floatValue ?? 1.0
         let occlusionFactor = material?.propertyNamed(.occlusionStrength)?.floatValue ?? 1.0
         let emissiveFactor = material?.propertyNamed(.emissiveFactor)?.float3Value ?? SIMD3<Float>(0, 0, 0)
+        let emissiveStrength = material?.propertyNamed(.emissiveStrength)?.floatValue ?? 1.0
 
         // Base color texture and sampler
         var (hasBaseColorTexture, baseColorTexture, baseColorSamplerState) = retrieveTexture(prop: material?.propertyNamed(.baseColorTexture), textureMap: textureMap)
@@ -1293,6 +1294,7 @@ public class PBRMeshLoader {
             baseColorFactor: baseColorFactor,
             metalRoughnessOcclusion: SIMD4<Float>(metallicFactor, roughnessFactor, occlusionFactor, 0),
             emissiveFactor: SIMD4<Float>(emissiveFactor.x, emissiveFactor.y, emissiveFactor.z, 0),
+            emissiveStrength: emissiveStrength,
             doubleSided: isDoubleSided ? 1 : 0,
             isUnlit: isUnlit ? 1 : 0,
             transmissionThicknessDistance: SIMD4<Float>(transmissionFactor, material?.propertyNamed(.thicknessFactor)?.floatValue ?? 0.0, attenuationDistance, 0),
