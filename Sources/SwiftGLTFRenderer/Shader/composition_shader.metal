@@ -1,4 +1,5 @@
 #include <metal_stdlib>
+#include "includes/helper.h"
 using namespace metal;
 
 struct VSOut {
@@ -20,11 +21,14 @@ vertex VSOut fullscreen_vertex(uint vid [[vertex_id]]) {
 fragment float4 compose_fragment(VSOut in [[stage_in]],
                                  texture2d<float> baseTex [[texture(0)]],
                                  constant uint &useTransTex [[buffer(0)]],
-                                 texture2d<float> transTex [[texture(1)]]) {
+                                 texture2d<float> transTex [[texture(1)]],
+                                 texture2d<float> bloomTex [[texture(2)]],
+                                 constant float &bloomIntensity [[buffer(1)]]) {
     constexpr sampler s(mag_filter::linear, min_filter::linear, s_address::clamp_to_edge, t_address::clamp_to_edge);
     float2 uv = clamp(in.uv, float2(0.0), float2(1.0));
     float4 base = baseTex.sample(s, uv);
     float4 trans = useTransTex ? transTex.sample(s, uv) : float4(0,0,0,0);
-    float3 rgb = base.rgb * (1.0 - trans.a) + trans.rgb;
+    float3 bloom = bloomTex.sample(s, uv).rgb * bloomIntensity;
+    float3 rgb = base.rgb * (1.0 - trans.a) + trans.rgb + bloom;
     return float4(rgb, 1);
 }

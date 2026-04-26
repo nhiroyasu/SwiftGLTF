@@ -35,6 +35,7 @@ public class PBRPipelineConnector {
         opaqueDescriptor.vertexFunction = vertexFunction
         opaqueDescriptor.fragmentFunction = fragmentFunction
         opaqueDescriptor.colorAttachments[0].pixelFormat = config.colorPixelFormat
+        opaqueDescriptor.colorAttachments[1].pixelFormat = config.colorPixelFormat
         opaqueDescriptor.depthAttachmentPixelFormat = config.depthPixelFormat
         opaqueDescriptor.rasterSampleCount = config.sampleCount
         opaqueDescriptor.vertexDescriptor = makeGLTFVertexDescriptor()
@@ -51,6 +52,14 @@ public class PBRPipelineConnector {
         ca0.sourceAlphaBlendFactor = .one
         ca0.destinationAlphaBlendFactor = .oneMinusSourceAlpha
         ca0.alphaBlendOperation = .add
+        let ca1 = alphaBlendDescriptor.colorAttachments[1]!
+        ca1.isBlendingEnabled = true
+        ca1.sourceRGBBlendFactor = .one
+        ca1.destinationRGBBlendFactor = .oneMinusSourceAlpha
+        ca1.rgbBlendOperation = .add
+        ca1.sourceAlphaBlendFactor = .one
+        ca1.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        ca1.alphaBlendOperation = .add
         self.alphaBlendPSO = try device.makeRenderPipelineState(descriptor: alphaBlendDescriptor)
     }
 
