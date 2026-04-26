@@ -15,6 +15,7 @@ public class PBRRenderer {
     private let shaderConnection: ShaderConnection
     private let offscreenTextureManager: PBROffscreenTextureManager
     private let prefilterSceneGenerator: PrefilterSceneGenerator
+    private let bloomGenerator: BloomGenerator
 
     private let writeDSO: MTLDepthStencilState
     private let noWriteDSO: MTLDepthStencilState
@@ -26,6 +27,7 @@ public class PBRRenderer {
     private let sampleCount: Int
     private let colorPixelFormat: MTLPixelFormat
     private let depthPixelFormat: MTLPixelFormat
+    private let bloomIntensity: Float
 
     private let sourceScreenColorArgumentBuffer: MTLBuffer
     private let sourceNoScreenColorArgumentBuffer: MTLBuffer
@@ -39,7 +41,8 @@ public class PBRRenderer {
         sampleCount: Int = 4,
         colorPixelFormat: MTLPixelFormat = .rgba8Unorm_srgb,
         depthPixelFormat: MTLPixelFormat = .depth32Float,
-        maxFramesInFlight: Int = 2
+        maxFramesInFlight: Int = 2,
+        bloomIntensity: Float = 0.6
     ) throws {
         self.device = commandQueue.device
         self.commandQueue = commandQueue
@@ -48,8 +51,10 @@ public class PBRRenderer {
         self.sampleCount = sampleCount
         self.colorPixelFormat = colorPixelFormat
         self.depthPixelFormat = depthPixelFormat
+        self.bloomIntensity = bloomIntensity
         self.shaderConnection = try ShaderConnection(commandQueue: commandQueue)
         self.prefilterSceneGenerator = try PrefilterSceneGenerator(device: device)
+        self.bloomGenerator = try BloomGenerator(device: device)
 
         self.pbrPipelineConnector = try PBRPipelineConnector(device: device)
         self.envMapLoader = try EnvironmentMapLoader(commandQueue: commandQueue)
@@ -307,13 +312,23 @@ public class PBRRenderer {
             )
         }
 
-        // Pass 4: full-screen compose to screen
+        // Pass 4: Generate bloom texture
+        bloomGenerator.generate(
+            from: offscreenResources.bloomSourceTexture,
+            extractTexture: offscreenResources.bloomExtractTexture,
+            blurTexture: offscreenResources.bloomBlurTexture,
+            bloomTexture: offscreenResources.bloomTexture,
+            commandBuffer: commandBuffer
+        )
+
+        // Pass 5: full-screen compose to screen
         guard let composeRE = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else { return }
         composeRE.label = "[SwiftGLTF] PBR Compose Render Encoder"
         encodeComposePass(
             renderEncoder: composeRE,
             screenColorTexture: offscreenResources.screenColorTexture,
             sceneTransmissionTexture: offscreenResources.sceneTransmissionTexture,
+            bloomTexture: offscreenResources.bloomTexture,
             useTransmissionTexture: meshBundle.needsTransmissionPass ? 1 : 0
         )
     }
@@ -391,14 +406,18 @@ public class PBRRenderer {
         renderEncoder: MTLRenderCommandEncoder,
         screenColorTexture: MTLTexture,
         sceneTransmissionTexture: MTLTexture,
+        bloomTexture: MTLTexture,
         useTransmissionTexture: UInt32
     ) {
         renderEncoder.setRenderPipelineState(composePipelineState)
         renderEncoder.setFragmentTexture(screenColorTexture, index: 0)
         renderEncoder.setFragmentTexture(sceneTransmissionTexture, index: 1)
+        renderEncoder.setFragmentTexture(bloomTexture, index: 2)
 
         var useTransTex: UInt32 = useTransmissionTexture
         renderEncoder.setFragmentBytes(&useTransTex, length: MemoryLayout<UInt32>.size, index: 0)
+        var bloomIntensity = self.bloomIntensity
+        renderEncoder.setFragmentBytes(&bloomIntensity, length: MemoryLayout<Float>.size, index: 1)
         renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         renderEncoder.endEncoding()
     }

@@ -53,7 +53,8 @@ public class PBRIndirectRenderStateBuilder {
         let skyboxConfig = SkyboxPipelineConfig(
             sampleCount: sampleCount,
             colorPixelFormat: .rgba16Float,
-            depthPixelFormat: .depth32Float
+            depthPixelFormat: .depth32Float,
+            usesBloomSourceAttachment: true
         )
         let skyboxPipelineConnector = try SkyboxPipelineConnector(
             device: device,

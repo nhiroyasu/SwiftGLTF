@@ -5,9 +5,14 @@ import SwiftGLTFShaderTypes
 struct PBROffscreenTextureResources {
     let screenColorMSAATexture: MTLTexture // offscreen color (opaque + mask + blend)
     let screenColorTexture: MTLTexture
+    let bloomSourceMSAATexture: MTLTexture
+    let bloomSourceTexture: MTLTexture
     let sceneTransmissionMSAATexture: MTLTexture // transmission only
     let sceneTransmissionTexture: MTLTexture
     let screenPrefilterTexture: MTLTexture // mip-chain prefiltered scene for rough transmission
+    let bloomExtractTexture: MTLTexture
+    let bloomBlurTexture: MTLTexture
+    let bloomTexture: MTLTexture
     let sceneDepthMSAATexture: MTLTexture
     let sceneColorSampler: MTLSamplerState
     let screenColorRPD: MTLRenderPassDescriptor
@@ -68,12 +73,14 @@ class PBROffscreenTextureManager {
         msaaDesc.textureType = .type2DMultisample
         msaaDesc.sampleCount = sampleCount
         let screenColorMSAATexture = device.makeTexture(descriptor: msaaDesc)
+        let bloomSourceMSAATexture = device.makeTexture(descriptor: msaaDesc)
         let sceneTransmissionMSAATexture = device.makeTexture(descriptor: msaaDesc)
 
         let resolveDesc = msaaDesc.copy() as! MTLTextureDescriptor
         resolveDesc.textureType = .type2D
         resolveDesc.sampleCount = 1
         let screenColorTexture = device.makeTexture(descriptor: resolveDesc)
+        let bloomSourceTexture = device.makeTexture(descriptor: resolveDesc)
         let sceneTransmissionTexture = device.makeTexture(descriptor: resolveDesc)
 
         let depthMSAADesc = MTLTextureDescriptor.texture2DDescriptor(
@@ -95,6 +102,12 @@ class PBROffscreenTextureManager {
         scColorAtt.loadAction = .clear
         scColorAtt.storeAction = .multisampleResolve
         scColorAtt.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let scBloomAtt = scPRD.colorAttachments[1]!
+        scBloomAtt.texture = bloomSourceMSAATexture
+        scBloomAtt.resolveTexture = bloomSourceTexture
+        scBloomAtt.loadAction = .clear
+        scBloomAtt.storeAction = .storeAndMultisampleResolve
+        scBloomAtt.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
         scPRD.depthAttachment.texture = sceneDepthMSAATexture
         scPRD.depthAttachment.loadAction = .clear
         scPRD.depthAttachment.clearDepth = 1.0
@@ -108,6 +121,11 @@ class PBROffscreenTextureManager {
         transColorAttr.loadAction = .clear
         transColorAttr.clearColor = MTLClearColorMake(0, 0, 0, 0)
         transColorAttr.storeAction = .multisampleResolve
+        let transBloomAttr = transRPD.colorAttachments[1]!
+        transBloomAttr.texture = bloomSourceMSAATexture
+        transBloomAttr.resolveTexture = bloomSourceTexture
+        transBloomAttr.loadAction = .load
+        transBloomAttr.storeAction = .storeAndMultisampleResolve
         transRPD.depthAttachment.texture = sceneDepthMSAATexture
         transRPD.depthAttachment.loadAction = .load
         transRPD.depthAttachment.storeAction = .store
@@ -136,20 +154,44 @@ class PBROffscreenTextureManager {
         prefilDesc.storageMode = .shared
         let screenPrefilterTexture = device.makeTexture(descriptor: prefilDesc)
 
+        let bloomWidth = max(width / 2, 1)
+        let bloomHeight = max(height / 2, 1)
+        let bloomDesc = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba16Float,
+            width: bloomWidth,
+            height: bloomHeight,
+            mipmapped: false
+        )
+        bloomDesc.usage = [.shaderRead, .shaderWrite]
+        bloomDesc.storageMode = .private
+        let bloomExtractTexture = device.makeTexture(descriptor: bloomDesc)
+        let bloomBlurTexture = device.makeTexture(descriptor: bloomDesc)
+        let bloomTexture = device.makeTexture(descriptor: bloomDesc)
+
         guard let screenColorMSAATexture,
               let screenColorTexture,
+              let bloomSourceMSAATexture,
+              let bloomSourceTexture,
               let sceneTransmissionMSAATexture,
               let sceneTransmissionTexture,
               let screenPrefilterTexture,
+              let bloomExtractTexture,
+              let bloomBlurTexture,
+              let bloomTexture,
               let sceneDepthMSAATexture else {
             throw SwiftGLTFRendererError(description: "Failed to create offscreen textures")
         }
         let resources = PBROffscreenTextureResources(
             screenColorMSAATexture: screenColorMSAATexture,
             screenColorTexture: screenColorTexture,
+            bloomSourceMSAATexture: bloomSourceMSAATexture,
+            bloomSourceTexture: bloomSourceTexture,
             sceneTransmissionMSAATexture: sceneTransmissionMSAATexture,
             sceneTransmissionTexture: sceneTransmissionTexture,
             screenPrefilterTexture: screenPrefilterTexture,
+            bloomExtractTexture: bloomExtractTexture,
+            bloomBlurTexture: bloomBlurTexture,
+            bloomTexture: bloomTexture,
             sceneDepthMSAATexture: sceneDepthMSAATexture,
             sceneColorSampler: screenColorSampler,
             screenColorRPD: screenColorRPD,

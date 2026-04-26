@@ -5,15 +5,18 @@ public struct SkyboxPipelineConfig {
     public let sampleCount: Int
     public let colorPixelFormat: MTLPixelFormat
     public let depthPixelFormat: MTLPixelFormat
+    public let usesBloomSourceAttachment: Bool
 
     public init(
         sampleCount: Int = 1,
         colorPixelFormat: MTLPixelFormat = .rgba8Unorm_srgb,
-        depthPixelFormat: MTLPixelFormat = .depth32Float
+        depthPixelFormat: MTLPixelFormat = .depth32Float,
+        usesBloomSourceAttachment: Bool = false
     ) {
         self.sampleCount = sampleCount
         self.colorPixelFormat = colorPixelFormat
         self.depthPixelFormat = depthPixelFormat
+        self.usesBloomSourceAttachment = usesBloomSourceAttachment
     }
 }
 

@@ -13,17 +13,22 @@
 
 using namespace metal;
 
-fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
-                                    constant int64_t &fragArgsPtrIndex [[buffer(PBRFragmentShaderArgsPtrIndexBuffer)]],
-                                    constant PBRFragmentArguments* fragArgsPtr [[buffer(PBRFragmentShaderArgsPtrBuffer)]],
-                                    constant PBREnvMapArguments &envMapArgs [[buffer(PBRFragmentShaderEnvMapArgsBuffer)]],
-                                    constant SceneUniforms &scene [[buffer(PBRFragmentShaderSceneUniformsBuffer)]],
-                                    constant PBRScreenColorArguments &scArgs [[buffer(PBRFragmentShaderScreenColorBuffer)]],
-                                    constant float4x4* worldTransforms [[buffer(PBRFragmentShaderWorldTransformsBuffer)]],
-                                    constant int64_t &cameraIndex [[buffer(PBRFragmentShaderCameraIndexBuffer)]],
-                                    constant FreeCameraUniforms &freeCameraUniforms [[buffer(PBRFragmentShaderFreeCameraUniformsBuffer)]],
-                                    constant NodeCameraUniforms* nodeCameraUniforms [[buffer(PBRFragmentShaderNodeCameraUniformsBuffer)]],
-                                    bool isFrontFacing [[front_facing]])
+struct PBRFragmentOutput {
+    float4 sceneColor [[color(0)]];
+    float4 bloomSource [[color(1)]];
+};
+
+fragment PBRFragmentOutput pbr_fragment_shader(PBRVertexOut in [[stage_in]],
+                                               constant int64_t &fragArgsPtrIndex [[buffer(PBRFragmentShaderArgsPtrIndexBuffer)]],
+                                               constant PBRFragmentArguments* fragArgsPtr [[buffer(PBRFragmentShaderArgsPtrBuffer)]],
+                                               constant PBREnvMapArguments &envMapArgs [[buffer(PBRFragmentShaderEnvMapArgsBuffer)]],
+                                               constant SceneUniforms &scene [[buffer(PBRFragmentShaderSceneUniformsBuffer)]],
+                                               constant PBRScreenColorArguments &scArgs [[buffer(PBRFragmentShaderScreenColorBuffer)]],
+                                               constant float4x4* worldTransforms [[buffer(PBRFragmentShaderWorldTransformsBuffer)]],
+                                               constant int64_t &cameraIndex [[buffer(PBRFragmentShaderCameraIndexBuffer)]],
+                                               constant FreeCameraUniforms &freeCameraUniforms [[buffer(PBRFragmentShaderFreeCameraUniformsBuffer)]],
+                                               constant NodeCameraUniforms* nodeCameraUniforms [[buffer(PBRFragmentShaderNodeCameraUniformsBuffer)]],
+                                               bool isFrontFacing [[front_facing]])
 {
     PBRFragmentArguments fragArgs = (fragArgsPtrIndex >= 0)
     ? fragArgsPtr[fragArgsPtrIndex]
@@ -82,7 +87,11 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
         }
         float3 color = albedo + emission;
         color *= fragArgs.alphaMode == AlphaModeBlend ? alpha : 1.0;
-        return float4(color, alpha);
+        float3 bloomSource = emission * (fragArgs.alphaMode == AlphaModeBlend ? alpha : 1.0);
+        return PBRFragmentOutput {
+            float4(color, alpha),
+            float4(bloomSource, alpha)
+        };
     }
 
     // Select UV coordinate for metallic-roughness
@@ -320,6 +329,10 @@ fragment float4 pbr_fragment_shader(PBRVertexOut in [[stage_in]],
 
     // Premultiply if blending (BLEND)
     color *= fragArgs.alphaMode == AlphaModeBlend ? alpha : 1.0;
+    emission *= fragArgs.alphaMode == AlphaModeBlend ? alpha : 1.0;
 
-    return float4(color, alpha);
+    return PBRFragmentOutput {
+        float4(color, alpha),
+        float4(emission, alpha)
+    };
 }

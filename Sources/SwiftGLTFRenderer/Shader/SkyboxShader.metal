@@ -12,6 +12,11 @@ struct SkyboxOut {
     float3 texcoord;
 };
 
+struct SkyboxFragmentOutput {
+    float4 sceneColor [[color(0)]];
+    float4 bloomSource [[color(1)]];
+};
+
 vertex SkyboxOut skybox_vertex_shader(uint vertexID [[vertex_id]],
                                       constant float4 *vertices [[buffer(0)]],
                                       constant float4x4* worldTransforms [[buffer(1)]],
@@ -48,4 +53,12 @@ vertex SkyboxOut skybox_vertex_shader(uint vertexID [[vertex_id]],
 fragment float4 skybox_fragment_shader(SkyboxOut in [[stage_in]],
                                        constant PBREnvMapArguments &args [[buffer(0)]]) {
     return args.prefilterEnvMap.sample(sampler(filter::linear), normalize(in.texcoord));
+}
+
+fragment SkyboxFragmentOutput skybox_mrt_fragment_shader(SkyboxOut in [[stage_in]],
+                                                         constant PBREnvMapArguments &args [[buffer(0)]]) {
+    return SkyboxFragmentOutput {
+        args.prefilterEnvMap.sample(sampler(filter::linear), normalize(in.texcoord)),
+        float4(0, 0, 0, 1)
+    };
 }

@@ -253,4 +253,9 @@ final class PBRRenderTests {
     func testCompareVolumeRenderingMatchesGolden() async throws {
         try await performMeshRenderingTest(meshName: "CompareVolume", ext: "glb", eye: nil)
     }
+
+    @Test
+    func testEmissiveStrengthTestRenderingMatchesGolden() async throws {
+        try await performMeshRenderingTest(meshName: "EmissiveStrengthTest", ext: "glb", eye: SIMD3<Float>(0.0, 10.6, -10.6))
+    }
 }
