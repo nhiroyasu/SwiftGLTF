@@ -52,6 +52,14 @@ public func rotationXMatrix(_ angle: Float) -> simd_float4x4 {
     )
 }
 
+func quaternion(fromEulerDegrees degrees: SIMD3<Float>) -> simd_quatf {
+    let radians = degrees * (.pi / 180)
+    let qx = simd_quatf(angle: radians.x, axis: SIMD3<Float>(1, 0, 0))
+    let qy = simd_quatf(angle: radians.y, axis: SIMD3<Float>(0, 1, 0))
+    let qz = simd_quatf(angle: radians.z, axis: SIMD3<Float>(0, 0, 1))
+    return simd_normalize(qz * qy * qx)
+}
+
 public func orthographicMatrix(left: Float, right: Float, bottom: Float, top: Float, near: Float, far: Float) -> simd_float4x4 {
     return simd_float4x4(
         SIMD4<Float>(2 / (right - left), 0, 0, 0),

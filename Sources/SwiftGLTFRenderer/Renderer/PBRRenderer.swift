@@ -152,7 +152,7 @@ public class PBRRenderer {
         meshBundle: PBRMeshBundle,
         commandBuffer cb: MTLCommandBuffer,
         animationState state: RendererAnimationState?,
-        vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf]
+        vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>]
     ) -> MTLFence? {
         guard meshBundle.needsAnimationPass || !vrmHumanoidRotations.isEmpty else {
             return nil
@@ -173,7 +173,7 @@ public class PBRRenderer {
                 continue
             }
             var trs = decomposeTRS(localTransforms[target])
-            trs.rotation = simd_normalize(trs.rotation * rotation)
+            trs.rotation = simd_normalize(trs.rotation * quaternion(fromEulerDegrees: rotation))
             localTransforms[target] = trs2matrix(trs)
         }
 

@@ -2,26 +2,6 @@ import Foundation
 import SwiftGLTFCore
 import simd
 
-private func vrmQuaternion(fromDegrees degrees: SIMD3<Float>) -> simd_quatf {
-    let radians = degrees * (.pi / 180)
-    let qx = simd_quatf(angle: radians.x, axis: SIMD3<Float>(1, 0, 0))
-    let qy = simd_quatf(angle: radians.y, axis: SIMD3<Float>(0, 1, 0))
-    let qz = simd_quatf(angle: radians.z, axis: SIMD3<Float>(0, 0, 1))
-    return simd_normalize(qz * qy * qx)
-}
-
-private func vrmEulerDegrees(from quaternion: simd_quatf) -> SIMD3<Float> {
-    let q = simd_normalize(quaternion)
-    let x = q.imag.x
-    let y = q.imag.y
-    let z = q.imag.z
-    let w = q.real
-    let roll = atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
-    let pitch = asin(max(-1, min(1, 2 * (w * y - z * x))))
-    let yaw = atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
-    return SIMD3<Float>(roll, pitch, yaw) * (180 / .pi)
-}
-
 #if os(iOS)
 import UIKit
 
@@ -30,7 +10,7 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
     private var fieldsByBone: [VRMHumanoidBoneName: [UITextField]] = [:]
     private var fieldBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
     private var resetBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
-    var onBoneRotationChange: ((VRMHumanoidBoneName, simd_quatf) -> Void)?
+    var onBoneRotationChange: ((VRMHumanoidBoneName, SIMD3<Float>) -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -66,11 +46,11 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func update(availableBones: Set<VRMHumanoidBoneName>, rotations: [VRMHumanoidBoneName: simd_quatf]) {
+    func update(availableBones: Set<VRMHumanoidBoneName>, rotations: [VRMHumanoidBoneName: SIMD3<Float>]) {
         for boneName in VRMHumanoidBoneName.supportedTransformBones {
             let enabled = availableBones.contains(boneName)
             guard let fields = fieldsByBone[boneName] else { continue }
-            let degrees = vrmEulerDegrees(from: rotations[boneName] ?? simd_quatf(angle: 0, axis: SIMD3<Float>(1, 0, 0)))
+            let degrees = rotations[boneName] ?? .zero
             for (index, field) in fields.enumerated() {
                 field.isEnabled = enabled
                 field.alpha = enabled ? 1.0 : 0.4
@@ -132,12 +112,12 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
               let vector = makeVector(from: fields) else {
             return
         }
-        onBoneRotationChange?(boneName, vrmQuaternion(fromDegrees: vector))
+        onBoneRotationChange?(boneName, vector)
     }
 
     @objc private func handleReset(_ sender: UIButton) {
         guard let boneName = resetBoneMap[ObjectIdentifier(sender)] else { return }
-        onBoneRotationChange?(boneName, simd_quatf(angle: 0, axis: SIMD3<Float>(1, 0, 0)))
+        onBoneRotationChange?(boneName, .zero)
     }
 
     private func makeVector(from fields: [UITextField]) -> SIMD3<Float>? {
@@ -159,7 +139,7 @@ final class VRMHumanoidDebugHUDView: NSView {
     private var fieldsByBone: [VRMHumanoidBoneName: [NSTextField]] = [:]
     private var fieldBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
     private var resetBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
-    var onBoneRotationChange: ((VRMHumanoidBoneName, simd_quatf) -> Void)?
+    var onBoneRotationChange: ((VRMHumanoidBoneName, SIMD3<Float>) -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -194,11 +174,11 @@ final class VRMHumanoidDebugHUDView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func update(availableBones: Set<VRMHumanoidBoneName>, rotations: [VRMHumanoidBoneName: simd_quatf]) {
+    func update(availableBones: Set<VRMHumanoidBoneName>, rotations: [VRMHumanoidBoneName: SIMD3<Float>]) {
         for boneName in VRMHumanoidBoneName.supportedTransformBones {
             let enabled = availableBones.contains(boneName)
             guard let fields = fieldsByBone[boneName] else { continue }
-            let degrees = vrmEulerDegrees(from: rotations[boneName] ?? simd_quatf(angle: 0, axis: SIMD3<Float>(1, 0, 0)))
+            let degrees = rotations[boneName] ?? .zero
             for (index, field) in fields.enumerated() {
                 field.isEnabled = enabled
                 field.alphaValue = enabled ? 1.0 : 0.4
@@ -258,12 +238,12 @@ final class VRMHumanoidDebugHUDView: NSView {
               let vector = makeVector(from: fields) else {
             return
         }
-        onBoneRotationChange?(boneName, vrmQuaternion(fromDegrees: vector))
+        onBoneRotationChange?(boneName, vector)
     }
 
     @objc private func handleReset(_ sender: NSButton) {
         guard let boneName = resetBoneMap[ObjectIdentifier(sender)] else { return }
-        onBoneRotationChange?(boneName, simd_quatf(angle: 0, axis: SIMD3<Float>(1, 0, 0)))
+        onBoneRotationChange?(boneName, .zero)
     }
 
     private func makeVector(from fields: [NSTextField]) -> SIMD3<Float>? {

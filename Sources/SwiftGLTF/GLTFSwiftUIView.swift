@@ -12,7 +12,7 @@ public struct GLTFSwiftUIView: UIViewRepresentable {
     private let animationIndex: Int?
     private let variantIndex: Int?
     private let cameraIndex: Int?
-    private let vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf]
+    private let vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>]
     private let environmentUrl: URL?
     private let modelBinding: Binding<GLTF?>?
     private let showDebugHUD: Bool
@@ -24,7 +24,7 @@ public struct GLTFSwiftUIView: UIViewRepresentable {
         animationIndex: Int? = nil,
         variantIndex: Int? = nil,
         cameraIndex: Int? = nil,
-        vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf] = [:],
+        vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>] = [:],
         environmentUrl: URL? = nil,
         modelBinding: Binding<GLTF?>? = nil,
         showDebugHUD: Bool = false,
@@ -85,7 +85,7 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
     private let animationIndex: Int?
     private let variantIndex: Int?
     private let cameraIndex: Int?
-    private let vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf]
+    private let vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>]
     private let environmentUrl: URL?
     private let modelBinding: Binding<GLTF?>?
     private let showDebugHUD: Bool
@@ -99,7 +99,7 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
         animationIndex: Int? = nil,
         variantIndex: Int? = nil,
         cameraIndex: Int? = nil,
-        vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf] = [:],
+        vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>] = [:],
         environmentUrl: URL? = nil,
         modelBinding: Binding<GLTF?>? = nil,
         showDebugHUD: Bool = false,

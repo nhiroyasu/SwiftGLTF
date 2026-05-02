@@ -27,7 +27,7 @@ public struct RenderingContext {
 
      // animation
     private var animationState: RendererAnimationState? = nil
-    private var vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf] = [:]
+    private var vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>] = [:]
 
     // render
     private var renderingState: RenderingState? = nil
@@ -82,7 +82,7 @@ public struct RenderingContext {
         return copy
     }
 
-    public func vrmHumanoidRotations(_ rotations: [VRMHumanoidBoneName: simd_quatf]) -> Self {
+    public func vrmHumanoidRotations(_ rotations: [VRMHumanoidBoneName: SIMD3<Float>]) -> Self {
         var copy = self
         copy.vrmHumanoidRotations = rotations
         return copy
@@ -135,7 +135,7 @@ public enum FinalizedRenderingContext {
         cameraIndex: Int,
         freeCameraUniforms: FreeCameraUniforms,
         animationState: RendererAnimationState?,
-        vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf],
+        vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>],
         renderingState: RenderingState,
         showsSkybox: Bool
     )

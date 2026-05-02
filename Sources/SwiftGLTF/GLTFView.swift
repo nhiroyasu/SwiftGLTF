@@ -62,7 +62,7 @@ public class GLTFView: MTKView {
     public var cameraIndex: Int? = nil
 
     // MARK: - VRM
-    public var vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf] = [:] {
+    public var vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>] = [:] {
         didSet {
             updateVRMHumanoidDebugHUD()
         }
