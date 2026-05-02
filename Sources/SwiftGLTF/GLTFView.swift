@@ -300,12 +300,18 @@ public class GLTFView: MTKView {
         addSubview(messageLabel)
 
         if showDebugHUD {
+            let scrollView = UIScrollView()
+            scrollView.showsVerticalScrollIndicator = true
+            scrollView.showsHorizontalScrollIndicator = false
+            scrollView.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(scrollView)
+
             let hudStack = UIStackView()
             hudStack.axis = .vertical
             hudStack.alignment = .leading
             hudStack.spacing = 12
             hudStack.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(hudStack)
+            scrollView.addSubview(hudStack)
             debugHUDStackView = hudStack
 
             let hud = CameraDebugHUDView()
@@ -342,9 +348,15 @@ public class GLTFView: MTKView {
 
             let guide = safeAreaLayoutGuide
             NSLayoutConstraint.activate([
-                hudStack.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 12),
-                hudStack.topAnchor.constraint(equalTo: guide.topAnchor, constant: 12),
-                hudStack.trailingAnchor.constraint(lessThanOrEqualTo: guide.trailingAnchor, constant: -12),
+                scrollView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 12),
+                scrollView.topAnchor.constraint(equalTo: guide.topAnchor, constant: 12),
+                scrollView.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -12),
+                scrollView.trailingAnchor.constraint(lessThanOrEqualTo: guide.trailingAnchor, constant: -12),
+                hudStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+                hudStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+                hudStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+                hudStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+                hudStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
                 hud.widthAnchor.constraint(equalToConstant: 280),
                 gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor),
                 vrmHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
@@ -418,12 +430,24 @@ public class GLTFView: MTKView {
         addSubview(messageLabel)
 
         if showDebugHUD {
+            let scrollView = NSScrollView()
+            scrollView.hasVerticalScroller = true
+            scrollView.hasHorizontalScroller = false
+            scrollView.drawsBackground = false
+            scrollView.borderType = .noBorder
+            scrollView.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(scrollView)
+
+            let scrollContentView = NSView()
+            scrollContentView.translatesAutoresizingMaskIntoConstraints = false
+            scrollView.documentView = scrollContentView
+
             let hudStack = NSStackView()
             hudStack.orientation = .vertical
             hudStack.alignment = .leading
             hudStack.spacing = 12
             hudStack.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(hudStack)
+            scrollContentView.addSubview(hudStack)
             debugHUDStackView = hudStack
 
             let hud = CameraDebugHUDView()
@@ -459,9 +483,16 @@ public class GLTFView: MTKView {
             vrmHumanoidDebugHUDView = vrmHUD
 
             NSLayoutConstraint.activate([
-                hudStack.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 12),
-                hudStack.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12),
-                hudStack.trailingAnchor.constraint(lessThanOrEqualTo: safeAreaLayoutGuide.trailingAnchor, constant: -12),
+                scrollView.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 12),
+                scrollView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12),
+                scrollView.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -12),
+                scrollView.trailingAnchor.constraint(lessThanOrEqualTo: safeAreaLayoutGuide.trailingAnchor, constant: -12),
+                scrollView.widthAnchor.constraint(equalToConstant: 280),
+                scrollContentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+                hudStack.leadingAnchor.constraint(equalTo: scrollContentView.leadingAnchor),
+                hudStack.topAnchor.constraint(equalTo: scrollContentView.topAnchor),
+                hudStack.trailingAnchor.constraint(equalTo: scrollContentView.trailingAnchor),
+                hudStack.bottomAnchor.constraint(equalTo: scrollContentView.bottomAnchor),
                 hud.widthAnchor.constraint(equalToConstant: 280),
                 gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor),
                 vrmHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)

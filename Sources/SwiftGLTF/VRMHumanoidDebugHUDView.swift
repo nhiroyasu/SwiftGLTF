@@ -7,9 +7,12 @@ import UIKit
 
 final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
     private let stackView = UIStackView()
+    private let headerLabel = UILabel()
+    private let bodyStackView = UIStackView()
     private var fieldsByBone: [VRMHumanoidBoneName: [UITextField]] = [:]
     private var fieldBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
     private var resetBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
+    private var isCollapsed = false
     var onBoneRotationChange: ((VRMHumanoidBoneName, SIMD3<Float>) -> Void)?
 
     override init(frame: CGRect) {
@@ -31,14 +34,20 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
             stackView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12)
         ])
 
-        let titleLabel = UILabel()
-        titleLabel.text = "VRM Humanoid"
-        titleLabel.textColor = .white
-        titleLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
-        stackView.addArrangedSubview(titleLabel)
+        headerLabel.textColor = .white
+        headerLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        headerLabel.isUserInteractionEnabled = true
+        headerLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleBody)))
+        stackView.addArrangedSubview(headerLabel)
+        updateHeader()
+
+        bodyStackView.axis = .vertical
+        bodyStackView.spacing = 8
+        bodyStackView.alignment = .leading
+        stackView.addArrangedSubview(bodyStackView)
 
         for boneName in VRMHumanoidBoneName.supportedTransformBones {
-            stackView.addArrangedSubview(makeRow(for: boneName))
+            bodyStackView.addArrangedSubview(makeRow(for: boneName))
         }
     }
 
@@ -120,6 +129,16 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
         onBoneRotationChange?(boneName, .zero)
     }
 
+    @objc private func toggleBody() {
+        isCollapsed.toggle()
+        bodyStackView.isHidden = isCollapsed
+        updateHeader()
+    }
+
+    private func updateHeader() {
+        headerLabel.text = "\(isCollapsed ? "▸" : "▾") VRM Humanoid"
+    }
+
     private func makeVector(from fields: [UITextField]) -> SIMD3<Float>? {
         let values = fields.compactMap { Float($0.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") }
         guard values.count == 3 else { return nil }
@@ -136,9 +155,12 @@ import AppKit
 
 final class VRMHumanoidDebugHUDView: NSView {
     private let stackView = NSStackView()
+    private let headerLabel = NSTextField(labelWithString: "")
+    private let bodyStackView = NSStackView()
     private var fieldsByBone: [VRMHumanoidBoneName: [NSTextField]] = [:]
     private var fieldBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
     private var resetBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
+    private var isCollapsed = false
     var onBoneRotationChange: ((VRMHumanoidBoneName, SIMD3<Float>) -> Void)?
 
     override init(frame frameRect: NSRect) {
@@ -160,13 +182,20 @@ final class VRMHumanoidDebugHUDView: NSView {
             stackView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12)
         ])
 
-        let titleLabel = NSTextField(labelWithString: "VRM Humanoid")
-        titleLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        titleLabel.textColor = .white
-        stackView.addArrangedSubview(titleLabel)
+        headerLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        headerLabel.textColor = .white
+        headerLabel.isSelectable = false
+        headerLabel.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(toggleBody)))
+        stackView.addArrangedSubview(headerLabel)
+        updateHeader()
+
+        bodyStackView.orientation = .vertical
+        bodyStackView.alignment = .leading
+        bodyStackView.spacing = 8
+        stackView.addArrangedSubview(bodyStackView)
 
         for boneName in VRMHumanoidBoneName.supportedTransformBones {
-            stackView.addArrangedSubview(makeRow(for: boneName))
+            bodyStackView.addArrangedSubview(makeRow(for: boneName))
         }
     }
 
@@ -220,7 +249,9 @@ final class VRMHumanoidDebugHUDView: NSView {
     }
 
     private func makeField(for boneName: VRMHumanoidBoneName) -> NSTextField {
-        let field = NSTextField()
+        let field = DebugHUDScrollAdjustingTextField()
+        field.scrollStep = 0.1
+        field.fractionDigits = 1
         field.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         field.alignment = .left
         field.maximumNumberOfLines = 1
@@ -244,6 +275,16 @@ final class VRMHumanoidDebugHUDView: NSView {
     @objc private func handleReset(_ sender: NSButton) {
         guard let boneName = resetBoneMap[ObjectIdentifier(sender)] else { return }
         onBoneRotationChange?(boneName, .zero)
+    }
+
+    @objc private func toggleBody() {
+        isCollapsed.toggle()
+        bodyStackView.isHidden = isCollapsed
+        updateHeader()
+    }
+
+    private func updateHeader() {
+        headerLabel.stringValue = "\(isCollapsed ? "▸" : "▾") VRM Humanoid"
     }
 
     private func makeVector(from fields: [NSTextField]) -> SIMD3<Float>? {

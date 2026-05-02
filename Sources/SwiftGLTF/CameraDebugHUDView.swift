@@ -371,7 +371,9 @@ final class CameraDebugHUDView: NSView {
 
     private static func makeFields() -> [NSTextField] {
         (0..<3).map { _ in
-            let field = NSTextField()
+            let field = DebugHUDScrollAdjustingTextField()
+            field.scrollStep = 0.01
+            field.fractionDigits = 2
             field.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
             field.alignment = .left
             field.maximumNumberOfLines = 1
