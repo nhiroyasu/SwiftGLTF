@@ -167,6 +167,8 @@ public class PBRRenderer {
         var morphWeights = meshBundle.originMorphWeights
         var morphDispatches = meshBundle.morphDispatches
 
+        // NOTE: Apply the transform to the VRM humanoid first. If the same node is transformed by an animation,
+        // let the animation's transform override it.
         for (boneName, rotation) in vrmHumanoidRotations {
             guard let target = meshBundle.vrmHumanoidNodeMap[boneName],
                   localTransforms.indices.contains(target) else {
