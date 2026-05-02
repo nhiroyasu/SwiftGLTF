@@ -167,6 +167,33 @@ var body: some View {
 | Perspective             | ✅        |
 | Orthographic            | ✅        |
 
+## VRM対応
+- VRM対応は現在開発中です。
+- 現在はVRM拡張データのデコードと、レンダリング時のHumanoidボーンマッピング利用を中心に対応しています。
+- VRM 1.0の機能は [VRMC_vrm 1.0仕様](https://github.com/vrm-c/vrm-specification/blob/master/specification/VRMC_vrm-1.0/README.md) を参考にしています。
+
+### 対応VRM機能
+| VRM機能 | 対応状況 | 備考 |
+|---------|----------|------|
+| `.vrm`ファイル読み込み | ✅ | 既存のGLB/glTFパイプラインで読み込み |
+| `VRMC_vrm.meta` | ✅ | モデル情報とライセンス情報のデコード |
+| `VRMC_vrm.humanoid` | ✅ | Humanoidボーンのデコードとノードマッピング |
+| Humanoidボーン変形 | ✅ | `vrmHumanoidRotations`による実行時回転に対応 |
+| `VRMC_vrm.firstPerson` | ⚠️ デコードのみ | First Person向けの描画制御は開発中 |
+| `VRMC_vrm.expressions` | ⚠️ デコードのみ | 実行時の表情適用は開発中 |
+| `VRMC_vrm.lookAt` | ⚠️ デコードのみ | 実行時の視線制御は開発中 |
+| `KHR_materials_unlit` / `KHR_texture_transform` / `KHR_materials_emissive_strength` | ✅ | glTFマテリアル拡張として対応 |
+| `VRMC_materials_mtoon` | ❌ | MToon固有のシェーディングは未対応 |
+| `VRMC_springBone` | ❌ | Spring Boneのデコードとシミュレーションは未対応 |
+| `VRMC_node_constraint` | ❌ | Node Constraintのデコードと評価は未対応 |
+
+### 対応VRMバージョン
+| VRMバージョン | 拡張 | 対応状況 | 備考 |
+|---------------|------|----------|------|
+| VRM 0.x | `VRM` | ⚠️ 一部対応 | 拡張データのデコードとHumanoidノードマッピングに対応 |
+| VRM 1.0 | `VRMC_vrm` | ⚠️ 一部対応 | コア拡張データのデコードとHumanoidノードマッピングに対応 |
+| 今後のVRMバージョン | - | ❌ | 未対応 |
+
 ## Build
 ### Sample Project
 - SwiftGLTFSample.xcodeproj を開くことでサンプルプロジェクトをビルドできます

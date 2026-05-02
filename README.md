@@ -176,6 +176,33 @@ var body: some View {
 | Perspective             | ✅        |
 | Orthographic            | ✅        |
 
+## VRM Support
+- VRM support is currently under development.
+- Current support focuses on decoding VRM extension data and using humanoid bone mappings during rendering.
+- VRM 1.0 features are based on the [VRMC_vrm 1.0 specification](https://github.com/vrm-c/vrm-specification/blob/master/specification/VRMC_vrm-1.0/README.md).
+
+### Supported VRM Features
+| VRM Feature | Supported | Notes |
+|-------------|-----------|-------|
+| `.vrm` file loading | ✅ | Loaded through the existing GLB/glTF pipeline |
+| `VRMC_vrm.meta` | ✅ | Model information and license metadata decoding |
+| `VRMC_vrm.humanoid` | ✅ | Humanoid bone decoding and node mapping |
+| Humanoid bone transforms | ✅ | Runtime rotations can be applied through `vrmHumanoidRotations` |
+| `VRMC_vrm.firstPerson` | ⚠️ Decoding only | First-person rendering behavior is in progress |
+| `VRMC_vrm.expressions` | ⚠️ Decoding only | Runtime expression application is in progress |
+| `VRMC_vrm.lookAt` | ⚠️ Decoding only | Runtime eye control is in progress |
+| `KHR_materials_unlit` / `KHR_texture_transform` / `KHR_materials_emissive_strength` | ✅ | Supported as glTF material extensions |
+| `VRMC_materials_mtoon` | ❌ | MToon-specific shading is not yet supported |
+| `VRMC_springBone` | ❌ | Spring bone decoding and simulation are not yet supported |
+| `VRMC_node_constraint` | ❌ | Node constraint decoding and evaluation are not yet supported |
+
+### Supported VRM Versions
+| VRM Version | Extension | Supported | Notes |
+|-------------|-----------|-----------|-------|
+| VRM 0.x | `VRM` | ⚠️ Partial | Extension data decoding and humanoid node mapping are supported |
+| VRM 1.0 | `VRMC_vrm` | ⚠️ Partial | Core extension data decoding and humanoid node mapping are supported |
+| Future VRM versions | - | ❌ | Not supported |
+
 ## Build
 ### Sample Project
 - You can build the sample project by opening `SwiftGLTFSample.xcodeproj`.
