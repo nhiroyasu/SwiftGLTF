@@ -110,6 +110,7 @@ public class PBRRenderer {
             cameraIndex,
             freeCameraUniforms,
             animationState,
+            vrmHumanoidRotations,
             renderingState,
             showsSkybox
         ):
@@ -120,12 +121,13 @@ public class PBRRenderer {
                 freeCameraUniforms: freeCameraUniforms
             )
 
-            var animationFence: MTLFence?
-            if let animationState = animationState {
-                animationFence = encodeAnimation(
+            var nodeTransformFence: MTLFence?
+            if animationState != nil || !vrmHumanoidRotations.isEmpty {
+                nodeTransformFence = encodeNodeTransforms(
                     meshBundle: indirectRenderState.meshBundle,
                     commandBuffer: commandBuffer,
-                    animationState: animationState
+                    animationState: animationState,
+                    vrmHumanoidRotations: vrmHumanoidRotations
                 )
             }
 
@@ -141,61 +143,73 @@ public class PBRRenderer {
                 freeCameraUniformsBuffer: frameInFlightResources.freeCameraUniformsBuffer,
                 modelMatrixBuffer: frameInFlightResources.modelMatrixBuffer,
                 showsSkybox: showsSkybox,
-                waitFence: animationFence
+                waitFence: nodeTransformFence
             )
         }
     }
 
-    private func encodeAnimation(
+    private func encodeNodeTransforms(
         meshBundle: PBRMeshBundle,
         commandBuffer cb: MTLCommandBuffer,
-        animationState state: RendererAnimationState
+        animationState state: RendererAnimationState?,
+        vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf]
     ) -> MTLFence? {
-        guard meshBundle.needsAnimationPass else {
-            // No animation to process
+        guard meshBundle.needsAnimationPass || !vrmHumanoidRotations.isEmpty else {
             return nil
         }
         guard let en = cb.makeComputeCommandEncoder() else {
             logger.error("Failed to create compute command encoder")
             return nil
         }
-        en.label = "[SwiftGLTF] Animation Update Encoder"
+        en.label = "[SwiftGLTF] Node Transform Update Encoder"
 
         var localTransforms = meshBundle.nodeLevelHierarchy.localTransforms
         var morphWeights = meshBundle.originMorphWeights
         var morphDispatches = meshBundle.morphDispatches
 
-        for animation in meshBundle.animations {
-            let trs = evaluateTRS(
-                type: animation.type,
-                interpolation: animation.interpolation,
-                keyFrameTimes: animation.keyframes,
-                duration: animation.duration,
-                time: state.time,
-                looping: state.isLooping
-            )
-            let weights = evaluateWeights(
-                type: animation.type,
-                interpolation: animation.interpolation,
-                keyFrameTimes: animation.keyframes,
-                duration: animation.duration,
-                time: state.time,
-                looping: state.isLooping
-            )
+        for (boneName, rotation) in vrmHumanoidRotations {
+            guard let target = meshBundle.vrmHumanoidNodeMap[boneName],
+                  localTransforms.indices.contains(target) else {
+                continue
+            }
+            var trs = decomposeTRS(localTransforms[target])
+            trs.rotation = simd_normalize(trs.rotation * rotation)
+            localTransforms[target] = trs2matrix(trs)
+        }
 
-            let target = animation.targetNode
-
-            localTransforms[target] = trs.apply(localTransforms[target])
-
-            let dispatch = morphDispatches[target]
-            if dispatch.length == 0 {
-                morphWeights.insert(contentsOf: weights, at: Int(dispatch.offset))
-                morphDispatches[target] = MorphDispatch(
-                    offset: dispatch.offset,
-                    length: Int64(weights.count)
+        if let state {
+            for animation in meshBundle.animations {
+                let trs = evaluateTRS(
+                    type: animation.type,
+                    interpolation: animation.interpolation,
+                    keyFrameTimes: animation.keyframes,
+                    duration: animation.duration,
+                    time: state.time,
+                    looping: state.isLooping
                 )
-            } else {
-                morphWeights.replaceSubrange(Int(dispatch.offset)..<Int(dispatch.offset + dispatch.length), with: weights)
+                let weights = evaluateWeights(
+                    type: animation.type,
+                    interpolation: animation.interpolation,
+                    keyFrameTimes: animation.keyframes,
+                    duration: animation.duration,
+                    time: state.time,
+                    looping: state.isLooping
+                )
+
+                let target = animation.targetNode
+
+                localTransforms[target] = trs.apply(localTransforms[target])
+
+                let dispatch = morphDispatches[target]
+                if dispatch.length == 0 {
+                    morphWeights.insert(contentsOf: weights, at: Int(dispatch.offset))
+                    morphDispatches[target] = MorphDispatch(
+                        offset: dispatch.offset,
+                        length: Int64(weights.count)
+                    )
+                } else {
+                    morphWeights.replaceSubrange(Int(dispatch.offset)..<Int(dispatch.offset + dispatch.length), with: weights)
+                }
             }
         }
 

@@ -40,6 +40,7 @@ public class PBRMeshLoader {
             throw SwiftGLTFRendererError(description: "Scene not found")
         }
         let nodeLevelHierarchy = makeNodeLevelHierarchy(root: scene)
+        let vrmHumanoidNodeMap = makeVRMHumanoidNodeMap(from: asset, with: nodeLevelHierarchy)
 
         // Create command buffer for batching all operations
         let batchCommandBuffer = shaderConnection.commandQueue.makeCommandBuffer()!
@@ -244,6 +245,7 @@ public class PBRMeshLoader {
             nodeLevelHierarchy: nodeLevelHierarchy,
             originMorphWeights: morphWeights,
             morphDispatches: morphDispatches,
+            vrmHumanoidNodeMap: vrmHumanoidNodeMap,
             vertexHeaps: [vertexMeshHeap].compactMap({ $0 }),
             fragmentHeaps: [texturesHeap, fragmentHeap].compactMap({ $0 }),
         )
@@ -536,6 +538,29 @@ public class PBRMeshLoader {
         }
 
         return skinJoints
+    }
+
+    func makeVRMHumanoidNodeMap(from asset: MDLAsset, with nodeLevelHierarchy: NodeLevelHierarchy) -> [VRMHumanoidBoneName: NodeHierarchyOffset] {
+        guard let humanoid = asset.objectSafe(atPath: GLTFAssetPath.vrmHumanoid) as? GLTFVRMHumanoid else {
+            return [:]
+        }
+
+        var nodeIndexMap: [Int: NodeHierarchyOffset] = [:]
+        for (offset, object) in nodeLevelHierarchy.indexToObject.enumerated() {
+            if let nodeIndex = object.component(ofType: GLTFNodeIndexProtocol.self) as? GLTFNodeIndex {
+                nodeIndexMap[nodeIndex.index] = offset
+            }
+        }
+
+        var output: [VRMHumanoidBoneName: NodeHierarchyOffset] = [:]
+        for boneName in VRMHumanoidBoneName.supportedTransformBones {
+            guard let nodeIndex = humanoid.nodeMap[boneName],
+                  let offset = nodeIndexMap[nodeIndex.value] else {
+                continue
+            }
+            output[boneName] = offset
+        }
+        return output
     }
 
     func makeSkinInverseBindMatrices(from asset: MDLAsset) -> [float4x4] {

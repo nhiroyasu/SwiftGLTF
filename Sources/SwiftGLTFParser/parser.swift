@@ -55,6 +55,29 @@ public func makeMDLAsset(
     skinsObject.name = GLTFAssetName.skins
     librariesObject.addChild(skinsObject)
 
+    let vrmHumanoidNodeMap: [VRMHumanoidBoneName: NodeIndex]? = {
+        if let vrm = gltf.extensions?.vrmcVrm {
+            return Dictionary(
+                uniqueKeysWithValues: VRMHumanoidBoneName.allCases.compactMap { boneName in
+                    vrm.humanoid.humanBones.node(for: boneName).map { (boneName, $0) }
+                }
+            )
+        }
+        return gltf.extensions?.vrm0?.humanoid?.nodeMap
+    }()
+
+    if let vrmHumanoidNodeMap {
+        let vrmObject = MDLObject()
+        vrmObject.name = GLTFAssetName.vrm
+        librariesObject.addChild(vrmObject)
+
+        let humanoidObject = GLTFVRMHumanoid(
+            nodeMap: vrmHumanoidNodeMap
+        )
+        humanoidObject.name = GLTFAssetName.vrmHumanoid
+        vrmObject.addChild(humanoidObject)
+    }
+
     let mdlMaterials = try makeMDLMaterials(gltf, binaryLoader)
     let materialsObject = GLTFMaterials(
         materials: mdlMaterials

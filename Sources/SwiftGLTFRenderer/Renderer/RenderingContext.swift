@@ -27,6 +27,7 @@ public struct RenderingContext {
 
      // animation
     private var animationState: RendererAnimationState? = nil
+    private var vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf] = [:]
 
     // render
     private var renderingState: RenderingState? = nil
@@ -81,6 +82,12 @@ public struct RenderingContext {
         return copy
     }
 
+    public func vrmHumanoidRotations(_ rotations: [VRMHumanoidBoneName: simd_quatf]) -> Self {
+        var copy = self
+        copy.vrmHumanoidRotations = rotations
+        return copy
+    }
+
     public func finalizeWithICB(
         state: PBRIndirectRenderState,
         renderPassDescriptor: MTLRenderPassDescriptor,
@@ -106,6 +113,7 @@ public struct RenderingContext {
             cameraIndex: cameraIndex,
             freeCameraUniforms: freeCameraUniforms,
             animationState: animationState,
+            vrmHumanoidRotations: vrmHumanoidRotations,
             renderingState: renderingState,
             showsSkybox: showsSkybox
         )
@@ -127,6 +135,7 @@ public enum FinalizedRenderingContext {
         cameraIndex: Int,
         freeCameraUniforms: FreeCameraUniforms,
         animationState: RendererAnimationState?,
+        vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf],
         renderingState: RenderingState,
         showsSkybox: Bool
     )

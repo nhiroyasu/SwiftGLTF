@@ -289,7 +289,7 @@ final class CameraDebugHUDView: NSView {
 
         resetCameraButton.target = self
         resetCameraButton.action = #selector(handleResetCamera)
-        resetCameraButton.bezelStyle = .rounded
+        resetCameraButton.bezelColor = .controlBackgroundColor
         resetCameraButton.alignment = .left
         cameraSection.addArrangedSubview(resetCameraButton)
 
@@ -324,7 +324,7 @@ final class CameraDebugHUDView: NSView {
 
         resetLightButton.target = self
         resetLightButton.action = #selector(handleResetLight)
-        resetLightButton.bezelStyle = .rounded
+        resetLightButton.bezelColor = .controlBackgroundColor
         resetLightButton.alignment = .left
         lightSection.addArrangedSubview(resetLightButton)
 

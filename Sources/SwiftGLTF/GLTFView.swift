@@ -27,6 +27,7 @@ public class GLTFView: MTKView {
     private var loadedMeshBundle: PBRMeshBundle?
     private var loadedIndirectRenderState: PBRIndirectRenderState?
     private var loadedEnvMapBundle: EnvMapBundle?
+    public private(set) var vrmHumanoidNodeMap: [VRMHumanoidBoneName: Int] = [:]
 
     // MARK: - Display State
     private var displayType: DisplayType = .loading {
@@ -59,6 +60,13 @@ public class GLTFView: MTKView {
 
     // MARK: - Camera
     public var cameraIndex: Int? = nil
+
+    // MARK: - VRM
+    public var vrmHumanoidRotations: [VRMHumanoidBoneName: simd_quatf] = [:] {
+        didSet {
+            updateVRMHumanoidDebugHUD()
+        }
+    }
 
     // MARK: - Frame Management
     private let maxFramesInFlight = 2
@@ -160,13 +168,17 @@ public class GLTFView: MTKView {
             self.loadedIndirectRenderState = try indirectRenderStateBuilder.build(meshBundle: meshBundle)
 
             loadedGLTF = gltfBundle.gltf
+            vrmHumanoidNodeMap = makeVRMHumanoidNodeMap(from: gltfBundle.gltf)
             updateGLTFDebugHUD()
+            updateVRMHumanoidDebugHUD()
             gltfLoadHandler?(.success(gltfBundle.gltf))
         } catch {
             logger.error("Failed to load asset from URL: \(error.localizedDescription, privacy: .public)")
             displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
             loadedGLTF = nil
+            vrmHumanoidNodeMap = [:]
             updateGLTFDebugHUD()
+            updateVRMHumanoidDebugHUD()
             gltfLoadHandler?(.failure(error) )
         }
     }
@@ -242,6 +254,7 @@ public class GLTFView: MTKView {
             .lightPosition(lightPosition)
             .ambientLightColor(ambientLightColor)
             .cameraIndex(cameraIndex ?? -1)
+            .vrmHumanoidRotations(vrmHumanoidRotations)
             .freeCameraUniforms(.build(
                 eye: eye,
                 target: freeCameraTarget,
@@ -273,6 +286,7 @@ public class GLTFView: MTKView {
     private let messageLabel = UILabel()
     private var debugHUDView: CameraDebugHUDView?
     private var gltfDebugHUDView: GLTFDebugJSONHUDView?
+    private var vrmHumanoidDebugHUDView: VRMHumanoidDebugHUDView?
     private var debugHUDStackView: UIStackView?
 
     func setupUI() {
@@ -317,13 +331,23 @@ public class GLTFView: MTKView {
             hudStack.addArrangedSubview(gltfHUD)
             gltfDebugHUDView = gltfHUD
 
+            let vrmHUD = VRMHumanoidDebugHUDView()
+            vrmHUD.translatesAutoresizingMaskIntoConstraints = false
+            vrmHUD.onBoneRotationChange = { [weak self] boneName, rotation in
+                self?.vrmHumanoidRotations[boneName] = rotation
+            }
+            vrmHUD.isHidden = true
+            hudStack.addArrangedSubview(vrmHUD)
+            vrmHumanoidDebugHUDView = vrmHUD
+
             let guide = safeAreaLayoutGuide
             NSLayoutConstraint.activate([
                 hudStack.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 12),
                 hudStack.topAnchor.constraint(equalTo: guide.topAnchor, constant: 12),
                 hudStack.trailingAnchor.constraint(lessThanOrEqualTo: guide.trailingAnchor, constant: -12),
                 hud.widthAnchor.constraint(equalToConstant: 280),
-                gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
+                gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor),
+                vrmHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
             ])
 
             hud.update(
@@ -332,6 +356,7 @@ public class GLTFView: MTKView {
                 ambientLightColor: ambientLightColor
             )
             updateGLTFDebugHUD()
+            updateVRMHumanoidDebugHUD()
         }
     }
 
@@ -381,6 +406,7 @@ public class GLTFView: MTKView {
     private let messageLabel = NSTextField()
     private var debugHUDView: CameraDebugHUDView?
     private var gltfDebugHUDView: GLTFDebugJSONHUDView?
+    private var vrmHumanoidDebugHUDView: VRMHumanoidDebugHUDView?
     private var debugHUDStackView: NSStackView?
 
     private func setupUI() {
@@ -423,12 +449,22 @@ public class GLTFView: MTKView {
             hudStack.addArrangedSubview(gltfHUD)
             gltfDebugHUDView = gltfHUD
 
+            let vrmHUD = VRMHumanoidDebugHUDView()
+            vrmHUD.translatesAutoresizingMaskIntoConstraints = false
+            vrmHUD.onBoneRotationChange = { [weak self] boneName, rotation in
+                self?.vrmHumanoidRotations[boneName] = rotation
+            }
+            vrmHUD.isHidden = true
+            hudStack.addArrangedSubview(vrmHUD)
+            vrmHumanoidDebugHUDView = vrmHUD
+
             NSLayoutConstraint.activate([
                 hudStack.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 12),
                 hudStack.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12),
                 hudStack.trailingAnchor.constraint(lessThanOrEqualTo: safeAreaLayoutGuide.trailingAnchor, constant: -12),
                 hud.widthAnchor.constraint(equalToConstant: 280),
-                gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
+                gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor),
+                vrmHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
             ])
 
             hud.update(
@@ -437,6 +473,7 @@ public class GLTFView: MTKView {
                 ambientLightColor: ambientLightColor
             )
             updateGLTFDebugHUD()
+            updateVRMHumanoidDebugHUD()
         }
     }
 
@@ -558,6 +595,39 @@ public class GLTFView: MTKView {
             return
         }
         gltfDebugHUDView?.update(jsonString: makeGLTFDebugJSONString(from: loadedGLTF))
+    }
+
+    private func updateVRMHumanoidDebugHUD() {
+        guard showDebugHUD else { return }
+        guard loadedGLTF?.extensions?.vrmcVrm != nil || loadedGLTF?.extensions?.vrm0?.humanoid != nil else {
+            vrmHumanoidDebugHUDView?.isHidden = true
+            return
+        }
+        vrmHumanoidDebugHUDView?.isHidden = false
+        vrmHumanoidDebugHUDView?.update(
+            availableBones: Set(vrmHumanoidNodeMap.keys),
+            rotations: vrmHumanoidRotations
+        )
+    }
+
+    private func makeVRMHumanoidNodeMap(from gltf: GLTF) -> [VRMHumanoidBoneName: Int] {
+        if let humanBones = gltf.extensions?.vrmcVrm?.humanoid.humanBones {
+            return Dictionary(
+                uniqueKeysWithValues: VRMHumanoidBoneName.supportedTransformBones.compactMap { boneName in
+                    humanBones.node(for: boneName).map { (boneName, $0.value) }
+                }
+            )
+        }
+
+        guard let nodeMap = gltf.extensions?.vrm0?.humanoid?.nodeMap else {
+            return [:]
+        }
+
+        return Dictionary(
+            uniqueKeysWithValues: VRMHumanoidBoneName.supportedTransformBones.compactMap { boneName in
+                nodeMap[boneName].map { (boneName, $0.value) }
+            }
+        )
     }
 
     private func makeGLTFDebugJSONString(from gltf: GLTF) -> String {
