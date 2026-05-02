@@ -1644,12 +1644,9 @@ public enum VRMHumanoidBoneName: String, Codable, CaseIterable, Hashable {
     case rightLittleIntermediate
     case rightLittleDistal
 
-    public static let supportedTransformBones: [VRMHumanoidBoneName] = [
-        .hips,
-        .head,
-        .leftUpperArm,
-        .rightUpperArm
-    ]
+    public static var supportedTransformBones: [VRMHumanoidBoneName] {
+        allCases
+    }
 }
 
 public extension VRMCVrmHumanBones {

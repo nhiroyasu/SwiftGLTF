@@ -553,7 +553,7 @@ public class PBRMeshLoader {
         }
 
         var output: [VRMHumanoidBoneName: NodeHierarchyOffset] = [:]
-        for boneName in VRMHumanoidBoneName.supportedTransformBones {
+        for boneName in VRMHumanoidBoneName.allCases {
             guard let nodeIndex = humanoid.nodeMap[boneName],
                   let offset = nodeIndexMap[nodeIndex.value] else {
                 continue

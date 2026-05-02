@@ -2,6 +2,46 @@ import Foundation
 import SwiftGLTFCore
 import simd
 
+private struct VRMHumanoidDebugHUDSection {
+    let title: String
+    let bones: [VRMHumanoidBoneName]
+}
+
+private let vrmHumanoidDebugHUDSections: [VRMHumanoidDebugHUDSection] = {
+    let torso: [VRMHumanoidBoneName] = [.hips, .spine, .chest, .upperChest]
+    let head: [VRMHumanoidBoneName] = [.neck, .head, .leftEye, .rightEye, .jaw]
+    let legs: [VRMHumanoidBoneName] = [
+        .leftUpperLeg, .leftLowerLeg, .leftFoot, .leftToes,
+        .rightUpperLeg, .rightLowerLeg, .rightFoot, .rightToes
+    ]
+    let arms: [VRMHumanoidBoneName] = [
+        .leftShoulder, .leftUpperArm, .leftLowerArm, .leftHand,
+        .rightShoulder, .rightUpperArm, .rightLowerArm, .rightHand
+    ]
+    let fingers: [VRMHumanoidBoneName] = [
+        .leftThumbMetacarpal, .leftThumbProximal, .leftThumbDistal,
+        .leftIndexProximal, .leftIndexIntermediate, .leftIndexDistal,
+        .leftMiddleProximal, .leftMiddleIntermediate, .leftMiddleDistal,
+        .leftRingProximal, .leftRingIntermediate, .leftRingDistal,
+        .leftLittleProximal, .leftLittleIntermediate, .leftLittleDistal,
+        .rightThumbMetacarpal, .rightThumbProximal, .rightThumbDistal,
+        .rightIndexProximal, .rightIndexIntermediate, .rightIndexDistal,
+        .rightMiddleProximal, .rightMiddleIntermediate, .rightMiddleDistal,
+        .rightRingProximal, .rightRingIntermediate, .rightRingDistal,
+        .rightLittleProximal, .rightLittleIntermediate, .rightLittleDistal
+    ]
+    let groupedBones = Set(torso + head + legs + arms + fingers)
+    let others = VRMHumanoidBoneName.allCases.filter { !groupedBones.contains($0) }
+    return [
+        VRMHumanoidDebugHUDSection(title: "Torso", bones: torso),
+        VRMHumanoidDebugHUDSection(title: "Head", bones: head),
+        VRMHumanoidDebugHUDSection(title: "Legs", bones: legs),
+        VRMHumanoidDebugHUDSection(title: "Arms", bones: arms),
+        VRMHumanoidDebugHUDSection(title: "Fingers", bones: fingers),
+        VRMHumanoidDebugHUDSection(title: "Other", bones: others)
+    ]
+}()
+
 #if os(iOS)
 import UIKit
 
@@ -9,10 +49,16 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
     private let stackView = UIStackView()
     private let headerLabel = UILabel()
     private let bodyStackView = UIStackView()
+    private var sectionViewsByTitle: [String: UIStackView] = [:]
+    private var sectionBodyViewsByTitle: [String: UIStackView] = [:]
+    private var sectionTitleLabelsByTitle: [String: UILabel] = [:]
+    private var sectionTitleMap: [ObjectIdentifier: String] = [:]
+    private var rowsByBone: [VRMHumanoidBoneName: UIStackView] = [:]
     private var fieldsByBone: [VRMHumanoidBoneName: [UITextField]] = [:]
     private var fieldBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
     private var resetBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
     private var isCollapsed = false
+    private var collapsedSectionTitles = Set(vrmHumanoidDebugHUDSections.map(\.title))
     var onBoneRotationChange: ((VRMHumanoidBoneName, SIMD3<Float>) -> Void)?
 
     override init(frame: CGRect) {
@@ -46,8 +92,10 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
         bodyStackView.alignment = .leading
         stackView.addArrangedSubview(bodyStackView)
 
-        for boneName in VRMHumanoidBoneName.supportedTransformBones {
-            bodyStackView.addArrangedSubview(makeRow(for: boneName))
+        for section in vrmHumanoidDebugHUDSections {
+            let sectionView = makeSection(for: section)
+            sectionViewsByTitle[section.title] = sectionView
+            bodyStackView.addArrangedSubview(sectionView)
         }
     }
 
@@ -56,16 +104,55 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
     }
 
     func update(availableBones: Set<VRMHumanoidBoneName>, rotations: [VRMHumanoidBoneName: SIMD3<Float>]) {
-        for boneName in VRMHumanoidBoneName.supportedTransformBones {
-            let enabled = availableBones.contains(boneName)
+        for section in vrmHumanoidDebugHUDSections {
+            sectionViewsByTitle[section.title]?.isHidden = !section.bones.contains { availableBones.contains($0) }
+            sectionBodyViewsByTitle[section.title]?.isHidden = collapsedSectionTitles.contains(section.title)
+        }
+
+        for boneName in VRMHumanoidBoneName.allCases {
+            let isAvailable = availableBones.contains(boneName)
+            rowsByBone[boneName]?.isHidden = !isAvailable
             guard let fields = fieldsByBone[boneName] else { continue }
             let degrees = rotations[boneName] ?? .zero
             for (index, field) in fields.enumerated() {
-                field.isEnabled = enabled
-                field.alpha = enabled ? 1.0 : 0.4
+                field.isEnabled = isAvailable
+                field.alpha = isAvailable ? 1.0 : 0.4
                 field.text = String(format: "%.1f", degrees[index])
             }
         }
+    }
+
+    private func makeSection(for section: VRMHumanoidDebugHUDSection) -> UIStackView {
+        let titleLabel = UILabel()
+        titleLabel.textColor = .lightGray
+        titleLabel.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+        titleLabel.isUserInteractionEnabled = true
+        titleLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleSection(_:))))
+        sectionTitleLabelsByTitle[section.title] = titleLabel
+        sectionTitleMap[ObjectIdentifier(titleLabel)] = section.title
+
+        let sectionView = UIStackView()
+        sectionView.axis = .vertical
+        sectionView.spacing = 6
+        sectionView.alignment = .leading
+        sectionView.addArrangedSubview(titleLabel)
+
+        let sectionBodyView = UIStackView()
+        sectionBodyView.axis = .vertical
+        sectionBodyView.spacing = 6
+        sectionBodyView.alignment = .leading
+        sectionBodyView.isHidden = collapsedSectionTitles.contains(section.title)
+        sectionBodyViewsByTitle[section.title] = sectionBodyView
+        sectionView.addArrangedSubview(sectionBodyView)
+
+        for boneName in section.bones {
+            let row = makeRow(for: boneName)
+            rowsByBone[boneName] = row
+            sectionBodyView.addArrangedSubview(row)
+        }
+
+        updateSectionHeader(title: section.title)
+        return sectionView
     }
 
     private func makeRow(for boneName: VRMHumanoidBoneName) -> UIStackView {
@@ -135,8 +222,27 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
         updateHeader()
     }
 
+    @objc private func toggleSection(_ sender: UITapGestureRecognizer) {
+        guard let view = sender.view,
+              let title = sectionTitleMap[ObjectIdentifier(view)] else {
+            return
+        }
+
+        if collapsedSectionTitles.contains(title) {
+            collapsedSectionTitles.remove(title)
+        } else {
+            collapsedSectionTitles.insert(title)
+        }
+        sectionBodyViewsByTitle[title]?.isHidden = collapsedSectionTitles.contains(title)
+        updateSectionHeader(title: title)
+    }
+
     private func updateHeader() {
         headerLabel.text = "\(isCollapsed ? "▸" : "▾") VRM Humanoid"
+    }
+
+    private func updateSectionHeader(title: String) {
+        sectionTitleLabelsByTitle[title]?.text = "\(collapsedSectionTitles.contains(title) ? "▸" : "▾") \(title)"
     }
 
     private func makeVector(from fields: [UITextField]) -> SIMD3<Float>? {
@@ -157,10 +263,16 @@ final class VRMHumanoidDebugHUDView: NSView {
     private let stackView = NSStackView()
     private let headerLabel = NSTextField(labelWithString: "")
     private let bodyStackView = NSStackView()
+    private var sectionViewsByTitle: [String: NSStackView] = [:]
+    private var sectionBodyViewsByTitle: [String: NSStackView] = [:]
+    private var sectionTitleLabelsByTitle: [String: NSTextField] = [:]
+    private var sectionTitleMap: [ObjectIdentifier: String] = [:]
+    private var rowsByBone: [VRMHumanoidBoneName: NSStackView] = [:]
     private var fieldsByBone: [VRMHumanoidBoneName: [NSTextField]] = [:]
     private var fieldBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
     private var resetBoneMap: [ObjectIdentifier: VRMHumanoidBoneName] = [:]
     private var isCollapsed = false
+    private var collapsedSectionTitles = Set(vrmHumanoidDebugHUDSections.map(\.title))
     var onBoneRotationChange: ((VRMHumanoidBoneName, SIMD3<Float>) -> Void)?
 
     override init(frame frameRect: NSRect) {
@@ -194,8 +306,10 @@ final class VRMHumanoidDebugHUDView: NSView {
         bodyStackView.spacing = 8
         stackView.addArrangedSubview(bodyStackView)
 
-        for boneName in VRMHumanoidBoneName.supportedTransformBones {
-            bodyStackView.addArrangedSubview(makeRow(for: boneName))
+        for section in vrmHumanoidDebugHUDSections {
+            let sectionView = makeSection(for: section)
+            sectionViewsByTitle[section.title] = sectionView
+            bodyStackView.addArrangedSubview(sectionView)
         }
     }
 
@@ -204,16 +318,54 @@ final class VRMHumanoidDebugHUDView: NSView {
     }
 
     func update(availableBones: Set<VRMHumanoidBoneName>, rotations: [VRMHumanoidBoneName: SIMD3<Float>]) {
-        for boneName in VRMHumanoidBoneName.supportedTransformBones {
-            let enabled = availableBones.contains(boneName)
+        for section in vrmHumanoidDebugHUDSections {
+            sectionViewsByTitle[section.title]?.isHidden = !section.bones.contains { availableBones.contains($0) }
+            sectionBodyViewsByTitle[section.title]?.isHidden = collapsedSectionTitles.contains(section.title)
+        }
+
+        for boneName in VRMHumanoidBoneName.allCases {
+            let isAvailable = availableBones.contains(boneName)
+            rowsByBone[boneName]?.isHidden = !isAvailable
             guard let fields = fieldsByBone[boneName] else { continue }
             let degrees = rotations[boneName] ?? .zero
             for (index, field) in fields.enumerated() {
-                field.isEnabled = enabled
-                field.alphaValue = enabled ? 1.0 : 0.4
+                field.isEnabled = isAvailable
+                field.alphaValue = isAvailable ? 1.0 : 0.4
                 field.stringValue = String(format: "%.1f", degrees[index])
             }
         }
+    }
+
+    private func makeSection(for section: VRMHumanoidDebugHUDSection) -> NSStackView {
+        let titleLabel = NSTextField(labelWithString: "")
+        titleLabel.font = NSFont.systemFont(ofSize: 12, weight: .bold)
+        titleLabel.textColor = .lightGray
+        titleLabel.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(toggleSection(_:))))
+        sectionTitleLabelsByTitle[section.title] = titleLabel
+        sectionTitleMap[ObjectIdentifier(titleLabel)] = section.title
+
+        let sectionView = NSStackView()
+        sectionView.orientation = .vertical
+        sectionView.alignment = .leading
+        sectionView.spacing = 6
+        sectionView.addArrangedSubview(titleLabel)
+
+        let sectionBodyView = NSStackView()
+        sectionBodyView.orientation = .vertical
+        sectionBodyView.alignment = .leading
+        sectionBodyView.spacing = 6
+        sectionBodyView.isHidden = collapsedSectionTitles.contains(section.title)
+        sectionBodyViewsByTitle[section.title] = sectionBodyView
+        sectionView.addArrangedSubview(sectionBodyView)
+
+        for boneName in section.bones {
+            let row = makeRow(for: boneName)
+            rowsByBone[boneName] = row
+            sectionBodyView.addArrangedSubview(row)
+        }
+
+        updateSectionHeader(title: section.title)
+        return sectionView
     }
 
     private func makeRow(for boneName: VRMHumanoidBoneName) -> NSStackView {
@@ -283,8 +435,27 @@ final class VRMHumanoidDebugHUDView: NSView {
         updateHeader()
     }
 
+    @objc private func toggleSection(_ sender: NSClickGestureRecognizer) {
+        guard let view = sender.view,
+              let title = sectionTitleMap[ObjectIdentifier(view)] else {
+            return
+        }
+
+        if collapsedSectionTitles.contains(title) {
+            collapsedSectionTitles.remove(title)
+        } else {
+            collapsedSectionTitles.insert(title)
+        }
+        sectionBodyViewsByTitle[title]?.isHidden = collapsedSectionTitles.contains(title)
+        updateSectionHeader(title: title)
+    }
+
     private func updateHeader() {
         headerLabel.stringValue = "\(isCollapsed ? "▸" : "▾") VRM Humanoid"
+    }
+
+    private func updateSectionHeader(title: String) {
+        sectionTitleLabelsByTitle[title]?.stringValue = "\(collapsedSectionTitles.contains(title) ? "▸" : "▾") \(title)"
     }
 
     private func makeVector(from fields: [NSTextField]) -> SIMD3<Float>? {

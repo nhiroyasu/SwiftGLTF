@@ -644,7 +644,7 @@ public class GLTFView: MTKView {
     private func makeVRMHumanoidNodeMap(from gltf: GLTF) -> [VRMHumanoidBoneName: Int] {
         if let humanBones = gltf.extensions?.vrmcVrm?.humanoid.humanBones {
             return Dictionary(
-                uniqueKeysWithValues: VRMHumanoidBoneName.supportedTransformBones.compactMap { boneName in
+                uniqueKeysWithValues: VRMHumanoidBoneName.allCases.compactMap { boneName in
                     humanBones.node(for: boneName).map { (boneName, $0.value) }
                 }
             )
@@ -655,7 +655,7 @@ public class GLTFView: MTKView {
         }
 
         return Dictionary(
-            uniqueKeysWithValues: VRMHumanoidBoneName.supportedTransformBones.compactMap { boneName in
+            uniqueKeysWithValues: VRMHumanoidBoneName.allCases.compactMap { boneName in
                 nodeMap[boneName].map { (boneName, $0.value) }
             }
         )
