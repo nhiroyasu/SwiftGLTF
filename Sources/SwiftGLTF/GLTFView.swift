@@ -160,11 +160,13 @@ public class GLTFView: MTKView {
             self.loadedIndirectRenderState = try indirectRenderStateBuilder.build(meshBundle: meshBundle)
 
             loadedGLTF = gltfBundle.gltf
+            updateGLTFDebugHUD()
             gltfLoadHandler?(.success(gltfBundle.gltf))
         } catch {
             logger.error("Failed to load asset from URL: \(error.localizedDescription, privacy: .public)")
             displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
             loadedGLTF = nil
+            updateGLTFDebugHUD()
             gltfLoadHandler?(.failure(error) )
         }
     }
@@ -270,6 +272,8 @@ public class GLTFView: MTKView {
     #if os(iOS)
     private let messageLabel = UILabel()
     private var debugHUDView: CameraDebugHUDView?
+    private var gltfDebugHUDView: GLTFDebugJSONHUDView?
+    private var debugHUDStackView: UIStackView?
 
     func setupUI() {
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
@@ -282,6 +286,14 @@ public class GLTFView: MTKView {
         addSubview(messageLabel)
 
         if showDebugHUD {
+            let hudStack = UIStackView()
+            hudStack.axis = .vertical
+            hudStack.alignment = .leading
+            hudStack.spacing = 12
+            hudStack.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(hudStack)
+            debugHUDStackView = hudStack
+
             let hud = CameraDebugHUDView()
             hud.translatesAutoresizingMaskIntoConstraints = false
             hud.onReset = { [weak self] in self?.resetCamera() }
@@ -297,13 +309,21 @@ public class GLTFView: MTKView {
                 guard let self else { return }
                 self.resetLight()
             }
-            addSubview(hud)
+            hudStack.addArrangedSubview(hud)
             debugHUDView = hud
+
+            let gltfHUD = GLTFDebugJSONHUDView()
+            gltfHUD.translatesAutoresizingMaskIntoConstraints = false
+            hudStack.addArrangedSubview(gltfHUD)
+            gltfDebugHUDView = gltfHUD
 
             let guide = safeAreaLayoutGuide
             NSLayoutConstraint.activate([
-                hud.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 12),
-                hud.topAnchor.constraint(equalTo: guide.topAnchor, constant: 12)
+                hudStack.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 12),
+                hudStack.topAnchor.constraint(equalTo: guide.topAnchor, constant: 12),
+                hudStack.trailingAnchor.constraint(lessThanOrEqualTo: guide.trailingAnchor, constant: -12),
+                hud.widthAnchor.constraint(equalToConstant: 280),
+                gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
             ])
 
             hud.update(
@@ -311,6 +331,7 @@ public class GLTFView: MTKView {
                 lightPosition: lightPosition,
                 ambientLightColor: ambientLightColor
             )
+            updateGLTFDebugHUD()
         }
     }
 
@@ -359,6 +380,8 @@ public class GLTFView: MTKView {
 
     private let messageLabel = NSTextField()
     private var debugHUDView: CameraDebugHUDView?
+    private var gltfDebugHUDView: GLTFDebugJSONHUDView?
+    private var debugHUDStackView: NSStackView?
 
     private func setupUI() {
         messageLabel.isEditable = false
@@ -369,6 +392,14 @@ public class GLTFView: MTKView {
         addSubview(messageLabel)
 
         if showDebugHUD {
+            let hudStack = NSStackView()
+            hudStack.orientation = .vertical
+            hudStack.alignment = .leading
+            hudStack.spacing = 12
+            hudStack.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(hudStack)
+            debugHUDStackView = hudStack
+
             let hud = CameraDebugHUDView()
             hud.translatesAutoresizingMaskIntoConstraints = false
             hud.onReset = { [weak self] in self?.resetCamera() }
@@ -384,12 +415,20 @@ public class GLTFView: MTKView {
                 guard let self else { return }
                 self.resetLight()
             }
-            addSubview(hud)
+            hudStack.addArrangedSubview(hud)
             debugHUDView = hud
 
+            let gltfHUD = GLTFDebugJSONHUDView()
+            gltfHUD.translatesAutoresizingMaskIntoConstraints = false
+            hudStack.addArrangedSubview(gltfHUD)
+            gltfDebugHUDView = gltfHUD
+
             NSLayoutConstraint.activate([
-                hud.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 12),
-                hud.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12)
+                hudStack.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 12),
+                hudStack.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12),
+                hudStack.trailingAnchor.constraint(lessThanOrEqualTo: safeAreaLayoutGuide.trailingAnchor, constant: -12),
+                hud.widthAnchor.constraint(equalToConstant: 280),
+                gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
             ])
 
             hud.update(
@@ -397,6 +436,7 @@ public class GLTFView: MTKView {
                 lightPosition: lightPosition,
                 ambientLightColor: ambientLightColor
             )
+            updateGLTFDebugHUD()
         }
     }
 
@@ -509,6 +549,26 @@ public class GLTFView: MTKView {
             lightPosition: lightPosition,
             ambientLightColor: ambientLightColor
         )
+    }
+
+    private func updateGLTFDebugHUD() {
+        guard showDebugHUD else { return }
+        guard let loadedGLTF else {
+            gltfDebugHUDView?.update(jsonString: "")
+            return
+        }
+        gltfDebugHUDView?.update(jsonString: makeGLTFDebugJSONString(from: loadedGLTF))
+    }
+
+    private func makeGLTFDebugJSONString(from gltf: GLTF) -> String {
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(gltf)
+            return String(data: data, encoding: .utf8) ?? ""
+        } catch {
+            return "Failed to encode glTF JSON: \(error.localizedDescription)"
+        }
     }
 
     func onChange(_ displayType: DisplayType) {

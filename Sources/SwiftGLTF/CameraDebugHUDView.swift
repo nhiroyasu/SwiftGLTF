@@ -3,11 +3,14 @@ import UIKit
 
 final class CameraDebugHUDView: UIView, UITextFieldDelegate {
     private let stackView = UIStackView()
+    private let headerLabel = UILabel()
+    private let bodyStackView = UIStackView()
     private let cameraValueLabel = UILabel()
     private let lightFields: [UITextField]
     private let ambientFields: [UITextField]
     private let resetCameraButton = UIButton(type: .system)
     private let resetLightButton = UIButton(type: .system)
+    private var isCollapsed = false
     var onReset: (() -> Void)?
     var onLightPositionChange: ((SIMD3<Float>) -> Void)?
     var onAmbientLightColorChange: ((SIMD3<Float>) -> Void)?
@@ -35,6 +38,18 @@ final class CameraDebugHUDView: UIView, UITextFieldDelegate {
             stackView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12)
         ])
 
+        headerLabel.textColor = .white
+        headerLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        headerLabel.isUserInteractionEnabled = true
+        headerLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleBody)))
+        stackView.addArrangedSubview(headerLabel)
+        updateHeader()
+
+        bodyStackView.axis = .vertical
+        bodyStackView.spacing = 8
+        bodyStackView.alignment = .leading
+        stackView.addArrangedSubview(bodyStackView)
+
         let cameraSection = UIStackView()
         cameraSection.axis = .vertical
         cameraSection.spacing = 4
@@ -55,12 +70,12 @@ final class CameraDebugHUDView: UIView, UITextFieldDelegate {
         resetCameraButton.contentHorizontalAlignment = .leading
         cameraSection.addArrangedSubview(resetCameraButton)
 
-        stackView.addArrangedSubview(cameraSection)
+        bodyStackView.addArrangedSubview(cameraSection)
 
         let spacer = UIView()
         spacer.translatesAutoresizingMaskIntoConstraints = false
         spacer.heightAnchor.constraint(equalToConstant: 8).isActive = true
-        stackView.addArrangedSubview(spacer)
+        bodyStackView.addArrangedSubview(spacer)
 
         let lightSection = UIStackView()
         lightSection.axis = .vertical
@@ -88,7 +103,7 @@ final class CameraDebugHUDView: UIView, UITextFieldDelegate {
         resetLightButton.contentHorizontalAlignment = .leading
         lightSection.addArrangedSubview(resetLightButton)
 
-        stackView.addArrangedSubview(lightSection)
+        bodyStackView.addArrangedSubview(lightSection)
     }
 
     required init?(coder: NSCoder) {
@@ -107,6 +122,16 @@ final class CameraDebugHUDView: UIView, UITextFieldDelegate {
 
     @objc private func handleResetLight() {
         onLightReset?()
+    }
+
+    @objc private func toggleBody() {
+        isCollapsed.toggle()
+        bodyStackView.isHidden = isCollapsed
+        updateHeader()
+    }
+
+    private func updateHeader() {
+        headerLabel.text = "\(isCollapsed ? "▸" : "▾") Camera Debug"
     }
 
     @objc private func handleLightEditingEnd() {
@@ -196,17 +221,21 @@ import AppKit
 
 final class CameraDebugHUDView: NSView {
     private let stackView = NSStackView()
+    private let headerLabel: NSTextField
+    private let bodyStackView = NSStackView()
     private let cameraValueLabel: NSTextField
     private let lightFields: [NSTextField]
     private let ambientFields: [NSTextField]
     private let resetCameraButton: NSButton
     private let resetLightButton: NSButton
+    private var isCollapsed = false
     var onReset: (() -> Void)?
     var onLightPositionChange: ((SIMD3<Float>) -> Void)?
     var onAmbientLightColorChange: ((SIMD3<Float>) -> Void)?
     var onLightReset: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
+        headerLabel = NSTextField(labelWithString: "")
         cameraValueLabel = NSTextField(labelWithString: "")
         resetCameraButton = NSButton(title: "Reset Camera", target: nil, action: nil)
         resetLightButton = NSButton(title: "Reset Light", target: nil, action: nil)
@@ -232,6 +261,18 @@ final class CameraDebugHUDView: NSView {
             stackView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12)
         ])
 
+        headerLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        headerLabel.textColor = .white
+        headerLabel.isSelectable = false
+        headerLabel.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(toggleBody)))
+        stackView.addArrangedSubview(headerLabel)
+        updateHeader()
+
+        bodyStackView.orientation = .vertical
+        bodyStackView.alignment = .leading
+        bodyStackView.spacing = 8
+        stackView.addArrangedSubview(bodyStackView)
+
         let cameraSection = NSStackView()
         cameraSection.orientation = .vertical
         cameraSection.alignment = .leading
@@ -252,12 +293,12 @@ final class CameraDebugHUDView: NSView {
         resetCameraButton.alignment = .left
         cameraSection.addArrangedSubview(resetCameraButton)
 
-        stackView.addArrangedSubview(cameraSection)
+        bodyStackView.addArrangedSubview(cameraSection)
 
         let spacer = NSView()
         spacer.translatesAutoresizingMaskIntoConstraints = false
         spacer.heightAnchor.constraint(equalToConstant: 8).isActive = true
-        stackView.addArrangedSubview(spacer)
+        bodyStackView.addArrangedSubview(spacer)
 
         let lightSection = NSStackView()
         lightSection.orientation = .vertical
@@ -287,7 +328,7 @@ final class CameraDebugHUDView: NSView {
         resetLightButton.alignment = .left
         lightSection.addArrangedSubview(resetLightButton)
 
-        stackView.addArrangedSubview(lightSection)
+        bodyStackView.addArrangedSubview(lightSection)
     }
 
     required init?(coder: NSCoder) {
@@ -306,6 +347,16 @@ final class CameraDebugHUDView: NSView {
 
     @objc private func handleResetLight() {
         onLightReset?()
+    }
+
+    @objc private func toggleBody() {
+        isCollapsed.toggle()
+        bodyStackView.isHidden = isCollapsed
+        updateHeader()
+    }
+
+    private func updateHeader() {
+        headerLabel.stringValue = "\(isCollapsed ? "▸" : "▾") Camera Debug"
     }
 
     @objc private func handleLightEditingEnd() {
