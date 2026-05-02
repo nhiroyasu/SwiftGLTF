@@ -1305,9 +1305,9 @@ public enum VRM0HumanoidBoneName: String, Codable, Equatable {
         case .leftEye: .leftEye
         case .rightEye: .rightEye
         case .jaw: .jaw
-        case .leftThumbProximal: nil
-        case .leftThumbIntermediate: nil
-        case .leftThumbDistal: nil
+        case .leftThumbProximal: .leftThumbMetacarpal
+        case .leftThumbIntermediate: .leftThumbProximal
+        case .leftThumbDistal: .leftThumbDistal
         case .leftIndexProximal: .leftIndexProximal
         case .leftIndexIntermediate: .leftIndexIntermediate
         case .leftIndexDistal: .leftIndexDistal
@@ -1320,9 +1320,9 @@ public enum VRM0HumanoidBoneName: String, Codable, Equatable {
         case .leftLittleProximal: .leftLittleProximal
         case .leftLittleIntermediate: .leftLittleIntermediate
         case .leftLittleDistal: .leftLittleDistal
-        case .rightThumbProximal: nil
-        case .rightThumbIntermediate: nil
-        case .rightThumbDistal: nil
+        case .rightThumbProximal: .rightThumbMetacarpal
+        case .rightThumbIntermediate: .rightThumbProximal
+        case .rightThumbDistal: .rightThumbDistal
         case .rightIndexProximal: .rightIndexProximal
         case .rightIndexIntermediate: .rightIndexIntermediate
         case .rightIndexDistal: .rightIndexDistal
