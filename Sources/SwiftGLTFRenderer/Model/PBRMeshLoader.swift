@@ -358,11 +358,12 @@ public class PBRMeshLoader {
 
         // Morph data detection on this mesh
         var morphCount: UInt32 = 0
+        var morphVertexCount: UInt32 = 0
         var morphWeightsBuffer: MTLBuffer? = nil
-        // TODO: vrm expression のためにmorphTargetの上限値8を無くす
-        var morphTargetBuffers: [MTLBuffer?] = Array(repeating: nil, count: 8)
+        var morphInterleavedBuffer: MTLBuffer? = nil
         if let morphComp = mdlMesh.component(ofType: GLTFMorphTargets.self) {
             morphCount = UInt32(morphComp.targetCount)
+            morphVertexCount = UInt32(morphComp.vertexCount)
             let tmpMorphWeightsBuffer = device.makeBuffer(length: MemoryLayout<Float>.size * morphComp.targetCount)!
             tmpMorphWeightsBuffer.contents().copyMemory(from: morphComp.defaultWeights, byteCount: MemoryLayout<Float>.size * morphComp.targetCount)
             morphWeightsBuffer = try shaderConnection.encodeTransportToHeap(
@@ -371,14 +372,17 @@ public class PBRMeshLoader {
                 use: vertexHeap
             )
 
-            // Convert target MDLMesh -> MTLBuffer (vertex buffer 0)
-            for (i, targetMDL) in morphComp.targetMeshes.prefix(8).enumerated() { // Limit to max 8
-                if let vb = meshBufferMap[targetMDL] {
-                    morphTargetBuffers[i] = vb.vertexBuffer
-                } else {
-                    logger.error("⚠️ Warning: Morph target mesh not found in vertex map.")
-                }
+            var morphTargetVertexBuffers: [MTLBuffer] = []
+            morphTargetVertexBuffers.reserveCapacity(morphComp.targetMeshes.count)
+            for targetMDL in morphComp.targetMeshes {
+                let mtkTarget = try MTKMesh(mesh: targetMDL, device: device)
+                morphTargetVertexBuffers.append(mtkTarget.vertexBuffers[0].buffer)
             }
+            morphInterleavedBuffer = try shaderConnection.encodeMoveBuffersToSingleHeapBuffer(
+                commandBuffer,
+                from: morphTargetVertexBuffers,
+                use: vertexHeap
+            )
         }
 
         let transformIndex: Int = nodeLevelHierarchy.objectToIndex[ObjectIdentifier(obj)] ?? -1
@@ -389,15 +393,9 @@ public class PBRMeshLoader {
             model: model,
             inverseModel: inverseModel,
             morphTargetCount: morphCount,
+            morphVertexCount: morphVertexCount,
             morphDefaultWeights: morphWeightsBuffer?.gpuAddress ?? 0,
-            morphInterleaved0: morphTargetBuffers[0]?.gpuAddress ?? 0,
-            morphInterleaved1: morphTargetBuffers[1]?.gpuAddress ?? 0,
-            morphInterleaved2: morphTargetBuffers[2]?.gpuAddress ?? 0,
-            morphInterleaved3: morphTargetBuffers[3]?.gpuAddress ?? 0,
-            morphInterleaved4: morphTargetBuffers[4]?.gpuAddress ?? 0,
-            morphInterleaved5: morphTargetBuffers[5]?.gpuAddress ?? 0,
-            morphInterleaved6: morphTargetBuffers[6]?.gpuAddress ?? 0,
-            morphInterleaved7: morphTargetBuffers[7]?.gpuAddress ?? 0,
+            morphInterleaved: morphInterleavedBuffer?.gpuAddress ?? 0,
             transformIndex: Int64(transformIndex),
             morphDispatchIndex: Int64(morphDispatchIndex),
             skinDispatch: skinDispatch ?? SkinDispatch(offset: 0, length: 0)
@@ -518,7 +516,7 @@ public class PBRMeshLoader {
             positionStride: positionStride,
             positionOffset: positionOffset,
             renderingType: renderingType,
-            _storedHeapInstance: morphTargetBuffers + [morphWeightsBuffer, modelBuffer, inverseModelBuffer, sourceVertexArgumentBuffer]
+            _storedHeapInstance: [morphInterleavedBuffer, morphWeightsBuffer, modelBuffer, inverseModelBuffer, sourceVertexArgumentBuffer]
         )
         return pbrMesh
     }
@@ -733,31 +731,6 @@ public class PBRMeshLoader {
                 vertexBuffer: vertexBuffer,
                 indexBuffers: indexBuffers
             )
-
-            if let morph = mesh.componentConforming(to: GLTFMorphTargets.self) as? GLTFMorphTargets {
-                for targetMDL in morph.targetMeshes {
-                    let mtkTarget = try MTKMesh(mesh: targetMDL, device: device)
-                    let targetVertexBuffer = try shaderConnection.encodeMoveBufferToHeap(
-                        commandBuffer,
-                        from: mtkTarget.vertexBuffers[0].buffer,
-                        use: vertexMeshHeap
-                    )
-                    var indexBuffers: [MTLBuffer] = []
-                    for mtkSubmesh in mtkTarget.submeshes {
-                        let heapBuf = try shaderConnection.encodeMoveBufferToHeap(
-                            commandBuffer,
-                            from: mtkSubmesh.indexBuffer.buffer,
-                            use: vertexMeshHeap
-                        )
-                        indexBuffers.append(heapBuf)
-                    }
-                    meshVertexBufferMap[targetMDL] = MTKMeshBufferHeapData(
-                        raw: mtkTarget,
-                        vertexBuffer: targetVertexBuffer,
-                        indexBuffers: indexBuffers
-                    )
-                }
-            }
         }
 
         return meshVertexBufferMap

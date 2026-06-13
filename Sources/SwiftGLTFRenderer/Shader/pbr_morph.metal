@@ -13,10 +13,10 @@ MorphApplyResult apply_morph(float3 pos,
                              constant float *weights,
                              constant MorphDispatch *dispatches,
                              uint vid) {
-    uint count = min(args.morphTargetCount, (uint)8);
+    uint count = args.morphTargetCount;
     MorphDispatch dispatch = dispatches[args.morphDispatchIndex];
 
-    if (count == 0 ) {
+    if (count == 0 || args.morphVertexCount == 0 || args.morphInterleaved == nullptr) {
         return { pos, normal, tangent };
     }
 
@@ -28,20 +28,8 @@ MorphApplyResult apply_morph(float3 pos,
             w = weights[dispatch.offset + i];
         }
         if (w == 0.0) { continue; }
-        constant float *buf = nullptr;
-        switch (i) {
-            case 0: buf = args.morphInterleaved0; break;
-            case 1: buf = args.morphInterleaved1; break;
-            case 2: buf = args.morphInterleaved2; break;
-            case 3: buf = args.morphInterleaved3; break;
-            case 4: buf = args.morphInterleaved4; break;
-            case 5: buf = args.morphInterleaved5; break;
-            case 6: buf = args.morphInterleaved6; break;
-            case 7: buf = args.morphInterleaved7; break;
-            default: break;
-        }
-        if (buf == nullptr) { continue; }
-        uint base = vid * 9; // 9 floats per vertex (pos3+normal3+tan3)
+        constant float *buf = args.morphInterleaved;
+        uint base = (i * args.morphVertexCount + vid) * 9; // 9 floats per vertex (pos3+normal3+tan3)
         float3 dpos = float3(buf[base + 0], buf[base + 1], buf[base + 2]);
         float3 dnormal = float3(buf[base + 3], buf[base + 4], buf[base + 5]);
         float3 dtan = float3(buf[base + 6], buf[base + 7], buf[base + 8]);

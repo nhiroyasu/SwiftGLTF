@@ -4,7 +4,7 @@ import SwiftGLTFParser
 import SwiftGLTFShaderTypes
 @testable import SwiftGLTFRenderer
 
-final class VRMExpressionTests {
+final class VRMExpressionResolverTests {
     @Test
     func testExpressionWeightsClampBinaryAndOverrideProceduralPresets() {
         let happyKey = VRMExpressionKey.happy

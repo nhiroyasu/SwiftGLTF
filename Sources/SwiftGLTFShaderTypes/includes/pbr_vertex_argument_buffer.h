@@ -11,15 +11,9 @@ struct PBRVertexArguments {
 
     // Morph targets (optional)
     uint morphTargetCount;
+    uint morphVertexCount;
     AB_BUFFER_PTR(float) morphDefaultWeights;
-    AB_BUFFER_PTR(float) morphInterleaved0;
-    AB_BUFFER_PTR(float) morphInterleaved1;
-    AB_BUFFER_PTR(float) morphInterleaved2;
-    AB_BUFFER_PTR(float) morphInterleaved3;
-    AB_BUFFER_PTR(float) morphInterleaved4;
-    AB_BUFFER_PTR(float) morphInterleaved5;
-    AB_BUFFER_PTR(float) morphInterleaved6;
-    AB_BUFFER_PTR(float) morphInterleaved7;
+    AB_BUFFER_PTR(float) morphInterleaved;
 
     int64_t transformIndex;
     int64_t morphDispatchIndex; // equal to `transformIndex`
