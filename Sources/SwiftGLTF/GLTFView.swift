@@ -435,6 +435,10 @@ public class GLTFView: MTKView {
     private var vrmExpressionDebugHUDView: VRMExpressionDebugHUDView?
     private var debugHUDStackView: NSStackView?
 
+    private final class DebugHUDScrollContentView: NSView {
+        override var isFlipped: Bool { true }
+    }
+
     private func setupUI() {
         messageLabel.isEditable = false
         messageLabel.isBezeled = false
@@ -452,7 +456,7 @@ public class GLTFView: MTKView {
             scrollView.translatesAutoresizingMaskIntoConstraints = false
             addSubview(scrollView)
 
-            let scrollContentView = NSView()
+            let scrollContentView = DebugHUDScrollContentView()
             scrollContentView.translatesAutoresizingMaskIntoConstraints = false
             scrollView.documentView = scrollContentView
 
@@ -512,10 +516,11 @@ public class GLTFView: MTKView {
                 scrollView.trailingAnchor.constraint(lessThanOrEqualTo: safeAreaLayoutGuide.trailingAnchor, constant: -12),
                 scrollView.widthAnchor.constraint(equalToConstant: 280),
                 scrollContentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+                scrollContentView.heightAnchor.constraint(greaterThanOrEqualTo: scrollView.contentView.heightAnchor),
                 hudStack.leadingAnchor.constraint(equalTo: scrollContentView.leadingAnchor),
                 hudStack.topAnchor.constraint(equalTo: scrollContentView.topAnchor),
                 hudStack.trailingAnchor.constraint(equalTo: scrollContentView.trailingAnchor),
-                hudStack.bottomAnchor.constraint(equalTo: scrollContentView.bottomAnchor),
+                scrollContentView.bottomAnchor.constraint(greaterThanOrEqualTo: hudStack.bottomAnchor),
                 hud.widthAnchor.constraint(equalToConstant: 280),
                 gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor),
                 vrmHUD.widthAnchor.constraint(equalTo: hud.widthAnchor),
