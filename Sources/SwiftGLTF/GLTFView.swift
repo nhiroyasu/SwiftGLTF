@@ -700,14 +700,16 @@ public class GLTFView: MTKView {
             if let custom = expressions.custom {
                 keys.append(contentsOf: custom.keys.sorted().map { .custom($0) })
             }
-            return keys
+            return keys.filter(isDebugVisibleVRMExpressionKey)
         }
 
         guard let groups = gltf.extensions?.vrm0?.blendShapeMaster?.blendShapeGroups else {
             return []
         }
 
-        return groups.compactMap { normalizeVRM0ExpressionKey(from: $0) }
+        return groups
+            .compactMap { normalizeVRM0ExpressionKey(from: $0) }
+            .filter(isDebugVisibleVRMExpressionKey)
     }
 
     private func makeVRM1PresetExpressionKeys(from preset: VRMCVrmPresetExpressions) -> [VRMExpressionKey] {
@@ -725,15 +727,20 @@ public class GLTFView: MTKView {
             (.blink, preset.blink),
             (.blinkLeft, preset.blinkLeft),
             (.blinkRight, preset.blinkRight),
-            (.lookUp, preset.lookUp),
-            (.lookDown, preset.lookDown),
-            (.lookLeft, preset.lookLeft),
-            (.lookRight, preset.lookRight),
             (.neutral, preset.neutral)
         ]
 
         return expressions.compactMap { key, expression in
             expression == nil ? nil : key
+        }
+    }
+
+    private func isDebugVisibleVRMExpressionKey(_ key: VRMExpressionKey) -> Bool {
+        switch key {
+        case .lookUp, .lookDown, .lookLeft, .lookRight:
+            false
+        default:
+            true
         }
     }
 
