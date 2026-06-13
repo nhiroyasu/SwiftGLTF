@@ -13,6 +13,7 @@ public struct GLTFSwiftUIView: UIViewRepresentable {
     private let variantIndex: Int?
     private let cameraIndex: Int?
     private let vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>]
+    private let vrmExpressionWeights: [VRMExpressionKey: Float]
     private let environmentUrl: URL?
     private let modelBinding: Binding<GLTF?>?
     private let showDebugHUD: Bool
@@ -25,6 +26,7 @@ public struct GLTFSwiftUIView: UIViewRepresentable {
         variantIndex: Int? = nil,
         cameraIndex: Int? = nil,
         vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>] = [:],
+        vrmExpressionWeights: [VRMExpressionKey: Float] = [:],
         environmentUrl: URL? = nil,
         modelBinding: Binding<GLTF?>? = nil,
         showDebugHUD: Bool = false,
@@ -36,6 +38,7 @@ public struct GLTFSwiftUIView: UIViewRepresentable {
         self.variantIndex = variantIndex
         self.cameraIndex = cameraIndex
         self.vrmHumanoidRotations = vrmHumanoidRotations
+        self.vrmExpressionWeights = vrmExpressionWeights
         self.environmentUrl = environmentUrl
         self.modelBinding = modelBinding
         self.showDebugHUD = showDebugHUD
@@ -58,6 +61,7 @@ public struct GLTFSwiftUIView: UIViewRepresentable {
         uiView.animationIndex = animationIndex
         uiView.cameraIndex = cameraIndex
         uiView.vrmHumanoidRotations = vrmHumanoidRotations
+        uiView.vrmExpressionWeights = vrmExpressionWeights
         uiView.variantIndex = variantIndex
         uiView.environmentURL = environmentUrl
         uiView.gltfLoadHandler = { result in
@@ -86,6 +90,7 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
     private let variantIndex: Int?
     private let cameraIndex: Int?
     private let vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>]
+    private let vrmExpressionWeights: [VRMExpressionKey: Float]
     private let environmentUrl: URL?
     private let modelBinding: Binding<GLTF?>?
     private let showDebugHUD: Bool
@@ -100,6 +105,7 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
         variantIndex: Int? = nil,
         cameraIndex: Int? = nil,
         vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>] = [:],
+        vrmExpressionWeights: [VRMExpressionKey: Float] = [:],
         environmentUrl: URL? = nil,
         modelBinding: Binding<GLTF?>? = nil,
         showDebugHUD: Bool = false,
@@ -111,6 +117,7 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
         self.variantIndex = variantIndex
         self.cameraIndex = cameraIndex
         self.vrmHumanoidRotations = vrmHumanoidRotations
+        self.vrmExpressionWeights = vrmExpressionWeights
         self.environmentUrl = environmentUrl
         self.modelBinding = modelBinding
         self.showDebugHUD = showDebugHUD
@@ -134,6 +141,7 @@ public struct GLTFSwiftUIView: NSViewRepresentable {
         nsView.animationIndex = animationIndex
         nsView.cameraIndex = cameraIndex
         nsView.vrmHumanoidRotations = vrmHumanoidRotations
+        nsView.vrmExpressionWeights = vrmExpressionWeights
         nsView.variantIndex = variantIndex
         nsView.environmentURL = environmentUrl
         nsView.gltfLoadHandler = { result in

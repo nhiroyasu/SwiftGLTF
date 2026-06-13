@@ -43,6 +43,7 @@ public struct PBRMeshBundle: Identifiable {
     let originMorphWeights: [Float]
     let morphDispatches: [MorphDispatch]
     let vrmHumanoidNodeMap: [VRMHumanoidBoneName: NodeHierarchyOffset]
+    let vrmExpressions: [VRMExpression]
 
     // Resources
     let vertexHeaps: [MTLHeap]

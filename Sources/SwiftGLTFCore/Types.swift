@@ -1352,7 +1352,7 @@ public struct VRM0FirstPerson: Codable, Equatable {
 }
 
 public struct VRM0FirstPersonMeshAnnotation: Codable, Equatable {
-    public let mesh: Int?
+    public let mesh: MeshIndex?
     public let firstPersonFlag: String?
 }
 
@@ -1375,7 +1375,7 @@ public struct VRM0BlendShapeGroup: Codable, Equatable {
 }
 
 public struct VRM0BlendShapeBind: Codable, Equatable {
-    public let mesh: Int?
+    public let mesh: MeshIndex?
     public let index: Int?
     public let weight: Float?
 }
@@ -1811,6 +1811,122 @@ public enum VRMCVrmExpressionOverrideType: String, Codable, Equatable {
     case none
     case block
     case blend
+}
+
+public enum VRMExpressionKey: Hashable {
+    case happy
+    case angry
+    case sad
+    case relaxed
+    case surprised
+    case aa
+    case ih
+    case ou
+    case ee
+    case oh
+    case blink
+    case blinkLeft
+    case blinkRight
+    case lookUp
+    case lookDown
+    case lookLeft
+    case lookRight
+    case neutral
+    case custom(String)
+
+    public var name: String {
+        switch self {
+        case .happy: "happy"
+        case .angry: "angry"
+        case .sad: "sad"
+        case .relaxed: "relaxed"
+        case .surprised: "surprised"
+        case .aa: "aa"
+        case .ih: "ih"
+        case .ou: "ou"
+        case .ee: "ee"
+        case .oh: "oh"
+        case .blink: "blink"
+        case .blinkLeft: "blinkLeft"
+        case .blinkRight: "blinkRight"
+        case .lookUp: "lookUp"
+        case .lookDown: "lookDown"
+        case .lookLeft: "lookLeft"
+        case .lookRight: "lookRight"
+        case .neutral: "neutral"
+        case .custom(let name): name
+        }
+    }
+
+    public var isPreset: Bool {
+        switch self {
+        case .custom:
+            false
+        default:
+            true
+        }
+    }
+
+    public init?(presetName: String) {
+        switch presetName {
+        case "happy": self = .happy
+        case "angry": self = .angry
+        case "sad": self = .sad
+        case "relaxed": self = .relaxed
+        case "surprised": self = .surprised
+        case "aa": self = .aa
+        case "ih": self = .ih
+        case "ou": self = .ou
+        case "ee": self = .ee
+        case "oh": self = .oh
+        case "blink": self = .blink
+        case "blinkLeft": self = .blinkLeft
+        case "blinkRight": self = .blinkRight
+        case "lookUp": self = .lookUp
+        case "lookDown": self = .lookDown
+        case "lookLeft": self = .lookLeft
+        case "lookRight": self = .lookRight
+        case "neutral": self = .neutral
+        default: return nil
+        }
+    }
+}
+
+public enum VRM0BlendShapePresetName {
+    public static let unknown = "unknown"
+}
+
+public func normalizeVRM0PresetName(_ name: String) -> String {
+    switch name.lowercased() {
+    case "joy": "happy"
+    case "sorrow": "sad"
+    case "fun": "relaxed"
+    case "a": "aa"
+    case "i": "ih"
+    case "u": "ou"
+    case "e": "ee"
+    case "o": "oh"
+    case "blink_l", "blinkleft": "blinkLeft"
+    case "blink_r", "blinkright": "blinkRight"
+    case "lookup": "lookUp"
+    case "lookdown": "lookDown"
+    case "lookleft": "lookLeft"
+    case "lookright": "lookRight"
+    default: name.lowercased()
+    }
+}
+
+public func normalizeVRM0ExpressionKey(from group: VRM0BlendShapeGroup) -> VRMExpressionKey? {
+    let rawName = group.presetName ?? group.name
+    guard let rawName, !rawName.isEmpty else { return nil }
+    let normalized = normalizeVRM0PresetName(rawName)
+    if normalized == VRM0BlendShapePresetName.unknown {
+        return .custom(group.name ?? rawName)
+    }
+    if let presetKey = VRMExpressionKey(presetName: normalized) {
+        return presetKey
+    }
+    return .custom(group.name ?? rawName)
 }
 
 public struct VRMCVrmMorphTargetBind: Codable, Equatable {

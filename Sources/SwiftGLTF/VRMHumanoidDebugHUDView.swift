@@ -213,6 +213,7 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
 
     @objc private func handleReset(_ sender: UIButton) {
         guard let boneName = resetBoneMap[ObjectIdentifier(sender)] else { return }
+        setFields(for: boneName, degrees: .zero)
         onBoneRotationChange?(boneName, .zero)
     }
 
@@ -249,6 +250,13 @@ final class VRMHumanoidDebugHUDView: UIView, UITextFieldDelegate {
         let values = fields.compactMap { Float($0.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") }
         guard values.count == 3 else { return nil }
         return SIMD3<Float>(values[0], values[1], values[2])
+    }
+
+    private func setFields(for boneName: VRMHumanoidBoneName, degrees: SIMD3<Float>) {
+        guard let fields = fieldsByBone[boneName] else { return }
+        for (index, field) in fields.enumerated() {
+            field.text = String(format: "%.1f", degrees[index])
+        }
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
@@ -426,6 +434,7 @@ final class VRMHumanoidDebugHUDView: NSView {
 
     @objc private func handleReset(_ sender: NSButton) {
         guard let boneName = resetBoneMap[ObjectIdentifier(sender)] else { return }
+        setFields(for: boneName, degrees: .zero)
         onBoneRotationChange?(boneName, .zero)
     }
 
@@ -462,6 +471,13 @@ final class VRMHumanoidDebugHUDView: NSView {
         let values = fields.compactMap { Float($0.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) }
         guard values.count == 3 else { return nil }
         return SIMD3<Float>(values[0], values[1], values[2])
+    }
+
+    private func setFields(for boneName: VRMHumanoidBoneName, degrees: SIMD3<Float>) {
+        guard let fields = fieldsByBone[boneName] else { return }
+        for (index, field) in fields.enumerated() {
+            field.stringValue = String(format: "%.1f", degrees[index])
+        }
     }
 }
 #endif

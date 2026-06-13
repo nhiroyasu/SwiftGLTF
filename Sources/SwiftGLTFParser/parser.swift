@@ -65,17 +65,24 @@ public func makeMDLAsset(
         }
         return gltf.extensions?.vrm0?.humanoid?.nodeMap
     }()
-
-    if let vrmHumanoidNodeMap {
+    let vrmExpressions = makeGLTFVRMExpressions(from: gltf)
+    if vrmHumanoidNodeMap != nil || vrmExpressions != nil {
         let vrmObject = MDLObject()
         vrmObject.name = GLTFAssetName.vrm
         librariesObject.addChild(vrmObject)
 
-        let humanoidObject = GLTFVRMHumanoid(
-            nodeMap: vrmHumanoidNodeMap
-        )
-        humanoidObject.name = GLTFAssetName.vrmHumanoid
-        vrmObject.addChild(humanoidObject)
+        if let vrmHumanoidNodeMap {
+            let humanoidObject = GLTFVRMHumanoid(
+                nodeMap: vrmHumanoidNodeMap
+            )
+            humanoidObject.name = GLTFAssetName.vrmHumanoid
+            vrmObject.addChild(humanoidObject)
+        }
+
+        if let vrmExpressions {
+            vrmExpressions.name = GLTFAssetName.vrmExpressions
+            vrmObject.addChild(vrmExpressions)
+        }
     }
 
     let mdlMaterials = try makeMDLMaterials(gltf, binaryLoader)
@@ -208,6 +215,7 @@ public func makeMDLAsset(
                 skinMap: skinMap,
                 cameraMap: cameraMap,
                 animations: animations,
+                vrmExpressions: vrmExpressions,
                 gltf: gltf,
                 options: options
             )
@@ -388,6 +396,7 @@ func buildNodeTree(
     skinMap: [SkinIndex: GLTFSkin],
     cameraMap: [CameraIndex: MDLCamera],
     animations: [MDLObject],
+    vrmExpressions: GLTFVRMExpressions?,
     gltf: GLTF,
     options: GLTFDecodeOptions = .default
 ) -> MDLObject {
@@ -440,6 +449,22 @@ func buildNodeTree(
         }
     }
 
+    // Bind vrm-expressions to target node
+    if let vrmExpressions {
+        for expression in vrmExpressions.expressions {
+            for bind in expression.morphTargetBinds {
+                if let targetNodeIndex = bind.node {
+                    if targetNodeIndex.value == nodeIndex {
+                        bind.bind(object)
+                    }
+                } else if let meshIndex = bind.mesh,
+                          meshIndex == node.mesh {
+                    bind.bind(object)
+                }
+            }
+        }
+    }
+
     // Add morph  weights if available (per-node weights)
     if let weights = node.weights {
         let comp = GLTFMorphWeightsImpl(weights: weights)
@@ -484,6 +509,7 @@ func buildNodeTree(
                 skinMap: skinMap,
                 cameraMap: cameraMap,
                 animations: animations,
+                vrmExpressions: vrmExpressions,
                 gltf: gltf,
                 options: options
             )

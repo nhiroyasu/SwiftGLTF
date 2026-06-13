@@ -62,11 +62,8 @@ public class GLTFView: MTKView {
     public var cameraIndex: Int? = nil
 
     // MARK: - VRM
-    public var vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>] = [:] {
-        didSet {
-            updateVRMHumanoidDebugHUD()
-        }
-    }
+    public var vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>] = [:]
+    public var vrmExpressionWeights: [VRMExpressionKey: Float] = [:]
 
     // MARK: - Frame Management
     private let maxFramesInFlight = 2
@@ -171,14 +168,17 @@ public class GLTFView: MTKView {
             vrmHumanoidNodeMap = makeVRMHumanoidNodeMap(from: gltfBundle.gltf)
             updateGLTFDebugHUD()
             updateVRMHumanoidDebugHUD()
+            updateVRMExpressionDebugHUD()
             gltfLoadHandler?(.success(gltfBundle.gltf))
         } catch {
             logger.error("Failed to load asset from URL: \(error.localizedDescription, privacy: .public)")
             displayType = .error("Failed to load asset from URL: \(error.localizedDescription)")
             loadedGLTF = nil
+            loadedMeshBundle = nil
             vrmHumanoidNodeMap = [:]
             updateGLTFDebugHUD()
             updateVRMHumanoidDebugHUD()
+            updateVRMExpressionDebugHUD()
             gltfLoadHandler?(.failure(error) )
         }
     }
@@ -255,6 +255,7 @@ public class GLTFView: MTKView {
             .ambientLightColor(ambientLightColor)
             .cameraIndex(cameraIndex ?? -1)
             .vrmHumanoidRotations(vrmHumanoidRotations)
+            .vrmExpressions(vrmExpressionWeights)
             .freeCameraUniforms(.build(
                 eye: eye,
                 target: freeCameraTarget,
@@ -287,6 +288,7 @@ public class GLTFView: MTKView {
     private var debugHUDView: CameraDebugHUDView?
     private var gltfDebugHUDView: GLTFDebugJSONHUDView?
     private var vrmHumanoidDebugHUDView: VRMHumanoidDebugHUDView?
+    private var vrmExpressionDebugHUDView: VRMExpressionDebugHUDView?
     private var debugHUDStackView: UIStackView?
 
     func setupUI() {
@@ -346,6 +348,15 @@ public class GLTFView: MTKView {
             hudStack.addArrangedSubview(vrmHUD)
             vrmHumanoidDebugHUDView = vrmHUD
 
+            let expressionHUD = VRMExpressionDebugHUDView()
+            expressionHUD.translatesAutoresizingMaskIntoConstraints = false
+            expressionHUD.onExpressionWeightChange = { [weak self] key, weight in
+                self?.vrmExpressionWeights[key] = weight
+            }
+            expressionHUD.isHidden = true
+            hudStack.addArrangedSubview(expressionHUD)
+            vrmExpressionDebugHUDView = expressionHUD
+
             let guide = safeAreaLayoutGuide
             NSLayoutConstraint.activate([
                 scrollView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 12),
@@ -359,7 +370,8 @@ public class GLTFView: MTKView {
                 hudStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
                 hud.widthAnchor.constraint(equalToConstant: 280),
                 gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor),
-                vrmHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
+                vrmHUD.widthAnchor.constraint(equalTo: hud.widthAnchor),
+                expressionHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
             ])
 
             hud.update(
@@ -369,6 +381,7 @@ public class GLTFView: MTKView {
             )
             updateGLTFDebugHUD()
             updateVRMHumanoidDebugHUD()
+            updateVRMExpressionDebugHUD()
         }
     }
 
@@ -419,6 +432,7 @@ public class GLTFView: MTKView {
     private var debugHUDView: CameraDebugHUDView?
     private var gltfDebugHUDView: GLTFDebugJSONHUDView?
     private var vrmHumanoidDebugHUDView: VRMHumanoidDebugHUDView?
+    private var vrmExpressionDebugHUDView: VRMExpressionDebugHUDView?
     private var debugHUDStackView: NSStackView?
 
     private func setupUI() {
@@ -482,6 +496,15 @@ public class GLTFView: MTKView {
             hudStack.addArrangedSubview(vrmHUD)
             vrmHumanoidDebugHUDView = vrmHUD
 
+            let expressionHUD = VRMExpressionDebugHUDView()
+            expressionHUD.translatesAutoresizingMaskIntoConstraints = false
+            expressionHUD.onExpressionWeightChange = { [weak self] key, weight in
+                self?.vrmExpressionWeights[key] = weight
+            }
+            expressionHUD.isHidden = true
+            hudStack.addArrangedSubview(expressionHUD)
+            vrmExpressionDebugHUDView = expressionHUD
+
             NSLayoutConstraint.activate([
                 scrollView.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 12),
                 scrollView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12),
@@ -495,7 +518,8 @@ public class GLTFView: MTKView {
                 hudStack.bottomAnchor.constraint(equalTo: scrollContentView.bottomAnchor),
                 hud.widthAnchor.constraint(equalToConstant: 280),
                 gltfHUD.widthAnchor.constraint(equalTo: hud.widthAnchor),
-                vrmHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
+                vrmHUD.widthAnchor.constraint(equalTo: hud.widthAnchor),
+                expressionHUD.widthAnchor.constraint(equalTo: hud.widthAnchor)
             ])
 
             hud.update(
@@ -505,6 +529,7 @@ public class GLTFView: MTKView {
             )
             updateGLTFDebugHUD()
             updateVRMHumanoidDebugHUD()
+            updateVRMExpressionDebugHUD()
         }
     }
 
@@ -639,6 +664,72 @@ public class GLTFView: MTKView {
             availableBones: Set(vrmHumanoidNodeMap.keys),
             rotations: vrmHumanoidRotations
         )
+    }
+
+    private func updateVRMExpressionDebugHUD() {
+        guard showDebugHUD else { return }
+        guard let loadedGLTF else {
+            vrmExpressionDebugHUDView?.isHidden = true
+            return
+        }
+
+        let expressions = makeVRMExpressionKeys(from: loadedGLTF)
+        guard !expressions.isEmpty else {
+            vrmExpressionDebugHUDView?.isHidden = true
+            return
+        }
+
+        vrmExpressionDebugHUDView?.isHidden = false
+        vrmExpressionDebugHUDView?.update(
+            expressions: expressions,
+            weights: vrmExpressionWeights
+        )
+    }
+
+    private func makeVRMExpressionKeys(from gltf: GLTF) -> [VRMExpressionKey] {
+        if let expressions = gltf.extensions?.vrmcVrm?.expressions {
+            var keys: [VRMExpressionKey] = []
+            if let preset = expressions.preset {
+                keys.append(contentsOf: makeVRM1PresetExpressionKeys(from: preset))
+            }
+            if let custom = expressions.custom {
+                keys.append(contentsOf: custom.keys.sorted().map { .custom($0) })
+            }
+            return keys
+        }
+
+        guard let groups = gltf.extensions?.vrm0?.blendShapeMaster?.blendShapeGroups else {
+            return []
+        }
+
+        return groups.compactMap { normalizeVRM0ExpressionKey(from: $0) }
+    }
+
+    private func makeVRM1PresetExpressionKeys(from preset: VRMCVrmPresetExpressions) -> [VRMExpressionKey] {
+        let expressions: [(VRMExpressionKey, VRMCVrmExpression?)] = [
+            (.happy, preset.happy),
+            (.angry, preset.angry),
+            (.sad, preset.sad),
+            (.relaxed, preset.relaxed),
+            (.surprised, preset.surprised),
+            (.aa, preset.aa),
+            (.ih, preset.ih),
+            (.ou, preset.ou),
+            (.ee, preset.ee),
+            (.oh, preset.oh),
+            (.blink, preset.blink),
+            (.blinkLeft, preset.blinkLeft),
+            (.blinkRight, preset.blinkRight),
+            (.lookUp, preset.lookUp),
+            (.lookDown, preset.lookDown),
+            (.lookLeft, preset.lookLeft),
+            (.lookRight, preset.lookRight),
+            (.neutral, preset.neutral)
+        ]
+
+        return expressions.compactMap { key, expression in
+            expression == nil ? nil : key
+        }
     }
 
     private func makeVRMHumanoidNodeMap(from gltf: GLTF) -> [VRMHumanoidBoneName: Int] {

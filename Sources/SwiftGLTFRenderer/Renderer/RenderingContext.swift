@@ -1,5 +1,6 @@
 import Metal
 import SwiftGLTFCore
+import SwiftGLTFParser
 import SwiftGLTFShaderTypes
 
 public class RenderingContextBuilder {
@@ -28,6 +29,7 @@ public struct RenderingContext {
      // animation
     private var animationState: RendererAnimationState? = nil
     private var vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>] = [:]
+    private var vrmExpressionWeights: [VRMExpressionKey: Float] = [:]
 
     // render
     private var renderingState: RenderingState? = nil
@@ -88,6 +90,12 @@ public struct RenderingContext {
         return copy
     }
 
+    public func vrmExpressions(_ weights: [VRMExpressionKey: Float]) -> Self {
+        var copy = self
+        copy.vrmExpressionWeights = weights
+        return copy
+    }
+
     public func finalizeWithICB(
         state: PBRIndirectRenderState,
         renderPassDescriptor: MTLRenderPassDescriptor,
@@ -114,6 +122,7 @@ public struct RenderingContext {
             freeCameraUniforms: freeCameraUniforms,
             animationState: animationState,
             vrmHumanoidRotations: vrmHumanoidRotations,
+            vrmExpressionWeights: vrmExpressionWeights,
             renderingState: renderingState,
             showsSkybox: showsSkybox
         )
@@ -136,6 +145,7 @@ public enum FinalizedRenderingContext {
         freeCameraUniforms: FreeCameraUniforms,
         animationState: RendererAnimationState?,
         vrmHumanoidRotations: [VRMHumanoidBoneName: SIMD3<Float>],
+        vrmExpressionWeights: [VRMExpressionKey: Float],
         renderingState: RenderingState,
         showsSkybox: Bool
     )

@@ -41,6 +41,7 @@ public class PBRMeshLoader {
         }
         let nodeLevelHierarchy = makeNodeLevelHierarchy(root: scene)
         let vrmHumanoidNodeMap = makeVRMHumanoidNodeMap(from: asset, with: nodeLevelHierarchy)
+        let vrmExpressions = makeVRMExpressions(from: asset, with: nodeLevelHierarchy)
 
         // Create command buffer for batching all operations
         let batchCommandBuffer = shaderConnection.commandQueue.makeCommandBuffer()!
@@ -105,7 +106,6 @@ public class PBRMeshLoader {
             length: MemoryLayout<MorphDispatch>.size * morphDispatches.count,
             options: .storageModeShared
         )!
-        let morphDispatchMap: [MDLObject: MorphDispatch] = extractMorphDispatchMap(from: asset, with: nodeLevelHierarchy)
 
         // Animation processing
         #if DEBUG
@@ -186,7 +186,6 @@ public class PBRMeshLoader {
             meshBufferMap: meshBufferMap,
             textureMap: textureMap,
             skinDispatchMap: skinDispatchMap,
-            morphDispatchMap: morphDispatchMap,
             vertexHeap: vertexMeshHeap,
             fragmentHeap: fragmentHeap,
             parentTransform: float4x4(1),
@@ -246,6 +245,7 @@ public class PBRMeshLoader {
             originMorphWeights: morphWeights,
             morphDispatches: morphDispatches,
             vrmHumanoidNodeMap: vrmHumanoidNodeMap,
+            vrmExpressions: vrmExpressions,
             vertexHeaps: [vertexMeshHeap].compactMap({ $0 }),
             fragmentHeaps: [texturesHeap, fragmentHeap].compactMap({ $0 }),
         )
@@ -259,7 +259,6 @@ public class PBRMeshLoader {
         meshBufferMap: [MDLMesh: MTKMeshBufferHeapData],
         textureMap: [MDLTexture: MTLTexture],
         skinDispatchMap: [GLTFSkin: SkinDispatch],
-        morphDispatchMap: [MDLObject: MorphDispatch],
         vertexHeap: MTLHeap,
         fragmentHeap: MTLHeap,
         parentTransform: float4x4,
@@ -309,7 +308,6 @@ public class PBRMeshLoader {
                 meshBufferMap: meshBufferMap,
                 textureMap: textureMap,
                 skinDispatchMap: skinDispatchMap,
-                morphDispatchMap: morphDispatchMap,
                 vertexHeap: vertexHeap,
                 fragmentHeap: fragmentHeap,
                 parentTransform: totalTransform,
@@ -361,6 +359,7 @@ public class PBRMeshLoader {
         // Morph data detection on this mesh
         var morphCount: UInt32 = 0
         var morphWeightsBuffer: MTLBuffer? = nil
+        // TODO: vrm expression のためにmorphTargetの上限値8を無くす
         var morphTargetBuffers: [MTLBuffer?] = Array(repeating: nil, count: 8)
         if let morphComp = mdlMesh.component(ofType: GLTFMorphTargets.self) {
             morphCount = UInt32(morphComp.targetCount)
@@ -547,6 +546,7 @@ public class PBRMeshLoader {
 
         var nodeIndexMap: [Int: NodeHierarchyOffset] = [:]
         for (offset, object) in nodeLevelHierarchy.indexToObject.enumerated() {
+            // TODO: GLTFNodeIndexProtocol を利用しない形でリファクタしたい
             if let nodeIndex = object.component(ofType: GLTFNodeIndexProtocol.self) as? GLTFNodeIndex {
                 nodeIndexMap[nodeIndex.index] = offset
             }
@@ -561,6 +561,36 @@ public class PBRMeshLoader {
             output[boneName] = offset
         }
         return output
+    }
+
+    func makeVRMExpressions(from asset: MDLAsset, with nodeLevelHierarchy: NodeLevelHierarchy) -> [VRMExpression] {
+        guard let expressionsObject = asset.objectSafe(atPath: GLTFAssetPath.vrmExpressions) as? GLTFVRMExpressions else {
+            return []
+        }
+
+        return expressionsObject.expressions.map { expression in
+            let binds = expression.morphTargetBinds.flatMap { bind -> [VRMExpressionMorphTargetBind] in
+                bind.targetNodes.compactMap { targetNode in
+                    guard let node = nodeLevelHierarchy.objectToIndex[ObjectIdentifier(targetNode)] else {
+                        return nil
+                    }
+                    return VRMExpressionMorphTargetBind(
+                        node: node,
+                        index: bind.index,
+                        weight: bind.weight
+                    )
+                }
+            }
+
+            return VRMExpression(
+                key: expression.key,
+                morphTargetBinds: binds,
+                isBinary: expression.isBinary,
+                overrideBlink: expression.overrideBlink,
+                overrideLookAt: expression.overrideLookAt,
+                overrideMouth: expression.overrideMouth
+            )
+        }
     }
 
     func makeSkinInverseBindMatrices(from asset: MDLAsset) -> [float4x4] {
@@ -580,6 +610,8 @@ public class PBRMeshLoader {
             let obj = nodeLevelHierarchy.indexToObject[index]
             if let morph = obj.component(ofType: GLTFMorphWeights.self) {
                 morphWeights.append(contentsOf: morph.weights)
+            } else if let weights = makeDefaultMorphWeights(for: obj, from: asset) {
+                morphWeights.append(contentsOf: weights)
             }
         }
 
@@ -596,12 +628,35 @@ public class PBRMeshLoader {
                 let length = Int64(morph.weights.count)
                 morphDispatches.append(MorphDispatch(offset: offset, length: length))
                 offset += length
+            } else if let weights = makeDefaultMorphWeights(for: obj, from: asset) {
+                let length = Int64(weights.count)
+                morphDispatches.append(MorphDispatch(offset: offset, length: length))
+                offset += length
             } else {
+                // TODO: morphがない時は length=-1にするのが良さそう
                 morphDispatches.append(MorphDispatch(offset: offset, length: 0))
             }
         }
 
         return morphDispatches
+    }
+
+    func makeDefaultMorphWeights(
+        for object: MDLObject,
+        from asset: MDLAsset
+    ) -> [Float]? {
+        guard let meshRef = object.component(ofType: GLTFMeshRef.self),
+              asset.primitiveMeshes.indices.contains(meshRef.index) else {
+            return nil
+        }
+
+        let primitiveMesh = asset.primitiveMeshes[meshRef.index]
+        guard let morph = primitiveMesh.meshes.compactMap({
+            $0.component(ofType: GLTFMorphTargets.self)
+        }).first else {
+            return nil
+        }
+        return morph.defaultWeights
     }
 
     func makeAnimations(
@@ -775,30 +830,6 @@ public class PBRMeshLoader {
         }
 
         return textureMap
-    }
-
-    func extractMorphDispatchMap(from asset: MDLAsset, with nodeLevelHierarchy: NodeLevelHierarchy) -> [MDLObject: MorphDispatch] {
-        var morphDispatchMap: [MDLObject: MorphDispatch] = [:]
-
-        var offset: Int64 = 0
-        for index in nodeLevelHierarchy.levelNodes {
-            let obj = nodeLevelHierarchy.indexToObject[index]
-            if let morph = obj.component(ofType: GLTFMorphWeights.self) {
-                morphDispatchMap[obj] = MorphDispatch(
-                    offset: offset,
-                    length: Int64(morph.weights.count)
-                )
-                offset += Int64(morph.weights.count)
-            } else {
-                // No morph on this node
-                morphDispatchMap[obj] = MorphDispatch(
-                    offset: -1,
-                    length: 0
-                )
-            }
-        }
-
-        return morphDispatchMap
     }
 
     func extractDrawingCount(from asset: MDLAsset, sceneIndex: Int) -> Int {
