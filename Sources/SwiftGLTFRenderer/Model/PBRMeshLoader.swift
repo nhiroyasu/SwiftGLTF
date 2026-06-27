@@ -302,7 +302,6 @@ public class PBRMeshLoader {
             }
         }
 
-        // TODO: recursiveする必要ある？
         let children = (obj.component(ofType: GLTFNodeMetadataProtocol.self) as? GLTFNodeMetadata)?.children ?? []
         for childNodeIndex in children {
             let childMeshes = try loadRecursiveMeshes(
@@ -611,7 +610,6 @@ public class PBRMeshLoader {
                 morphDispatches.append(MorphDispatch(offset: offset, length: length))
                 offset += length
             } else {
-                // TODO: morphがない時は length=-1にするのが良さそう
                 morphDispatches.append(MorphDispatch(offset: offset, length: 0))
             }
         }

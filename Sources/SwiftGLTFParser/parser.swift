@@ -162,7 +162,7 @@ public func makeMDLAsset(
     }
 
     // Skin nodes are added as children of the root asset
-    for (_, skin) in skinMap.sorted(by: { $0.key.value < $1.key.value }) { // TODO: mapだと順番が保証されない
+    for (_, skin) in skinMap.sorted(by: { $0.key.value < $1.key.value }) {
         skinsObject.addChild(skin)
     }
 
