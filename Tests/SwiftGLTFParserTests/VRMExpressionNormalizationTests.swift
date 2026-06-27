@@ -120,7 +120,7 @@ final class VRMExpressionNormalizationTests {
     }
 
     @Test
-    func testVRM0BlendShapeBindTargetsNodesUsingSameMesh() throws {
+    func testVRM0BlendShapeBindKeepsMeshReference() throws {
         let gltf = try decodeGLTF(
             """
             {
@@ -153,18 +153,9 @@ final class VRMExpressionNormalizationTests {
         )
 
         let expressions = try #require(makeGLTFVRMExpressions(from: gltf))
-        _ = buildNodeTree(
-            nodeIndex: 0,
-            meshMap: [:],
-            skinMap: [:],
-            cameraMap: [:],
-            animations: [],
-            vrmExpressions: expressions,
-            gltf: gltf
-        )
-
         let bind = try #require(expressions.expressions.first?.morphTargetBinds.first)
-        #expect(bind.targetNodes.map(\.name) == ["Node_0", "Node_2"])
+        #expect(bind.mesh?.value == 1)
+        #expect(bind.node == nil)
     }
 
     private func decodeGLTF(_ json: String) throws -> GLTF {

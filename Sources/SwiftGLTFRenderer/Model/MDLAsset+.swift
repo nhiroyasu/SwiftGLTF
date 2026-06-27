@@ -1,7 +1,12 @@
 import ModelIO
 import SwiftGLTFParser
+import SwiftGLTFCore
 
 extension MDLAsset {
+    var gltfNodes: [MDLObject] {
+        objectSafe(atPath: GLTFAssetPath.nodes)?.children.objects ?? []
+    }
+
     var primitiveMeshes: [GLTFPrimitiveMesh] {
         var meshes: [GLTFPrimitiveMesh] = []
         for obj in object(atPath: GLTFAssetPath.meshes).children.objects {
@@ -49,6 +54,20 @@ extension MDLAsset {
     }
 
     func objectSafe(atPath: String) -> MDLObject? {
-        self.object(atPath: atPath) as? MDLObject
+        self.object(atPath: atPath)
+    }
+
+    func node(at index: NodeIndex) -> MDLObject? {
+        let nodes = gltfNodes
+        guard nodes.indices.contains(index.value) else { return nil }
+        return nodes[index.value]
+    }
+
+    func sceneRootNodes(at sceneIndex: Int) -> [NodeIndex] {
+        guard let scene = objectSafe(atPath: GLTFAssetPath.scene(sceneIndex)),
+              let rootNodes = scene.component(ofType: GLTFSceneRootNodesProtocol.self) as? GLTFSceneRootNodes else {
+            return []
+        }
+        return rootNodes.nodes
     }
 }

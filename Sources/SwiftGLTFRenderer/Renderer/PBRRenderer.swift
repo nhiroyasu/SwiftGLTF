@@ -175,12 +175,12 @@ public class PBRRenderer {
         // let the animation's transform override it.
         for (boneName, rotation) in vrmHumanoidRotations {
             guard let target = meshBundle.vrmHumanoidNodeMap[boneName],
-                  localTransforms.indices.contains(target) else {
+                  localTransforms.indices.contains(target.value) else {
                 continue
             }
-            var trs = decomposeTRS(localTransforms[target])
+            var trs = decomposeTRS(localTransforms[target.value])
             trs.rotation = simd_normalize(trs.rotation * quaternion(fromEulerDegrees: rotation))
-            localTransforms[target] = trs2matrix(trs)
+            localTransforms[target.value] = trs2matrix(trs)
         }
 
         if let animationState {
@@ -202,7 +202,7 @@ public class PBRRenderer {
                     looping: animationState.isLooping
                 )
 
-                let target = animation.targetNode
+                let target = animation.targetNode.value
 
                 localTransforms[target] = trs.apply(localTransforms[target])
 

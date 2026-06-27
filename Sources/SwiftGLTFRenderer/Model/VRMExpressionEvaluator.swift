@@ -20,7 +20,7 @@ func resolveVRMExpressionMorphWeights(
     // Expression-bound morphs are rebuilt from resolved expressions without keeping base or animated weights.
     for definition in definitions {
         for morphBind in definition.morphTargetBinds {
-            let dispatch = morphDispatches[morphBind.node]
+            let dispatch = morphDispatches[morphBind.node.value]
             let morphIndex = Int(dispatch.offset) + morphBind.index
             morphWeights[morphIndex] = 0
         }
@@ -34,7 +34,7 @@ func resolveVRMExpressionMorphWeights(
         }
 
         for morphBind in definition.morphTargetBinds {
-            let dispatch = morphDispatches[morphBind.node]
+            let dispatch = morphDispatches[morphBind.node.value]
             let morphIndex = Int(dispatch.offset) + morphBind.index
             morphWeights[morphIndex] += morphBind.weight * expressionWeight
         }

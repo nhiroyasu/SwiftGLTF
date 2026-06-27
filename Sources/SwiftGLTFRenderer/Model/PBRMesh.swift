@@ -42,7 +42,7 @@ public struct PBRMeshBundle: Identifiable {
     let nodeLevelHierarchy: NodeLevelHierarchy
     let originMorphWeights: [Float]
     let morphDispatches: [MorphDispatch]
-    let vrmHumanoidNodeMap: [VRMHumanoidBoneName: NodeHierarchyOffset]
+    let vrmHumanoidNodeMap: [VRMHumanoidBoneName: NodeIndex]
     let vrmExpressions: [VRMExpression]
 
     // Resources
@@ -62,7 +62,7 @@ public struct PBRMeshBundle: Identifiable {
 }
 
 struct PBRMeshAnimation {
-    let targetNode: NodeHierarchyOffset
+    let targetNode: NodeIndex
     let type: GLTFAnimationType
     let keyframes: [Float]
     let duration: Float

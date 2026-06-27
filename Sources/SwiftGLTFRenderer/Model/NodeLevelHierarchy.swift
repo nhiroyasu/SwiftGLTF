@@ -22,16 +22,14 @@ import SwiftGLTFParser
 /// levelCounts = [1, 2, 3]
 /// ```
 struct NodeLevelHierarchy {
-    let parentIndex: [NodeHierarchyOffset]
-    let levelNodes:  [NodeHierarchyOffset]
-    let levelStarts: [NodeHierarchyOffset]
+    let parentIndex: [Int]
+    let levelNodes:  [Int]
+    let levelStarts: [Int]
     let levelCounts: [Int]
     let localTransforms: [float4x4]
-    let indexToObject: [MDLObject]
-    let objectToIndex: [ObjectIdentifier: NodeHierarchyOffset]
 
     // options
-    let cameraLevelNodes: [NodeHierarchyOffset]
+    let cameraNodeIndices: [NodeIndex]
     let cameraIndices: [CameraIndex]
 
     var maxDepth: Int { levelCounts.count }
@@ -44,74 +42,60 @@ struct NodeLevelHierarchy {
             levelStarts: levelStarts,
             levelCounts: levelCounts,
             localTransforms: localTransforms,
-            indexToObject: indexToObject,
-            objectToIndex: objectToIndex,
-            cameraLevelNodes: cameraLevelNodes,
+            cameraNodeIndices: cameraNodeIndices,
             cameraIndices: cameraIndices
         )
     }
 }
 
-typealias NodeHierarchyOffset = Int
-
-func makeNodeLevelHierarchy(root: MDLObject) -> NodeLevelHierarchy {
-    var objectToIndex: [ObjectIdentifier: Int] = [:]
-    var indexToObject: [MDLObject] = []
-
-    // outputs
-    var parentIndex: [Int] = []
+func makeNodeLevelHierarchy(nodesRoot: MDLObject) -> NodeLevelHierarchy {
+    let nodes = nodesRoot.children.objects
+    var parentIndex = Array(repeating: -1, count: nodes.count)
+    var childrenMap: [Int: [Int]] = [:]
+    var localTransforms = Array(repeating: float4x4(1), count: nodes.count)
+    var hasParent = Array(repeating: false, count: nodes.count)
     var levelNodes:  [Int] = []
     var levelStarts: [Int] = []
     var levelCounts: [Int] = []
-    var localTransforms: [float4x4] = []
-    var cameraLevelNodes: [Int] = []
+    var cameraNodeIndices: [NodeIndex] = []
     var cameraIndices: [CameraIndex] = []
 
-    // 訪問済み（防御：循環/重複参照を避ける）
-    var visited: Set<ObjectIdentifier> = []
+    for object in nodes {
+        guard let nodeIndex = (object.component(ofType: GLTFNodeIndexProtocol.self) as? GLTFNodeIndex)?.index,
+              nodes.indices.contains(nodeIndex.value) else {
+            continue
+        }
+        localTransforms[nodeIndex.value] = object.transform?.matrix ?? float4x4(1)
+        let children = (object.component(ofType: GLTFNodeMetadataProtocol.self) as? GLTFNodeMetadata)?.children ?? []
+        childrenMap[nodeIndex.value] = children.map(\.value).filter { nodes.indices.contains($0) }
+        for childIndex in childrenMap[nodeIndex.value] ?? [] {
+            parentIndex[childIndex] = nodeIndex.value
+            hasParent[childIndex] = true
+        }
+        if let cameraNode = object as? GLTFCameraNode {
+            cameraNodeIndices.append(nodeIndex)
+            cameraIndices.append(cameraNode.cameraIndex)
+        }
+    }
 
-    // 現在レベルの (node, parentIndex) キュー
-    var curr: [(MDLObject, Int)] = [(root, -1)]
-
+    var visited: Set<Int> = []
+    var curr = nodes.indices.filter { !hasParent[$0] }
     while !curr.isEmpty {
         let start = levelNodes.count
-        // 先に今レベルのノードへ “連番の index” を割り当てる
-        for (obj, p) in curr {
-            let oid = ObjectIdentifier(obj)
-            guard !visited.contains(oid) else {
-                let nodeName = obj.name ?? "Unknown"
-                logger.error("⚠️ Warning: Detected cyclic or duplicate node reference for \(nodeName, privacy: .public). Skipping.")
+        for nodeIndex in curr {
+            guard visited.insert(nodeIndex).inserted else {
+                logger.error("⚠️ Warning: Detected cyclic or duplicate node reference for \(nodeIndex, privacy: .public). Skipping.")
                 continue
             }
-            visited.insert(oid)
-
-            let idx = indexToObject.count
-            objectToIndex[oid] = idx
-            indexToObject.append(obj)
-
-            parentIndex.append(p)
-            levelNodes.append(idx)
-            if let cameraNode = obj as? GLTFCameraNode {
-                cameraLevelNodes.append(idx)
-                cameraIndices.append(cameraNode.cameraIndex)
-            }
-            localTransforms.append(obj.transform?.matrix ?? float4x4(1))
+            levelNodes.append(nodeIndex)
         }
         levelStarts.append(start)
         levelCounts.append(levelNodes.count - start)
 
-        // 次レベルを作る（今レベルで確定した index を親として持たせる）
-        var next: [(MDLObject, Int)] = []
+        var next: [Int] = []
         next.reserveCapacity(curr.count * 2)
-
-        for (obj, _) in curr {
-            let parentIdx = objectToIndex[ObjectIdentifier(obj)]
-            for child in obj.children.objects {
-                let coid = ObjectIdentifier(child)
-                if !visited.contains(coid), let p = parentIdx {
-                    next.append((child, p))
-                }
-            }
+        for nodeIndex in curr {
+            next.append(contentsOf: (childrenMap[nodeIndex] ?? []).filter { !visited.contains($0) })
         }
         curr = next
     }
@@ -122,10 +106,7 @@ func makeNodeLevelHierarchy(root: MDLObject) -> NodeLevelHierarchy {
         levelStarts: levelStarts,
         levelCounts: levelCounts,
         localTransforms: localTransforms,
-        indexToObject: indexToObject,
-        objectToIndex: objectToIndex,
-        // options
-        cameraLevelNodes: cameraLevelNodes,
+        cameraNodeIndices: cameraNodeIndices,
         cameraIndices: cameraIndices
     )
 }

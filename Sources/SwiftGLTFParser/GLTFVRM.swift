@@ -6,7 +6,6 @@ public final class GLTFVRMExpressionMorphTargetBind: Equatable {
     public let mesh: MeshIndex?
     public let index: Int
     public let weight: Float
-    public private(set) var targetNodes: [MDLObject] = []
 
     public init(
         node: NodeIndex?,
@@ -18,10 +17,6 @@ public final class GLTFVRMExpressionMorphTargetBind: Equatable {
         self.mesh = mesh
         self.index = index
         self.weight = weight
-    }
-
-    func bind(_ object: MDLObject) {
-        targetNodes.append(object)
     }
 
     public static func == (

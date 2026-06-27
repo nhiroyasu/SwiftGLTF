@@ -53,7 +53,11 @@ struct CubeBinaryTests {
         let (gltf, asset) = try await loadGLBAndAsset()
         #expect(gltf.scenes!.count == 1)
         #expect(gltf.nodes!.count == 1)
-        #expect(asset.object(atPath: GLTFAssetPath.nodes(atScene: 0)).children.count == 1)
+        #expect(asset.object(atPath: GLTFAssetPath.nodes).children.count == 1)
+        #expect(asset.object(atPath: GLTFAssetPath.scene(0)).children.count == 0)
+        let rootNodes = asset.object(atPath: GLTFAssetPath.scene(0))
+            .componentConforming(to: GLTFSceneRootNodesProtocol.self) as? GLTFSceneRootNodes
+        #expect(rootNodes?.nodes == [0])
         #expect(gltf.scene == 0)
     }
 

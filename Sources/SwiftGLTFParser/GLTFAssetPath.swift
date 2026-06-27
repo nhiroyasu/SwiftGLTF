@@ -1,4 +1,5 @@
 import ModelIO
+import SwiftGLTFCore
 
 public enum GLTFAssetPath {
     public static var scenes: String {
@@ -7,8 +8,8 @@ public enum GLTFAssetPath {
     public static func scene(_ i: Int) -> String {
         "/\(GLTFAssetName.scenes)/\(GLTFAssetName.scene(i))"
     }
-    public static func nodes(atScene: Int) -> String {
-        "\(Self.scene(atScene))/\(GLTFAssetName.nodes)"
+    public static var nodes: String {
+        "/\(GLTFAssetName.nodes)"
     }
     public static var cameras: String {
         "/\(GLTFAssetName.cameras)"
@@ -56,4 +57,5 @@ public enum GLTFAssetName {
     public static let meshes = "Meshes"
     public static let cameras = "Cameras"
     public static func primitive(_ i: Int) -> String { "Primitive_\(i)" }
+    public static func node(_ i: NodeIndex) -> String { "Node_\(i.value)" }
 }
