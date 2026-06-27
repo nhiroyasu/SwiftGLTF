@@ -289,7 +289,7 @@ final class CameraDebugHUDView: NSView {
 
         resetCameraButton.target = self
         resetCameraButton.action = #selector(handleResetCamera)
-        resetCameraButton.bezelStyle = .rounded
+        resetCameraButton.bezelColor = .controlBackgroundColor
         resetCameraButton.alignment = .left
         cameraSection.addArrangedSubview(resetCameraButton)
 
@@ -324,7 +324,7 @@ final class CameraDebugHUDView: NSView {
 
         resetLightButton.target = self
         resetLightButton.action = #selector(handleResetLight)
-        resetLightButton.bezelStyle = .rounded
+        resetLightButton.bezelColor = .controlBackgroundColor
         resetLightButton.alignment = .left
         lightSection.addArrangedSubview(resetLightButton)
 
@@ -371,7 +371,9 @@ final class CameraDebugHUDView: NSView {
 
     private static func makeFields() -> [NSTextField] {
         (0..<3).map { _ in
-            let field = NSTextField()
+            let field = DebugHUDScrollAdjustingTextField()
+            field.scrollStep = 0.01
+            field.fractionDigits = 2
             field.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
             field.alignment = .left
             field.maximumNumberOfLines = 1

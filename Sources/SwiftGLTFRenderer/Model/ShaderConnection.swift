@@ -423,6 +423,40 @@ public class ShaderConnection {
         return heapBuffers
     }
 
+    func encodeMoveBuffersToSingleHeapBuffer(
+        _ commandBuffer: MTLCommandBuffer,
+        from buffers: [MTLBuffer],
+        use heap: MTLHeap
+    ) throws -> MTLBuffer? {
+        guard !buffers.isEmpty else { return nil }
+        guard let encoder = commandBuffer.makeBlitCommandEncoder() else {
+            throw SwiftGLTFRendererError(description: "Failed to create blit command encoder")
+        }
+
+        let totalLength = buffers.map(\.length).reduce(0, +)
+        guard let heapBuffer = heap.makeBuffer(
+            length: totalLength,
+            options: [.storageModePrivate]
+        ) else {
+            throw SwiftGLTFRendererError(description: "Failed to create heap buffer")
+        }
+
+        var destinationOffset = 0
+        for sourceBuffer in buffers {
+            encoder.copy(
+                from: sourceBuffer,
+                sourceOffset: 0,
+                to: heapBuffer,
+                destinationOffset: destinationOffset,
+                size: sourceBuffer.length
+            )
+            destinationOffset += sourceBuffer.length
+        }
+
+        encoder.endEncoding()
+        return heapBuffer
+    }
+
     func moveBufferToHeap(
         from buffer: MTLBuffer,
         use heap: MTLHeap

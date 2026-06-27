@@ -85,9 +85,13 @@ public struct GLTF: Codable, Equatable {
 
 public struct GLTFExtensions: Codable, Equatable {
     public let khrMaterialsVariants: KHRMaterialsVariantsRoot?
+    public let vrmcVrm: VRMCVrm?
+    public let vrm0: VRM0Vrm?
 
     enum CodingKeys: String, CodingKey {
         case khrMaterialsVariants = "KHR_materials_variants"
+        case vrmcVrm = "VRMC_vrm"
+        case vrm0 = "VRM"
     }
 }
 
@@ -1147,5 +1151,820 @@ public struct KHRMaterialsSheen: Codable, Equatable {
         self.sheenColorTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .sheenColorTexture)
         self.sheenRoughnessFactor = try container.decodeIfPresent(Float.self, forKey: .sheenRoughnessFactor) ?? 0.0
         self.sheenRoughnessTexture = try container.decodeIfPresent(TextureInfo.self, forKey: .sheenRoughnessTexture)
+    }
+}
+
+// MARK: - VRM 0.x extension
+
+public struct VRM0Vrm: Codable, Equatable {
+    public let exporterVersion: String?
+    public let specVersion: String?
+    public let meta: VRM0Meta?
+    public let humanoid: VRM0Humanoid?
+    public let firstPerson: VRM0FirstPerson?
+    public let blendShapeMaster: VRM0BlendShapeMaster?
+    public let secondaryAnimation: VRM0SecondaryAnimation?
+    public let materialProperties: [VRM0MaterialProperty]?
+}
+
+public struct VRM0Meta: Codable, Equatable {
+    public let title: String?
+    public let version: String?
+    public let author: String?
+    public let contactInformation: String?
+    public let reference: String?
+    public let texture: TextureIndex?
+    public let allowedUserName: String?
+    public let violentUssageName: String?
+    public let sexualUssageName: String?
+    public let commercialUssageName: String?
+    public let otherPermissionUrl: String?
+    public let licenseName: String?
+    public let otherLicenseUrl: String?
+}
+
+public struct VRM0Humanoid: Codable, Equatable {
+    public let humanBones: [VRM0HumanBone]?
+    public let armStretch: Float?
+    public let legStretch: Float?
+    public let upperArmTwist: Float?
+    public let lowerArmTwist: Float?
+    public let upperLegTwist: Float?
+    public let lowerLegTwist: Float?
+    public let feetSpacing: Float?
+    public let hasTranslationDoF: Bool?
+
+    public var nodeMap: [VRMHumanoidBoneName: NodeIndex] {
+        var output: [VRMHumanoidBoneName: NodeIndex] = [:]
+        for humanBone in humanBones ?? [] {
+            guard let boneName = humanBone.bone.vrmHumanoidBoneName else {
+                continue
+            }
+            output[boneName] = humanBone.node
+        }
+        return output
+    }
+}
+
+public struct VRM0HumanBone: Codable, Equatable {
+    public let bone: VRM0HumanoidBoneName
+    public let node: NodeIndex
+    public let useDefaultValues: Bool?
+    public let min: VRM0Vector3?
+    public let max: VRM0Vector3?
+    public let center: VRM0Vector3?
+    public let axisLength: Float?
+}
+
+public struct VRM0Vector3: Codable, Equatable {
+    public let x: Float?
+    public let y: Float?
+    public let z: Float?
+}
+
+public enum VRM0HumanoidBoneName: String, Codable, Equatable {
+    case hips
+    case leftUpperLeg
+    case rightUpperLeg
+    case leftLowerLeg
+    case rightLowerLeg
+    case leftFoot
+    case rightFoot
+    case spine
+    case chest
+    case neck
+    case head
+    case leftShoulder
+    case rightShoulder
+    case leftUpperArm
+    case rightUpperArm
+    case leftLowerArm
+    case rightLowerArm
+    case leftHand
+    case rightHand
+    case leftToes
+    case rightToes
+    case leftEye
+    case rightEye
+    case jaw
+    case leftThumbProximal
+    case leftThumbIntermediate
+    case leftThumbDistal
+    case leftIndexProximal
+    case leftIndexIntermediate
+    case leftIndexDistal
+    case leftMiddleProximal
+    case leftMiddleIntermediate
+    case leftMiddleDistal
+    case leftRingProximal
+    case leftRingIntermediate
+    case leftRingDistal
+    case leftLittleProximal
+    case leftLittleIntermediate
+    case leftLittleDistal
+    case rightThumbProximal
+    case rightThumbIntermediate
+    case rightThumbDistal
+    case rightIndexProximal
+    case rightIndexIntermediate
+    case rightIndexDistal
+    case rightMiddleProximal
+    case rightMiddleIntermediate
+    case rightMiddleDistal
+    case rightRingProximal
+    case rightRingIntermediate
+    case rightRingDistal
+    case rightLittleProximal
+    case rightLittleIntermediate
+    case rightLittleDistal
+    case upperChest
+
+    public var vrmHumanoidBoneName: VRMHumanoidBoneName? {
+        switch self {
+        case .hips: .hips
+        case .leftUpperLeg: .leftUpperLeg
+        case .rightUpperLeg: .rightUpperLeg
+        case .leftLowerLeg: .leftLowerLeg
+        case .rightLowerLeg: .rightLowerLeg
+        case .leftFoot: .leftFoot
+        case .rightFoot: .rightFoot
+        case .spine: .spine
+        case .chest: .chest
+        case .neck: .neck
+        case .head: .head
+        case .leftShoulder: .leftShoulder
+        case .rightShoulder: .rightShoulder
+        case .leftUpperArm: .leftUpperArm
+        case .rightUpperArm: .rightUpperArm
+        case .leftLowerArm: .leftLowerArm
+        case .rightLowerArm: .rightLowerArm
+        case .leftHand: .leftHand
+        case .rightHand: .rightHand
+        case .leftToes: .leftToes
+        case .rightToes: .rightToes
+        case .leftEye: .leftEye
+        case .rightEye: .rightEye
+        case .jaw: .jaw
+        case .leftThumbProximal: .leftThumbMetacarpal
+        case .leftThumbIntermediate: .leftThumbProximal
+        case .leftThumbDistal: .leftThumbDistal
+        case .leftIndexProximal: .leftIndexProximal
+        case .leftIndexIntermediate: .leftIndexIntermediate
+        case .leftIndexDistal: .leftIndexDistal
+        case .leftMiddleProximal: .leftMiddleProximal
+        case .leftMiddleIntermediate: .leftMiddleIntermediate
+        case .leftMiddleDistal: .leftMiddleDistal
+        case .leftRingProximal: .leftRingProximal
+        case .leftRingIntermediate: .leftRingIntermediate
+        case .leftRingDistal: .leftRingDistal
+        case .leftLittleProximal: .leftLittleProximal
+        case .leftLittleIntermediate: .leftLittleIntermediate
+        case .leftLittleDistal: .leftLittleDistal
+        case .rightThumbProximal: .rightThumbMetacarpal
+        case .rightThumbIntermediate: .rightThumbProximal
+        case .rightThumbDistal: .rightThumbDistal
+        case .rightIndexProximal: .rightIndexProximal
+        case .rightIndexIntermediate: .rightIndexIntermediate
+        case .rightIndexDistal: .rightIndexDistal
+        case .rightMiddleProximal: .rightMiddleProximal
+        case .rightMiddleIntermediate: .rightMiddleIntermediate
+        case .rightMiddleDistal: .rightMiddleDistal
+        case .rightRingProximal: .rightRingProximal
+        case .rightRingIntermediate: .rightRingIntermediate
+        case .rightRingDistal: .rightRingDistal
+        case .rightLittleProximal: .rightLittleProximal
+        case .rightLittleIntermediate: .rightLittleIntermediate
+        case .rightLittleDistal: .rightLittleDistal
+        case .upperChest: .upperChest
+        }
+    }
+}
+
+public struct VRM0FirstPerson: Codable, Equatable {
+    public let firstPersonBone: NodeIndex?
+    public let firstPersonBoneOffset: VRM0Vector3?
+    public let meshAnnotations: [VRM0FirstPersonMeshAnnotation]?
+    public let lookAtTypeName: String?
+    public let lookAtHorizontalInner: VRM0FirstPersonDegreeMap?
+    public let lookAtHorizontalOuter: VRM0FirstPersonDegreeMap?
+    public let lookAtVerticalDown: VRM0FirstPersonDegreeMap?
+    public let lookAtVerticalUp: VRM0FirstPersonDegreeMap?
+}
+
+public struct VRM0FirstPersonMeshAnnotation: Codable, Equatable {
+    public let mesh: MeshIndex?
+    public let firstPersonFlag: String?
+}
+
+public struct VRM0FirstPersonDegreeMap: Codable, Equatable {
+    public let curve: [Float]?
+    public let xRange: Float?
+    public let yRange: Float?
+}
+
+public struct VRM0BlendShapeMaster: Codable, Equatable {
+    public let blendShapeGroups: [VRM0BlendShapeGroup]?
+}
+
+public struct VRM0BlendShapeGroup: Codable, Equatable {
+    public let name: String?
+    public let presetName: String?
+    public let binds: [VRM0BlendShapeBind]?
+    public let materialValues: [VRM0BlendShapeMaterialBind]?
+    public let isBinary: Bool?
+}
+
+public struct VRM0BlendShapeBind: Codable, Equatable {
+    public let mesh: MeshIndex?
+    public let index: Int?
+    public let weight: Float?
+}
+
+public struct VRM0BlendShapeMaterialBind: Codable, Equatable {
+    public let materialName: String?
+    public let propertyName: String?
+    public let targetValue: [Float]?
+}
+
+public struct VRM0SecondaryAnimation: Codable, Equatable {
+    public let boneGroups: [VRM0SecondaryAnimationBoneGroup]?
+    public let colliderGroups: [VRM0SecondaryAnimationColliderGroup]?
+}
+
+public struct VRM0SecondaryAnimationBoneGroup: Codable, Equatable {
+    public let comment: String?
+    public let stiffiness: Float?
+    public let gravityPower: Float?
+    public let gravityDir: VRM0Vector3?
+    public let dragForce: Float?
+    public let center: NodeIndex?
+    public let hitRadius: Float?
+    public let bones: [NodeIndex]?
+    public let colliderGroups: [Int]?
+}
+
+public struct VRM0SecondaryAnimationColliderGroup: Codable, Equatable {
+    public let node: NodeIndex?
+    public let colliders: [VRM0SecondaryAnimationCollider]?
+}
+
+public struct VRM0SecondaryAnimationCollider: Codable, Equatable {
+    public let offset: VRM0Vector3?
+    public let radius: Float?
+}
+
+public struct VRM0MaterialProperty: Codable, Equatable {
+    public let name: String?
+    public let shader: String?
+    public let renderQueue: Int?
+    public let floatProperties: [String: Float]?
+    public let vectorProperties: [String: [Float]]?
+    public let textureProperties: [String: TextureIndex]?
+    public let keywordMap: [String: Bool]?
+    public let tagMap: [String: String]?
+}
+
+// MARK: - VRMC_vrm extension
+
+public struct VRMCVrm: Codable, Equatable {
+    public let specVersion: String
+    public let meta: VRMCVrmMeta
+    public let humanoid: VRMCVrmHumanoid
+    public let firstPerson: VRMCVrmFirstPerson?
+    public let lookAt: VRMCVrmLookAt?
+    public let expressions: VRMCVrmExpressions?
+}
+
+public struct VRMCVrmMeta: Codable, Equatable {
+    public let name: String
+    public let version: String?
+    public let authors: [String]
+    public let copyrightInformation: String?
+    public let contactInformation: String?
+    public let references: [String]?
+    public let thirdPartyLicenses: String?
+    public let thumbnailImage: ImageIndex?
+    public let licenseUrl: String
+    public let avatarPermission: VRMCVrmAvatarPermissionType
+    public let allowExcessivelyViolentUsage: Bool
+    public let allowExcessivelySexualUsage: Bool
+    public let commercialUsage: VRMCVrmCommercialUsageType
+    public let allowPoliticalOrReligiousUsage: Bool
+    public let allowAntisocialOrHateUsage: Bool
+    public let creditNotation: VRMCVrmCreditNotationType
+    public let allowRedistribution: Bool
+    public let modification: VRMCVrmModificationType
+    public let otherLicenseUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case version
+        case authors
+        case copyrightInformation
+        case contactInformation
+        case references
+        case thirdPartyLicenses
+        case thumbnailImage
+        case licenseUrl
+        case avatarPermission
+        case allowExcessivelyViolentUsage
+        case allowExcessivelySexualUsage
+        case commercialUsage
+        case allowPoliticalOrReligiousUsage
+        case allowAntisocialOrHateUsage
+        case creditNotation
+        case allowRedistribution
+        case modification
+        case otherLicenseUrl
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.name = try container.decode(String.self, forKey: .name)
+        self.version = try container.decodeIfPresent(String.self, forKey: .version)
+        self.authors = try container.decode([String].self, forKey: .authors)
+        self.copyrightInformation = try container.decodeIfPresent(String.self, forKey: .copyrightInformation)
+        self.contactInformation = try container.decodeIfPresent(String.self, forKey: .contactInformation)
+        self.references = try container.decodeIfPresent([String].self, forKey: .references)
+        self.thirdPartyLicenses = try container.decodeIfPresent(String.self, forKey: .thirdPartyLicenses)
+        self.thumbnailImage = try container.decodeIfPresent(ImageIndex.self, forKey: .thumbnailImage)
+        self.licenseUrl = try container.decode(String.self, forKey: .licenseUrl)
+        self.avatarPermission = try container.decodeIfPresent(VRMCVrmAvatarPermissionType.self, forKey: .avatarPermission) ?? .onlyAuthor
+        self.allowExcessivelyViolentUsage = try container.decodeIfPresent(Bool.self, forKey: .allowExcessivelyViolentUsage) ?? false
+        self.allowExcessivelySexualUsage = try container.decodeIfPresent(Bool.self, forKey: .allowExcessivelySexualUsage) ?? false
+        self.commercialUsage = try container.decodeIfPresent(VRMCVrmCommercialUsageType.self, forKey: .commercialUsage) ?? .personalNonProfit
+        self.allowPoliticalOrReligiousUsage = try container.decodeIfPresent(Bool.self, forKey: .allowPoliticalOrReligiousUsage) ?? false
+        self.allowAntisocialOrHateUsage = try container.decodeIfPresent(Bool.self, forKey: .allowAntisocialOrHateUsage) ?? false
+        self.creditNotation = try container.decodeIfPresent(VRMCVrmCreditNotationType.self, forKey: .creditNotation) ?? .required
+        self.allowRedistribution = try container.decodeIfPresent(Bool.self, forKey: .allowRedistribution) ?? false
+        self.modification = try container.decodeIfPresent(VRMCVrmModificationType.self, forKey: .modification) ?? .prohibited
+        self.otherLicenseUrl = try container.decodeIfPresent(String.self, forKey: .otherLicenseUrl)
+    }
+}
+
+public enum VRMCVrmAvatarPermissionType: String, Codable, Equatable {
+    case onlyAuthor
+    case onlySeparatelyLicensedPerson
+    case everyone
+}
+
+public enum VRMCVrmCommercialUsageType: String, Codable, Equatable {
+    case personalNonProfit
+    case personalProfit
+    case corporation
+}
+
+public enum VRMCVrmCreditNotationType: String, Codable, Equatable {
+    case required
+    case unnecessary
+}
+
+public enum VRMCVrmModificationType: String, Codable, Equatable {
+    case prohibited
+    case allowModification
+    case allowModificationRedistribution
+}
+
+public struct VRMCVrmHumanoid: Codable, Equatable {
+    public let humanBones: VRMCVrmHumanBones
+}
+
+public struct VRMCVrmHumanBones: Codable, Equatable {
+    public let hips: VRMCVrmHumanBone
+    public let spine: VRMCVrmHumanBone
+    public let chest: VRMCVrmHumanBone?
+    public let upperChest: VRMCVrmHumanBone?
+    public let neck: VRMCVrmHumanBone?
+    public let head: VRMCVrmHumanBone
+    public let leftEye: VRMCVrmHumanBone?
+    public let rightEye: VRMCVrmHumanBone?
+    public let jaw: VRMCVrmHumanBone?
+    public let leftUpperLeg: VRMCVrmHumanBone
+    public let leftLowerLeg: VRMCVrmHumanBone
+    public let leftFoot: VRMCVrmHumanBone
+    public let leftToes: VRMCVrmHumanBone?
+    public let rightUpperLeg: VRMCVrmHumanBone
+    public let rightLowerLeg: VRMCVrmHumanBone
+    public let rightFoot: VRMCVrmHumanBone
+    public let rightToes: VRMCVrmHumanBone?
+    public let leftShoulder: VRMCVrmHumanBone?
+    public let leftUpperArm: VRMCVrmHumanBone
+    public let leftLowerArm: VRMCVrmHumanBone
+    public let leftHand: VRMCVrmHumanBone
+    public let rightShoulder: VRMCVrmHumanBone?
+    public let rightUpperArm: VRMCVrmHumanBone
+    public let rightLowerArm: VRMCVrmHumanBone
+    public let rightHand: VRMCVrmHumanBone
+    public let leftThumbMetacarpal: VRMCVrmHumanBone?
+    public let leftThumbProximal: VRMCVrmHumanBone?
+    public let leftThumbDistal: VRMCVrmHumanBone?
+    public let leftIndexProximal: VRMCVrmHumanBone?
+    public let leftIndexIntermediate: VRMCVrmHumanBone?
+    public let leftIndexDistal: VRMCVrmHumanBone?
+    public let leftMiddleProximal: VRMCVrmHumanBone?
+    public let leftMiddleIntermediate: VRMCVrmHumanBone?
+    public let leftMiddleDistal: VRMCVrmHumanBone?
+    public let leftRingProximal: VRMCVrmHumanBone?
+    public let leftRingIntermediate: VRMCVrmHumanBone?
+    public let leftRingDistal: VRMCVrmHumanBone?
+    public let leftLittleProximal: VRMCVrmHumanBone?
+    public let leftLittleIntermediate: VRMCVrmHumanBone?
+    public let leftLittleDistal: VRMCVrmHumanBone?
+    public let rightThumbMetacarpal: VRMCVrmHumanBone?
+    public let rightThumbProximal: VRMCVrmHumanBone?
+    public let rightThumbDistal: VRMCVrmHumanBone?
+    public let rightIndexProximal: VRMCVrmHumanBone?
+    public let rightIndexIntermediate: VRMCVrmHumanBone?
+    public let rightIndexDistal: VRMCVrmHumanBone?
+    public let rightMiddleProximal: VRMCVrmHumanBone?
+    public let rightMiddleIntermediate: VRMCVrmHumanBone?
+    public let rightMiddleDistal: VRMCVrmHumanBone?
+    public let rightRingProximal: VRMCVrmHumanBone?
+    public let rightRingIntermediate: VRMCVrmHumanBone?
+    public let rightRingDistal: VRMCVrmHumanBone?
+    public let rightLittleProximal: VRMCVrmHumanBone?
+    public let rightLittleIntermediate: VRMCVrmHumanBone?
+    public let rightLittleDistal: VRMCVrmHumanBone?
+}
+
+public enum VRMHumanoidBoneName: String, Codable, CaseIterable, Hashable {
+    case hips
+    case spine
+    case chest
+    case upperChest
+    case neck
+    case head
+    case leftEye
+    case rightEye
+    case jaw
+    case leftUpperLeg
+    case leftLowerLeg
+    case leftFoot
+    case leftToes
+    case rightUpperLeg
+    case rightLowerLeg
+    case rightFoot
+    case rightToes
+    case leftShoulder
+    case leftUpperArm
+    case leftLowerArm
+    case leftHand
+    case rightShoulder
+    case rightUpperArm
+    case rightLowerArm
+    case rightHand
+    case leftThumbMetacarpal
+    case leftThumbProximal
+    case leftThumbDistal
+    case leftIndexProximal
+    case leftIndexIntermediate
+    case leftIndexDistal
+    case leftMiddleProximal
+    case leftMiddleIntermediate
+    case leftMiddleDistal
+    case leftRingProximal
+    case leftRingIntermediate
+    case leftRingDistal
+    case leftLittleProximal
+    case leftLittleIntermediate
+    case leftLittleDistal
+    case rightThumbMetacarpal
+    case rightThumbProximal
+    case rightThumbDistal
+    case rightIndexProximal
+    case rightIndexIntermediate
+    case rightIndexDistal
+    case rightMiddleProximal
+    case rightMiddleIntermediate
+    case rightMiddleDistal
+    case rightRingProximal
+    case rightRingIntermediate
+    case rightRingDistal
+    case rightLittleProximal
+    case rightLittleIntermediate
+    case rightLittleDistal
+
+    public static var supportedTransformBones: [VRMHumanoidBoneName] {
+        allCases
+    }
+}
+
+public extension VRMCVrmHumanBones {
+    func node(for boneName: VRMHumanoidBoneName) -> NodeIndex? {
+        switch boneName {
+        case .hips: hips.node
+        case .spine: spine.node
+        case .chest: chest?.node
+        case .upperChest: upperChest?.node
+        case .neck: neck?.node
+        case .head: head.node
+        case .leftEye: leftEye?.node
+        case .rightEye: rightEye?.node
+        case .jaw: jaw?.node
+        case .leftUpperLeg: leftUpperLeg.node
+        case .leftLowerLeg: leftLowerLeg.node
+        case .leftFoot: leftFoot.node
+        case .leftToes: leftToes?.node
+        case .rightUpperLeg: rightUpperLeg.node
+        case .rightLowerLeg: rightLowerLeg.node
+        case .rightFoot: rightFoot.node
+        case .rightToes: rightToes?.node
+        case .leftShoulder: leftShoulder?.node
+        case .leftUpperArm: leftUpperArm.node
+        case .leftLowerArm: leftLowerArm.node
+        case .leftHand: leftHand.node
+        case .rightShoulder: rightShoulder?.node
+        case .rightUpperArm: rightUpperArm.node
+        case .rightLowerArm: rightLowerArm.node
+        case .rightHand: rightHand.node
+        case .leftThumbMetacarpal: leftThumbMetacarpal?.node
+        case .leftThumbProximal: leftThumbProximal?.node
+        case .leftThumbDistal: leftThumbDistal?.node
+        case .leftIndexProximal: leftIndexProximal?.node
+        case .leftIndexIntermediate: leftIndexIntermediate?.node
+        case .leftIndexDistal: leftIndexDistal?.node
+        case .leftMiddleProximal: leftMiddleProximal?.node
+        case .leftMiddleIntermediate: leftMiddleIntermediate?.node
+        case .leftMiddleDistal: leftMiddleDistal?.node
+        case .leftRingProximal: leftRingProximal?.node
+        case .leftRingIntermediate: leftRingIntermediate?.node
+        case .leftRingDistal: leftRingDistal?.node
+        case .leftLittleProximal: leftLittleProximal?.node
+        case .leftLittleIntermediate: leftLittleIntermediate?.node
+        case .leftLittleDistal: leftLittleDistal?.node
+        case .rightThumbMetacarpal: rightThumbMetacarpal?.node
+        case .rightThumbProximal: rightThumbProximal?.node
+        case .rightThumbDistal: rightThumbDistal?.node
+        case .rightIndexProximal: rightIndexProximal?.node
+        case .rightIndexIntermediate: rightIndexIntermediate?.node
+        case .rightIndexDistal: rightIndexDistal?.node
+        case .rightMiddleProximal: rightMiddleProximal?.node
+        case .rightMiddleIntermediate: rightMiddleIntermediate?.node
+        case .rightMiddleDistal: rightMiddleDistal?.node
+        case .rightRingProximal: rightRingProximal?.node
+        case .rightRingIntermediate: rightRingIntermediate?.node
+        case .rightRingDistal: rightRingDistal?.node
+        case .rightLittleProximal: rightLittleProximal?.node
+        case .rightLittleIntermediate: rightLittleIntermediate?.node
+        case .rightLittleDistal: rightLittleDistal?.node
+        }
+    }
+}
+
+public struct VRMCVrmHumanBone: Codable, Equatable {
+    public let node: NodeIndex
+}
+
+public struct VRMCVrmFirstPerson: Codable, Equatable {
+    public let meshAnnotations: [VRMCVrmMeshAnnotation]?
+}
+
+public struct VRMCVrmMeshAnnotation: Codable, Equatable {
+    public let node: NodeIndex
+    public let type: VRMCVrmFirstPersonType
+}
+
+public enum VRMCVrmFirstPersonType: String, Codable, Equatable {
+    case auto
+    case both
+    case thirdPersonOnly
+    case firstPersonOnly
+}
+
+public struct VRMCVrmLookAt: Codable, Equatable {
+    public let offsetFromHeadBone: [Float]?
+    public let type: VRMCVrmLookAtType?
+    public let rangeMapHorizontalInner: VRMCVrmLookAtRangeMap?
+    public let rangeMapHorizontalOuter: VRMCVrmLookAtRangeMap?
+    public let rangeMapVerticalDown: VRMCVrmLookAtRangeMap?
+    public let rangeMapVerticalUp: VRMCVrmLookAtRangeMap?
+}
+
+public enum VRMCVrmLookAtType: String, Codable, Equatable {
+    case bone
+    case expression
+}
+
+public struct VRMCVrmLookAtRangeMap: Codable, Equatable {
+    public let inputMaxValue: Float?
+    public let outputScale: Float?
+}
+
+public struct VRMCVrmExpressions: Codable, Equatable {
+    public let preset: VRMCVrmPresetExpressions?
+    public let custom: [String: VRMCVrmExpression]?
+}
+
+public struct VRMCVrmPresetExpressions: Codable, Equatable {
+    public let happy: VRMCVrmExpression?
+    public let angry: VRMCVrmExpression?
+    public let sad: VRMCVrmExpression?
+    public let relaxed: VRMCVrmExpression?
+    public let surprised: VRMCVrmExpression?
+    public let aa: VRMCVrmExpression?
+    public let ih: VRMCVrmExpression?
+    public let ou: VRMCVrmExpression?
+    public let ee: VRMCVrmExpression?
+    public let oh: VRMCVrmExpression?
+    public let blink: VRMCVrmExpression?
+    public let blinkLeft: VRMCVrmExpression?
+    public let blinkRight: VRMCVrmExpression?
+    public let lookUp: VRMCVrmExpression?
+    public let lookDown: VRMCVrmExpression?
+    public let lookLeft: VRMCVrmExpression?
+    public let lookRight: VRMCVrmExpression?
+    public let neutral: VRMCVrmExpression?
+}
+
+public struct VRMCVrmExpression: Codable, Equatable {
+    public let morphTargetBinds: [VRMCVrmMorphTargetBind]?
+    public let materialColorBinds: [VRMCVrmMaterialColorBind]?
+    public let textureTransformBinds: [VRMCVrmTextureTransformBind]?
+    public let isBinary: Bool
+    public let overrideBlink: VRMCVrmExpressionOverrideType
+    public let overrideLookAt: VRMCVrmExpressionOverrideType
+    public let overrideMouth: VRMCVrmExpressionOverrideType
+
+    enum CodingKeys: String, CodingKey {
+        case morphTargetBinds
+        case materialColorBinds
+        case textureTransformBinds
+        case isBinary
+        case overrideBlink
+        case overrideLookAt
+        case overrideMouth
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.morphTargetBinds = try container.decodeIfPresent([VRMCVrmMorphTargetBind].self, forKey: .morphTargetBinds)
+        self.materialColorBinds = try container.decodeIfPresent([VRMCVrmMaterialColorBind].self, forKey: .materialColorBinds)
+        self.textureTransformBinds = try container.decodeIfPresent([VRMCVrmTextureTransformBind].self, forKey: .textureTransformBinds)
+        self.isBinary = try container.decodeIfPresent(Bool.self, forKey: .isBinary) ?? false
+        self.overrideBlink = try container.decodeIfPresent(VRMCVrmExpressionOverrideType.self, forKey: .overrideBlink) ?? .none
+        self.overrideLookAt = try container.decodeIfPresent(VRMCVrmExpressionOverrideType.self, forKey: .overrideLookAt) ?? .none
+        self.overrideMouth = try container.decodeIfPresent(VRMCVrmExpressionOverrideType.self, forKey: .overrideMouth) ?? .none
+    }
+}
+
+public enum VRMCVrmExpressionOverrideType: String, Codable, Equatable {
+    case none
+    case block
+    case blend
+}
+
+public enum VRMExpressionKey: Hashable {
+    case happy
+    case angry
+    case sad
+    case relaxed
+    case surprised
+    case aa
+    case ih
+    case ou
+    case ee
+    case oh
+    case blink
+    case blinkLeft
+    case blinkRight
+    case lookUp
+    case lookDown
+    case lookLeft
+    case lookRight
+    case neutral
+    case custom(String)
+
+    public var name: String {
+        switch self {
+        case .happy: "happy"
+        case .angry: "angry"
+        case .sad: "sad"
+        case .relaxed: "relaxed"
+        case .surprised: "surprised"
+        case .aa: "aa"
+        case .ih: "ih"
+        case .ou: "ou"
+        case .ee: "ee"
+        case .oh: "oh"
+        case .blink: "blink"
+        case .blinkLeft: "blinkLeft"
+        case .blinkRight: "blinkRight"
+        case .lookUp: "lookUp"
+        case .lookDown: "lookDown"
+        case .lookLeft: "lookLeft"
+        case .lookRight: "lookRight"
+        case .neutral: "neutral"
+        case .custom(let name): name
+        }
+    }
+
+    public var isPreset: Bool {
+        switch self {
+        case .custom:
+            false
+        default:
+            true
+        }
+    }
+
+    public init?(presetName: String) {
+        switch presetName {
+        case "happy": self = .happy
+        case "angry": self = .angry
+        case "sad": self = .sad
+        case "relaxed": self = .relaxed
+        case "surprised": self = .surprised
+        case "aa": self = .aa
+        case "ih": self = .ih
+        case "ou": self = .ou
+        case "ee": self = .ee
+        case "oh": self = .oh
+        case "blink": self = .blink
+        case "blinkLeft": self = .blinkLeft
+        case "blinkRight": self = .blinkRight
+        case "lookUp": self = .lookUp
+        case "lookDown": self = .lookDown
+        case "lookLeft": self = .lookLeft
+        case "lookRight": self = .lookRight
+        case "neutral": self = .neutral
+        default: return nil
+        }
+    }
+}
+
+public enum VRM0BlendShapePresetName {
+    public static let unknown = "unknown"
+}
+
+public func normalizeVRM0PresetName(_ name: String) -> String {
+    switch name.lowercased() {
+    case "joy": "happy"
+    case "sorrow": "sad"
+    case "fun": "relaxed"
+    case "a": "aa"
+    case "i": "ih"
+    case "u": "ou"
+    case "e": "ee"
+    case "o": "oh"
+    case "blink_l", "blinkleft": "blinkLeft"
+    case "blink_r", "blinkright": "blinkRight"
+    case "lookup": "lookUp"
+    case "lookdown": "lookDown"
+    case "lookleft": "lookLeft"
+    case "lookright": "lookRight"
+    default: name.lowercased()
+    }
+}
+
+public func normalizeVRM0ExpressionKey(from group: VRM0BlendShapeGroup) -> VRMExpressionKey? {
+    let rawName = group.presetName ?? group.name
+    guard let rawName, !rawName.isEmpty else { return nil }
+    let normalized = normalizeVRM0PresetName(rawName)
+    if normalized == VRM0BlendShapePresetName.unknown {
+        return .custom(group.name ?? rawName)
+    }
+    if let presetKey = VRMExpressionKey(presetName: normalized) {
+        return presetKey
+    }
+    return .custom(group.name ?? rawName)
+}
+
+public struct VRMCVrmMorphTargetBind: Codable, Equatable {
+    public let node: NodeIndex
+    public let index: Int
+    public let weight: Float
+}
+
+public struct VRMCVrmMaterialColorBind: Codable, Equatable {
+    public let material: Int
+    public let type: VRMCVrmMaterialColorType
+    public let targetValue: [Float]
+}
+
+public enum VRMCVrmMaterialColorType: String, Codable, Equatable {
+    case color
+    case emissionColor
+    case shadeColor
+    case matcapColor
+    case rimColor
+    case outlineColor
+}
+
+public struct VRMCVrmTextureTransformBind: Codable, Equatable {
+    public let material: Int
+    public let scale: [Float]
+    public let offset: [Float]
+
+    enum CodingKeys: String, CodingKey {
+        case material
+        case scale
+        case offset
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.material = try container.decode(Int.self, forKey: .material)
+        self.scale = try container.decodeIfPresent([Float].self, forKey: .scale) ?? [1, 1]
+        self.offset = try container.decodeIfPresent([Float].self, forKey: .offset) ?? [0, 0]
     }
 }

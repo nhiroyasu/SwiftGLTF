@@ -110,6 +110,8 @@ public class PBRRenderer {
             cameraIndex,
             freeCameraUniforms,
             animationState,
+            vrmHumanoidRotations,
+            vrmExpressionWeights,
             renderingState,
             showsSkybox
         ):
@@ -120,12 +122,49 @@ public class PBRRenderer {
                 freeCameraUniforms: freeCameraUniforms
             )
 
-            var animationFence: MTLFence?
-            if let animationState = animationState {
-                animationFence = encodeAnimation(
-                    meshBundle: indirectRenderState.meshBundle,
+            let meshBundle = indirectRenderState.meshBundle
+            var nodeTransformFence: MTLFence?
+            let needsNodeTransformUpdate =
+                (animationState != nil && meshBundle.needsAnimationPass)
+                || !vrmHumanoidRotations.isEmpty
+                || !meshBundle.vrmExpressions.isEmpty
+            if needsNodeTransformUpdate {
+                var localTransforms = meshBundle.nodeLevelHierarchy.localTransforms
+                var morphWeights = meshBundle.originMorphWeights
+                let morphDispatches = meshBundle.morphDispatches
+
+                if !vrmHumanoidRotations.isEmpty {
+                    applyVRMHumanoidRotations(
+                        vrmHumanoidRotations,
+                        to: &localTransforms,
+                        meshBundle: meshBundle
+                    )
+                }
+
+                if let animationState {
+                    applyAnimation(
+                        animationState,
+                        to: &localTransforms,
+                        morphWeights: &morphWeights,
+                        morphDispatches: morphDispatches,
+                        meshBundle: meshBundle
+                    )
+                }
+
+                if !meshBundle.vrmExpressions.isEmpty {
+                    morphWeights = resolveVRMExpressionMorphWeights(
+                        for: morphWeights,
+                        input: vrmExpressionWeights,
+                        definitions: meshBundle.vrmExpressions,
+                        morphDispatches: morphDispatches
+                    )
+                }
+
+                nodeTransformFence = encodeNodeTransforms(
+                    meshBundle: meshBundle,
                     commandBuffer: commandBuffer,
-                    animationState: animationState
+                    localTransforms: localTransforms,
+                    morphWeights: morphWeights
                 )
             }
 
@@ -141,63 +180,22 @@ public class PBRRenderer {
                 freeCameraUniformsBuffer: frameInFlightResources.freeCameraUniformsBuffer,
                 modelMatrixBuffer: frameInFlightResources.modelMatrixBuffer,
                 showsSkybox: showsSkybox,
-                waitFence: animationFence
+                waitFence: nodeTransformFence
             )
         }
     }
 
-    private func encodeAnimation(
+    private func encodeNodeTransforms(
         meshBundle: PBRMeshBundle,
         commandBuffer cb: MTLCommandBuffer,
-        animationState state: RendererAnimationState
+        localTransforms: [float4x4],
+        morphWeights: [Float]
     ) -> MTLFence? {
-        guard meshBundle.needsAnimationPass else {
-            // No animation to process
-            return nil
-        }
         guard let en = cb.makeComputeCommandEncoder() else {
             logger.error("Failed to create compute command encoder")
             return nil
         }
-        en.label = "[SwiftGLTF] Animation Update Encoder"
-
-        var localTransforms = meshBundle.nodeLevelHierarchy.localTransforms
-        var morphWeights = meshBundle.originMorphWeights
-        var morphDispatches = meshBundle.morphDispatches
-
-        for animation in meshBundle.animations {
-            let trs = evaluateTRS(
-                type: animation.type,
-                interpolation: animation.interpolation,
-                keyFrameTimes: animation.keyframes,
-                duration: animation.duration,
-                time: state.time,
-                looping: state.isLooping
-            )
-            let weights = evaluateWeights(
-                type: animation.type,
-                interpolation: animation.interpolation,
-                keyFrameTimes: animation.keyframes,
-                duration: animation.duration,
-                time: state.time,
-                looping: state.isLooping
-            )
-
-            let target = animation.targetNode
-
-            localTransforms[target] = trs.apply(localTransforms[target])
-
-            let dispatch = morphDispatches[target]
-            if dispatch.length == 0 {
-                morphWeights.insert(contentsOf: weights, at: Int(dispatch.offset))
-                morphDispatches[target] = MorphDispatch(
-                    offset: dispatch.offset,
-                    length: Int64(weights.count)
-                )
-            } else {
-                morphWeights.replaceSubrange(Int(dispatch.offset)..<Int(dispatch.offset + dispatch.length), with: weights)
-            }
-        }
+        en.label = "[SwiftGLTF] Node Transform Update Encoder"
 
         let nlh = meshBundle.nodeLevelHierarchy.copy(localTransforms: localTransforms)
         do {
@@ -217,16 +215,73 @@ public class PBRRenderer {
         }
         en.updateFence(fence)
 
-        meshBundle.morphWeightsBuffer.contents().copyMemory(
-            from: &morphWeights,
-            byteCount: MemoryLayout<Float>.size * morphWeights.count
-        )
-        meshBundle.morphDispatchesBuffer.contents().copyMemory(
-            from: &morphDispatches,
-            byteCount: MemoryLayout<MorphDispatch>.size * morphDispatches.count
-        )
+        if !morphWeights.isEmpty {
+            morphWeights.withUnsafeBytes {
+                guard let baseAddress = $0.baseAddress else { return }
+                meshBundle.morphWeightsBuffer.contents().copyMemory(
+                    from: baseAddress,
+                    byteCount: $0.count
+                )
+            }
+        }
 
         return fence
+    }
+
+    private func applyVRMHumanoidRotations(
+        _ rotations: [VRMHumanoidBoneName: SIMD3<Float>],
+        to localTransforms: inout [float4x4],
+        meshBundle: PBRMeshBundle
+    ) {
+        for (boneName, rotation) in rotations {
+            guard let target = meshBundle.vrmHumanoidNodeMap[boneName],
+                  localTransforms.indices.contains(target.value) else {
+                continue
+            }
+            var trs = decomposeTRS(localTransforms[target.value])
+            trs.rotation = simd_normalize(trs.rotation * quaternion(fromEulerDegrees: rotation))
+            localTransforms[target.value] = trs2matrix(trs)
+        }
+    }
+
+    private func applyAnimation(
+        _ animationState: RendererAnimationState,
+        to localTransforms: inout [float4x4],
+        morphWeights: inout [Float],
+        morphDispatches: [MorphDispatch],
+        meshBundle: PBRMeshBundle
+    ) {
+        for animation in meshBundle.animations {
+            let trs = evaluateTRS(
+                type: animation.type,
+                interpolation: animation.interpolation,
+                keyFrameTimes: animation.keyframes,
+                duration: animation.duration,
+                time: animationState.time,
+                looping: animationState.isLooping
+            )
+            let weights = evaluateWeights(
+                type: animation.type,
+                interpolation: animation.interpolation,
+                keyFrameTimes: animation.keyframes,
+                duration: animation.duration,
+                time: animationState.time,
+                looping: animationState.isLooping
+            )
+
+            let target = animation.targetNode.value
+
+            localTransforms[target] = trs.apply(localTransforms[target])
+
+            if !weights.isEmpty {
+                let dispatch = morphDispatches[target]
+                let length = Int(dispatch.length)
+                let offset = Int(dispatch.offset)
+                if offset >= 0, length > 0 {
+                    morphWeights.replaceSubrange(offset..<offset + length, with: weights.prefix(length))
+                }
+            }
+        }
     }
 
     private func encodeRenderingMesh(

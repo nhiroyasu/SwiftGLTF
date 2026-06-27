@@ -42,6 +42,8 @@ public struct PBRMeshBundle: Identifiable {
     let nodeLevelHierarchy: NodeLevelHierarchy
     let originMorphWeights: [Float]
     let morphDispatches: [MorphDispatch]
+    let vrmHumanoidNodeMap: [VRMHumanoidBoneName: NodeIndex]
+    let vrmExpressions: [VRMExpression]
 
     // Resources
     let vertexHeaps: [MTLHeap]
@@ -60,7 +62,7 @@ public struct PBRMeshBundle: Identifiable {
 }
 
 struct PBRMeshAnimation {
-    let targetNode: NodeHierarchyOffset
+    let targetNode: NodeIndex
     let type: GLTFAnimationType
     let keyframes: [Float]
     let duration: Float
@@ -71,7 +73,6 @@ struct PBRMesh {
     let vertexBuffer: MTLBuffer
     let vertexArgumentBuffer: MTLBuffer
     let submeshes: [Submesh]
-    let modelMatrix: float4x4 // TODO: delete
     let transformIndex: Int
     let vertexCount: Int
     let positionStride: Int

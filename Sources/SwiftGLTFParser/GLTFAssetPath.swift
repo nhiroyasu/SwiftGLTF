@@ -1,4 +1,5 @@
 import ModelIO
+import SwiftGLTFCore
 
 public enum GLTFAssetPath {
     public static var scenes: String {
@@ -7,8 +8,8 @@ public enum GLTFAssetPath {
     public static func scene(_ i: Int) -> String {
         "/\(GLTFAssetName.scenes)/\(GLTFAssetName.scene(i))"
     }
-    public static func nodes(atScene: Int) -> String {
-        "\(Self.scene(atScene))/\(GLTFAssetName.nodes)"
+    public static var nodes: String {
+        "/\(GLTFAssetName.nodes)"
     }
     public static var cameras: String {
         "/\(GLTFAssetName.cameras)"
@@ -24,6 +25,15 @@ public enum GLTFAssetPath {
     }
     public static var skins: String {
         "/\(GLTFAssetName.libraries)/\(GLTFAssetName.skins)"
+    }
+    public static var vrm: String {
+        "/\(GLTFAssetName.libraries)/\(GLTFAssetName.vrm)"
+    }
+    public static var vrmHumanoid: String {
+        "/\(GLTFAssetName.libraries)/\(GLTFAssetName.vrm)/\(GLTFAssetName.vrmHumanoid)"
+    }
+    public static var vrmExpressions: String {
+        "/\(GLTFAssetName.libraries)/\(GLTFAssetName.vrm)/\(GLTFAssetName.vrmExpressions)"
     }
     public static var meshes: String {
         "/\(GLTFAssetName.libraries)/\(GLTFAssetName.meshes)"
@@ -41,7 +51,11 @@ public enum GLTFAssetName {
     public static let materials = "Materials"
     public static let variants = "Variants"
     public static let skins = "Skins"
+    public static let vrm = "VRM"
+    public static let vrmHumanoid = "Humanoid"
+    public static let vrmExpressions = "Expressions"
     public static let meshes = "Meshes"
     public static let cameras = "Cameras"
     public static func primitive(_ i: Int) -> String { "Primitive_\(i)" }
+    public static func node(_ i: NodeIndex) -> String { "Node_\(i.value)" }
 }

@@ -34,19 +34,6 @@ public class GLTFAnimationChannel: NSObject {
     public let interpolation: GLTFInterpolation
     public let input: [Float]  // keyframe times in seconds
 
-    private var _targetNode: MDLObject? = nil
-    public var targetNodePath: String { _targetNode?.path ?? "" }
-    public var targetNode: MDLObject {
-        if let _targetNode {
-            return _targetNode
-        } else {
-            fatalError("Target node not set for animation targeting node index \(targetNodeIndex)")
-        }
-    }
-    public func bind(_ object: MDLObject) {
-        _targetNode = object
-    }
-
     init(
         type: GLTFAnimationType,
         targetNodeIndex: NodeIndex,

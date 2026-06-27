@@ -24,10 +24,8 @@ struct SimpleSkinTests {
         let skin = asset.object(atPath: GLTFAssetPath.skins).children.objects.first as! GLTFSkin
 
         #expect(skin.joints == [1, 2])
-        #expect(skin.jointObjects == [
-            asset.object(atPath: GLTFAssetPath.nodes(atScene: 0) + "/Node_1"),
-            asset.object(atPath: GLTFAssetPath.nodes(atScene: 0) + "/Node_1/Node_2")
-        ])
+        #expect(asset.object(atPath: "\(GLTFAssetPath.nodes)/Node_1").name == "Node_1")
+        #expect(asset.object(atPath: "\(GLTFAssetPath.nodes)/Node_2").name == "Node_2")
 
         let expectedInverseBindMatrices = MDLMatrix4x4Array(elementCount: 2)
         expectedInverseBindMatrices.float4x4Array = [
@@ -41,7 +39,7 @@ struct SimpleSkinTests {
         ]
         #expect(skin.inverseBindMatrices.float4x4Array == expectedInverseBindMatrices.float4x4Array)
         #expect(skin.inverseBindMatrices.elementCount == expectedInverseBindMatrices.elementCount)
-        #expect(skin.jointPaths == ["\(GLTFAssetPath.nodes(atScene: 0))/Node_1", "\(GLTFAssetPath.nodes(atScene: 0))/Node_1/Node_2"])
+        #expect(skin.jointPaths == ["\(GLTFAssetPath.nodes)/Node_1", "\(GLTFAssetPath.nodes)/Node_2"])
     }
 
     // MARK: - Helper Methods

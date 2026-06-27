@@ -1,6 +1,7 @@
 import MetalKit
 import Accelerate
 import SwiftGLTFParser
+import SwiftGLTFCore
 
 class WireframeMeshLoader {
     private let device: MTLDevice
@@ -20,17 +21,23 @@ class WireframeMeshLoader {
     }
 
     func loadMeshes(from asset: MDLAsset) throws -> WireframeMeshBundle {
-        let scene = asset.object(atPath: GLTFAssetPath.scene(SCENE_INDEX))
-        let nodeLevelHierarchy = makeNodeLevelHierarchy(root: scene)
+        guard let nodesRoot = asset.objectSafe(atPath: GLTFAssetPath.nodes) else {
+            throw SwiftGLTFRendererError(description: "Nodes not found")
+        }
+        let nodeLevelHierarchy = makeNodeLevelHierarchy(nodesRoot: nodesRoot)
         let worldTransformsBuffer = try shaderConnection.computeWorldMatrices(nodeLevelHierarchy: nodeLevelHierarchy)
 
-        let nodes = asset.object(atPath: GLTFAssetPath.nodes(atScene: SCENE_INDEX))
-        let wireframeMeshes: [WireframeMesh] = try loadRecursiveMeshes(
-            device: device,
-            obj: nodes,
-            primitiveMeshes: asset.primitiveMeshes,
-            nodeLevelHierarchy: nodeLevelHierarchy
-        )
+        var wireframeMeshes: [WireframeMesh] = []
+        for rootNodeIndex in asset.sceneRootNodes(at: SCENE_INDEX) {
+            let meshes = try loadRecursiveMeshes(
+                device: device,
+                asset: asset,
+                nodeIndex: rootNodeIndex,
+                primitiveMeshes: asset.primitiveMeshes,
+                nodeLevelHierarchy: nodeLevelHierarchy
+            )
+            wireframeMeshes.append(contentsOf: meshes)
+        }
 
         return WireframeMeshBundle(
             meshes: wireframeMeshes,
@@ -40,10 +47,14 @@ class WireframeMeshLoader {
 
     private func loadRecursiveMeshes(
         device: MTLDevice,
-        obj: MDLObject,
+        asset: MDLAsset,
+        nodeIndex: NodeIndex,
         primitiveMeshes: [GLTFPrimitiveMesh],
         nodeLevelHierarchy: NodeLevelHierarchy
     ) throws -> [WireframeMesh] {
+        guard let obj = asset.node(at: nodeIndex) else {
+            throw SwiftGLTFRendererError(description: "Node \(nodeIndex.value) not found")
+        }
         var wireframeMeshes: [WireframeMesh] = []
 
         if let meshRef = obj.component(ofType: GLTFMeshRef.self) {
@@ -63,17 +74,19 @@ class WireframeMeshLoader {
 
                 let wireframeMesh = WireframeMesh(
                     vertexBuffer: mtkMesh.vertexBuffers[0].buffer,
-                    transformIndex: nodeLevelHierarchy.objectToIndex[ObjectIdentifier(obj)]!,
+                    transformIndex: nodeIndex.value,
                     submeshes: submeshes,
                 )
                 wireframeMeshes.append(wireframeMesh)
             }
         }
 
-        for childObj in obj.children.objects {
+        let children = (obj.component(ofType: GLTFNodeMetadataProtocol.self) as? GLTFNodeMetadata)?.children ?? []
+        for childNodeIndex in children {
             let childMeshes = try loadRecursiveMeshes(
                 device: device,
-                obj: childObj,
+                asset: asset,
+                nodeIndex: childNodeIndex,
                 primitiveMeshes: primitiveMeshes,
                 nodeLevelHierarchy: nodeLevelHierarchy
             )

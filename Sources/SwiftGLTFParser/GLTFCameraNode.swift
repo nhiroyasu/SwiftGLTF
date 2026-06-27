@@ -2,12 +2,12 @@ import ModelIO
 import SwiftGLTFCore
 
 public class GLTFCameraNode: MDLObject {
-    public let nodeIndex: Int
+    public let nodeIndex: NodeIndex
     public let cameraIndex: CameraIndex
     public let camera: MDLCamera
 
     public init(
-        nodeIndex: Int,
+        nodeIndex: NodeIndex,
         cameraIndex: CameraIndex,
         camera: MDLCamera
     ) {

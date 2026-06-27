@@ -32,6 +32,7 @@ public func makeMDLAsset(
     #endif
 
     let gltf = gltfBundle.gltf
+    try validateNodeHierarchy(gltf)
 
     let device = MTLCreateSystemDefaultDevice()!
     let allocator = MTKMeshBufferAllocator(device: device)
@@ -42,6 +43,10 @@ public func makeMDLAsset(
     scenesObject.name = GLTFAssetName.scenes
     scenesObject.setComponent(GLTFDefaultSceneImpl(index: gltf.scene ?? 0), for: GLTFDefaultScene.self)
     asset.add(scenesObject)
+
+    let nodesObject = MDLObject()
+    nodesObject.name = GLTFAssetName.nodes
+    asset.add(nodesObject)
 
     let camerasObject = MDLObject()
     camerasObject.name = GLTFAssetName.cameras
@@ -54,6 +59,36 @@ public func makeMDLAsset(
     let skinsObject = MDLObject()
     skinsObject.name = GLTFAssetName.skins
     librariesObject.addChild(skinsObject)
+
+    let vrmHumanoidNodeMap: [VRMHumanoidBoneName: NodeIndex]? = {
+        if let vrm = gltf.extensions?.vrmcVrm {
+            return Dictionary(
+                uniqueKeysWithValues: VRMHumanoidBoneName.allCases.compactMap { boneName in
+                    vrm.humanoid.humanBones.node(for: boneName).map { (boneName, $0) }
+                }
+            )
+        }
+        return gltf.extensions?.vrm0?.humanoid?.nodeMap
+    }()
+    let vrmExpressions = makeGLTFVRMExpressions(from: gltf)
+    if vrmHumanoidNodeMap != nil || vrmExpressions != nil {
+        let vrmObject = MDLObject()
+        vrmObject.name = GLTFAssetName.vrm
+        librariesObject.addChild(vrmObject)
+
+        if let vrmHumanoidNodeMap {
+            let humanoidObject = GLTFVRMHumanoid(
+                nodeMap: vrmHumanoidNodeMap
+            )
+            humanoidObject.name = GLTFAssetName.vrmHumanoid
+            vrmObject.addChild(humanoidObject)
+        }
+
+        if let vrmExpressions {
+            vrmExpressions.name = GLTFAssetName.vrmExpressions
+            vrmObject.addChild(vrmExpressions)
+        }
+    }
 
     let mdlMaterials = try makeMDLMaterials(gltf, binaryLoader)
     let materialsObject = GLTFMaterials(
@@ -127,7 +162,7 @@ public func makeMDLAsset(
     }
 
     // Skin nodes are added as children of the root asset
-    for (_, skin) in skinMap.sorted(by: { $0.key.value < $1.key.value }) { // TODO: mapだと順番が保証されない
+    for (_, skin) in skinMap.sorted(by: { $0.key.value < $1.key.value }) {
         skinsObject.addChild(skin)
     }
 
@@ -168,28 +203,25 @@ public func makeMDLAsset(
         camerasObject.addChild(mdlCamera)
     }
 
-    // Build the node tree
+    for (nodeIndex, _) in (gltf.nodes ?? []).enumerated() {
+        let nodeObject = buildNodeObject(
+            nodeIndex: NodeIndex(nodeIndex),
+            skinMap: skinMap,
+            cameraMap: cameraMap,
+            gltf: gltf,
+            options: options
+        )
+        nodesObject.addChild(nodeObject)
+    }
+
     for (i, scene) in (gltf.scenes ?? []).enumerated() {
         let sceneObject = MDLObject()
         sceneObject.name = GLTFAssetName.scene(i)
+        sceneObject.setComponent(
+            GLTFSceneRootNodes(nodes: (scene.nodes ?? []).map { NodeIndex($0) }),
+            for: GLTFSceneRootNodesProtocol.self
+        )
         scenesObject.addChild(sceneObject)
-
-        let nodesObj = MDLObject()
-        nodesObj.name = GLTFAssetName.nodes
-        sceneObject.addChild(nodesObj)
-
-        for rootNodeIndex in scene.nodes ?? [] {
-            let node = buildNodeTree(
-                nodeIndex: rootNodeIndex,
-                meshMap: mdlMeshMap,
-                skinMap: skinMap,
-                cameraMap: cameraMap,
-                animations: animations,
-                gltf: gltf,
-                options: options
-            )
-            nodesObj.addChild(node)
-        }
     }
 
     return asset
@@ -357,22 +389,73 @@ public func makeMDLMesh(
     return output
 }
 
-// 各ノードを再帰的に MDLObject に変換
-// en: Recursively convert each node to MDLObject
-func buildNodeTree(
-    nodeIndex: Int,
-    meshMap: [MeshIndex: [MDLMesh]],
+func validateNodeHierarchy(_ gltf: GLTF) throws {
+    let nodes = gltf.nodes ?? []
+    let nodeCount = nodes.count
+
+    func validateNodeIndex(_ index: Int, context: String) throws {
+        guard index >= 0 && index < nodeCount else {
+            throw SwiftGLTFParserError(description: "Invalid node index \(index) in \(context)")
+        }
+    }
+
+    var parentByChild: [Int: Int] = [:]
+    for (parentIndex, node) in nodes.enumerated() {
+        var localChildren: Set<Int> = []
+        for childIndex in node.children ?? [] {
+            try validateNodeIndex(childIndex, context: "node \(parentIndex).children")
+            guard localChildren.insert(childIndex).inserted else {
+                throw SwiftGLTFParserError(description: "Duplicate child node \(childIndex) in node \(parentIndex)")
+            }
+            guard parentByChild[childIndex] == nil else {
+                throw SwiftGLTFParserError(description: "Node \(childIndex) has multiple parents")
+            }
+            parentByChild[childIndex] = parentIndex
+        }
+    }
+
+    for (sceneIndex, scene) in (gltf.scenes ?? []).enumerated() {
+        var rootNodes: Set<Int> = []
+        for rootNodeIndex in scene.nodes ?? [] {
+            try validateNodeIndex(rootNodeIndex, context: "scene \(sceneIndex).nodes")
+            guard rootNodes.insert(rootNodeIndex).inserted else {
+                throw SwiftGLTFParserError(description: "Duplicate root node \(rootNodeIndex) in scene \(sceneIndex)")
+            }
+            if let parent = parentByChild[rootNodeIndex] {
+                throw SwiftGLTFParserError(description: "Scene \(sceneIndex) root node \(rootNodeIndex) is child of node \(parent)")
+            }
+        }
+    }
+
+    var visiting: Set<Int> = []
+    var visited: Set<Int> = []
+
+    func visit(_ index: Int) throws {
+        if visited.contains(index) { return }
+        guard visiting.insert(index).inserted else {
+            throw SwiftGLTFParserError(description: "Detected cyclic node hierarchy at node \(index)")
+        }
+        for childIndex in nodes[index].children ?? [] {
+            try visit(childIndex)
+        }
+        visiting.remove(index)
+        visited.insert(index)
+    }
+
+    for index in nodes.indices {
+        try visit(index)
+    }
+}
+
+func buildNodeObject(
+    nodeIndex: NodeIndex,
     skinMap: [SkinIndex: GLTFSkin],
     cameraMap: [CameraIndex: MDLCamera],
-    animations: [MDLObject],
     gltf: GLTF,
     options: GLTFDecodeOptions = .default
 ) -> MDLObject {
     let nodes = gltf.nodes ?? []
-    let node: Node = {
-        if nodes.indices.contains(nodeIndex) { return nodes[nodeIndex] }
-        return Node(name: nil, mesh: nil, skin: nil, weights: nil, children: nil, translation: nil, rotation: nil, scale: nil, matrix: nil, camera: nil)
-    }()
+    let node = nodes[nodeIndex.value]
 
     let object: MDLObject
     if let cameraIndex = node.camera, let mdlCamera = cameraMap[cameraIndex] {
@@ -384,9 +467,15 @@ func buildNodeTree(
     } else {
         object = MDLObject()
     }
-    object.name = node.name ?? "Node_\(nodeIndex)" // ノード名が無ければデフォルト名を設定. en: Set default name if node name is missing
-    // Attach glTF node index for later animation application
+    object.name = GLTFAssetName.node(nodeIndex)
     object.setComponent(GLTFNodeIndex(index: nodeIndex), for: GLTFNodeIndexProtocol.self)
+    object.setComponent(
+        GLTFNodeMetadata(
+            originalName: node.name,
+            children: (node.children ?? []).map { NodeIndex($0) }
+        ),
+        for: GLTFNodeMetadataProtocol.self
+    )
 
     // Add mesh if available
     if let meshIndex = node.mesh {
@@ -396,25 +485,6 @@ func buildNodeTree(
     // Add skin ref if available
     if let skinIndex = node.skin, let skin = skinMap[skinIndex] {
         object.setComponent(GLTFSkeletonRefImpl(skeleton: skin), for: GLTFSkeletonRef.self)
-    }
-    // Bind skeleton joints if this node is a joint
-    for skin in skinMap.values {
-        for (i, jointNodeIndex) in skin.joints.enumerated() {
-            if nodeIndex == jointNodeIndex.value {
-                skin.bind(object, for: i)
-            }
-        }
-    }
-
-    // Bind the animation channel to target node
-    for animObj in animations {
-        if let animComp = animObj.componentConforming(to: GLTFAnimation.self) as? GLTFAnimation {
-            for channel in animComp.channels {
-                if channel.targetNodeIndex.value == nodeIndex {
-                    channel.bind(object)
-                }
-            }
-        }
     }
 
     // Add morph  weights if available (per-node weights)
@@ -449,23 +519,6 @@ func buildNodeTree(
             scale = SIMD3<Float>(s[0], s[1], s[2])
         }
         object.transform = GLTFTransform(translation: translation, rotation: rotation, scale: scale)
-    }
-
-    // 子ノードを再帰的に追加
-    // en: Recursively add child nodes
-    if let children = node.children {
-        for childIndex in children {
-            let child = buildNodeTree(
-                nodeIndex: childIndex,
-                meshMap: meshMap,
-                skinMap: skinMap,
-                cameraMap: cameraMap,
-                animations: animations,
-                gltf: gltf,
-                options: options
-            )
-            object.addChild(child)
-        }
     }
 
     return object
