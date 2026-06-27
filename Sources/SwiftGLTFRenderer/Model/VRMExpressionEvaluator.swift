@@ -57,7 +57,6 @@ func resolveExpressionWeights(
         output[definition.key] = value
     }
 
-    // TODO: わざわざ enum VRMExpressionOverrideCategory 作って、3回同じメソッド呼ぶの違和感。普通にメソッド分けるか、ベタガキでも良さそう
     output = applyOverride(
         for: output,
         category: .blink,
