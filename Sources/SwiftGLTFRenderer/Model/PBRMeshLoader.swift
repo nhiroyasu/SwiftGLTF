@@ -44,15 +44,15 @@ public class PBRMeshLoader {
         }
         let sceneRootNodes = asset.sceneRootNodes(at: sceneIndex)
         let nodeLevelHierarchy = makeNodeLevelHierarchy(nodesRoot: nodesRoot)
-        let vrmHumanoidNodeMap = makeVRMHumanoidNodeMap(from: asset, with: nodeLevelHierarchy)
-        let vrmExpressions = makeVRMExpressions(from: asset, with: nodeLevelHierarchy)
+        let vrmHumanoidNodeMap = makeVRMHumanoidNodeMap(from: asset)
+        let vrmExpressions = makeVRMExpressions(from: asset)
 
         // Create command buffer for batching all operations
         let batchCommandBuffer = shaderConnection.commandQueue.makeCommandBuffer()!
 
         let worldTransformsBuffer = try shaderConnection.encodeComputeWorldMatrices(batchCommandBuffer, nodeLevelHierarchy: nodeLevelHierarchy)
 
-        let skinJoints: [NodeIndex] = makeSkinJoints(from: asset, with: nodeLevelHierarchy)
+        let skinJoints: [NodeIndex] = makeSkinJoints(from: asset)
         let skinJointValues = skinJoints.map(\.value)
         let jointsBuffer: MTLBuffer
         if !skinJoints.isEmpty {
@@ -69,7 +69,7 @@ public class PBRMeshLoader {
                 options: .storageModeShared
             )!
         }
-        let skinDispatchMap: [GLTFSkin: SkinDispatch] = extractSkinDispatchMap(from: asset, with: nodeLevelHierarchy)
+        let skinDispatchMap: [GLTFSkin: SkinDispatch] = extractSkinDispatchMap(from: asset)
 
         let inverseBindMatrices: [float4x4] = makeSkinInverseBindMatrices(from: asset)
         var inverseBindMatricesBuffer: MTLBuffer
@@ -88,7 +88,7 @@ public class PBRMeshLoader {
             )!
         }
 
-        var morphWeights: [Float] = makeMorphWeights(from: asset, with: nodeLevelHierarchy)
+        var morphWeights: [Float] = makeMorphWeights(from: asset)
         let morphWeightsBuffer: MTLBuffer
         if !morphWeights.isEmpty {
             morphWeightsBuffer = device.makeBuffer(
@@ -105,7 +105,7 @@ public class PBRMeshLoader {
                 options: .storageModeShared
             )!
         }
-        let morphDispatches: [MorphDispatch] = makeMorphDispatches(from: asset, with: nodeLevelHierarchy)
+        let morphDispatches: [MorphDispatch] = makeMorphDispatches(from: asset)
         let morphDispatchesBuffer = device.makeBuffer(
             bytes: morphDispatches,
             length: MemoryLayout<MorphDispatch>.size * morphDispatches.count,
@@ -118,7 +118,6 @@ public class PBRMeshLoader {
         #endif
         let pbrAnimations = makeAnimations(
             from: asset,
-            with: nodeLevelHierarchy,
             animationIndex: animationIndex ?? kDefaultAnimationIndex
         )
         #if DEBUG
@@ -195,8 +194,6 @@ public class PBRMeshLoader {
                 skinDispatchMap: skinDispatchMap,
                 vertexHeap: vertexMeshHeap,
                 fragmentHeap: fragmentHeap,
-                parentTransform: float4x4(1),
-                nodeLevelHierarchy: nodeLevelHierarchy,
                 gltfMaterials: gltfMaterials,
                 variantIndex: selectedVariantIndex
             )
@@ -271,8 +268,6 @@ public class PBRMeshLoader {
         skinDispatchMap: [GLTFSkin: SkinDispatch],
         vertexHeap: MTLHeap,
         fragmentHeap: MTLHeap,
-        parentTransform: float4x4,
-        nodeLevelHierarchy: NodeLevelHierarchy,
         gltfMaterials: GLTFMaterials?,
         variantIndex: Int?
     ) throws -> [PBRMesh] {
@@ -280,9 +275,6 @@ public class PBRMeshLoader {
             throw SwiftGLTFRendererError(description: "Node \(nodeIndex.value) not found")
         }
         var pbrMeshes: [PBRMesh] = []
-
-        let selfTransform = obj.transform?.matrix ?? simd_float4x4(1)
-        let totalTransform = parentTransform * selfTransform
 
         let skinDispatch: SkinDispatch
         if let skin = obj.component(ofType: GLTFSkeletonRef.self)?.skeleton {
@@ -296,16 +288,13 @@ public class PBRMeshLoader {
                 let pbrMesh = try makePBRMesh(
                     device: device,
                     commandBuffer: commandBuffer,
-                    obj: obj,
                     mdlMesh: mdlMesh,
                     vertexHeap: vertexHeap,
                     fragmentHeap: fragmentHeap,
                     meshBufferMap: meshBufferMap,
                     textureMap: textureMap,
-                    totalTransform: totalTransform,
                     skinDispatch: skinDispatch,
                     nodeIndex: nodeIndex,
-                    nodeLevelHierarchy: nodeLevelHierarchy,
                     gltfMaterials: gltfMaterials,
                     variantIndex: variantIndex
                 )
@@ -327,8 +316,6 @@ public class PBRMeshLoader {
                 skinDispatchMap: skinDispatchMap,
                 vertexHeap: vertexHeap,
                 fragmentHeap: fragmentHeap,
-                parentTransform: totalTransform,
-                nodeLevelHierarchy: nodeLevelHierarchy,
                 gltfMaterials: gltfMaterials,
                 variantIndex: variantIndex
             )
@@ -341,38 +328,19 @@ public class PBRMeshLoader {
     private func makePBRMesh(
         device: MTLDevice,
         commandBuffer: MTLCommandBuffer,
-        obj: MDLObject,
         mdlMesh: MDLMesh,
         vertexHeap: MTLHeap,
         fragmentHeap: MTLHeap,
         meshBufferMap: [MDLMesh: MTKMeshBufferHeapData],
         textureMap: [MDLTexture: MTLTexture],
-        totalTransform: float4x4,
         skinDispatch: SkinDispatch?,
         nodeIndex: NodeIndex,
-        nodeLevelHierarchy: NodeLevelHierarchy,
         gltfMaterials: GLTFMaterials?,
         variantIndex: Int?
     ) throws -> PBRMesh {
         guard let meshData = meshBufferMap[mdlMesh] else {
             throw SwiftGLTFRendererError(description: "Failed to create mesh")
         }
-
-        // Model & Inverse Model matrix buffers
-        var model = totalTransform
-        var inverseModel = model.inverse
-        let tmpModelBuffer = device.makeBuffer(bytes: &model, length: MemoryLayout<float4x4>.size)!
-        let tmpInverseModelBuffer = device.makeBuffer(bytes: &inverseModel, length: MemoryLayout<float4x4>.size)!
-        let modelBuffer = try shaderConnection.encodeTransportToHeap(
-            commandBuffer,
-            from: tmpModelBuffer,
-            use: vertexHeap
-        )
-        let inverseModelBuffer = try shaderConnection.encodeTransportToHeap(
-            commandBuffer,
-            from: tmpInverseModelBuffer,
-            use: vertexHeap
-        )
 
         // Morph data detection on this mesh
         var morphCount: UInt32 = 0
@@ -406,10 +374,7 @@ public class PBRMeshLoader {
         let transformIndex = nodeIndex.value
         let morphDispatchIndex: Int = transformIndex
 
-        // Create vertex argument buffer
         var sourceVertexArgument = PBRVertexArguments(
-            model: model,
-            inverseModel: inverseModel,
             morphTargetCount: morphCount,
             morphVertexCount: morphVertexCount,
             morphDefaultWeights: morphWeightsBuffer?.gpuAddress ?? 0,
@@ -528,18 +493,17 @@ public class PBRMeshLoader {
             vertexBuffer: meshData.vertexBuffer,
             vertexArgumentBuffer: vertexArgumentBuffer,
             submeshes: submeshes,
-            modelMatrix: model,
             transformIndex: transformIndex,
             vertexCount: meshData.raw.vertexCount,
             positionStride: positionStride,
             positionOffset: positionOffset,
             renderingType: renderingType,
-            _storedHeapInstance: [morphInterleavedBuffer, morphWeightsBuffer, modelBuffer, inverseModelBuffer, sourceVertexArgumentBuffer]
+            _storedHeapInstance: [morphInterleavedBuffer, morphWeightsBuffer, sourceVertexArgumentBuffer]
         )
         return pbrMesh
     }
 
-    func makeSkinJoints(from asset: MDLAsset, with nodeLevelHierarchy: NodeLevelHierarchy) -> [NodeIndex] {
+    func makeSkinJoints(from asset: MDLAsset) -> [NodeIndex] {
         var skinJoints: [NodeIndex] = []
 
         for joint in asset.skins.flatMap({ $0.joints }) {
@@ -553,7 +517,7 @@ public class PBRMeshLoader {
         return skinJoints
     }
 
-    func makeVRMHumanoidNodeMap(from asset: MDLAsset, with nodeLevelHierarchy: NodeLevelHierarchy) -> [VRMHumanoidBoneName: NodeIndex] {
+    func makeVRMHumanoidNodeMap(from asset: MDLAsset) -> [VRMHumanoidBoneName: NodeIndex] {
         guard let humanoid = asset.objectSafe(atPath: GLTFAssetPath.vrmHumanoid) as? GLTFVRMHumanoid else {
             return [:]
         }
@@ -569,7 +533,7 @@ public class PBRMeshLoader {
         return output
     }
 
-    func makeVRMExpressions(from asset: MDLAsset, with nodeLevelHierarchy: NodeLevelHierarchy) -> [VRMExpression] {
+    func makeVRMExpressions(from asset: MDLAsset) -> [VRMExpression] {
         guard let expressionsObject = asset.objectSafe(atPath: GLTFAssetPath.vrmExpressions) as? GLTFVRMExpressions else {
             return []
         }
@@ -619,7 +583,7 @@ public class PBRMeshLoader {
         return inverseBindMatrices
     }
 
-    func makeMorphWeights(from asset: MDLAsset, with nodeLevelHierarchy: NodeLevelHierarchy) -> [Float] {
+    func makeMorphWeights(from asset: MDLAsset) -> [Float] {
         var morphWeights: [Float] = []
 
         for obj in asset.gltfNodes {
@@ -633,7 +597,7 @@ public class PBRMeshLoader {
         return morphWeights
     }
 
-    func makeMorphDispatches(from asset: MDLAsset, with nodeLevelHierarchy: NodeLevelHierarchy) -> [MorphDispatch] {
+    func makeMorphDispatches(from asset: MDLAsset) -> [MorphDispatch] {
         var morphDispatches: [MorphDispatch] = []
 
         var offset: Int64 = 0
@@ -675,7 +639,6 @@ public class PBRMeshLoader {
 
     func makeAnimations(
         from asset: MDLAsset,
-        with nodeLevelHierarchy: NodeLevelHierarchy,
         animationIndex: Int
     ) -> [PBRMeshAnimation] {
         guard let gltfAnimation = asset.animations as? GLTFAnimationContainer else { return [] }
@@ -701,7 +664,7 @@ public class PBRMeshLoader {
         return pbrAnimations
     }
 
-    func extractSkinDispatchMap(from asset: MDLAsset, with nodeLevelHierarchy: NodeLevelHierarchy) -> [GLTFSkin: SkinDispatch] {
+    func extractSkinDispatchMap(from asset: MDLAsset) -> [GLTFSkin: SkinDispatch] {
         var skinDispatchMap: [GLTFSkin: SkinDispatch] = [:]
 
         var offset: Int64 = 0
@@ -1005,9 +968,7 @@ public class PBRMeshLoader {
         let morphWeightsCount = extractMorphWeightsCount(from: asset, sceneIndex: sceneIndex)
         bufferSize += device.heapBufferSizeAndAlign(length: MemoryLayout<Float>.size).alignedSize * morphWeightsCount
 
-        // model matrix and inverse model matrix buffers
         let drawingMeshCount = extractNodeCount(from: asset, sceneIndex: sceneIndex)
-        bufferSize += device.heapBufferSizeAndAlign(length: MemoryLayout<float4x4>.size).alignedSize * drawingMeshCount * 2
 
         // vertex argument buffer
         bufferSize += device.heapBufferSizeAndAlign(length: MemoryLayout<PBRVertexArguments>.size).alignedSize * drawingMeshCount

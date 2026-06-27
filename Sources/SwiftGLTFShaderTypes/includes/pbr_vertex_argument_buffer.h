@@ -6,9 +6,6 @@
 #include "pbr.h"
 
 struct PBRVertexArguments {
-    AB_MATRIX4x4 model;
-    AB_MATRIX4x4 inverseModel;
-
     // Morph targets (optional)
     uint morphTargetCount;
     uint morphVertexCount;
